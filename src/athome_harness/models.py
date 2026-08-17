@@ -22,9 +22,7 @@ class PriceBreakdown(BaseModel):
     """
 
     rent: int = Field(ge=0, description="Monthly rent in yen.")
-    management_fee: int = Field(
-        default=0, ge=0, description="Monthly management fee in yen."
-    )
+    management_fee: int = Field(default=0, ge=0, description="Monthly management fee in yen.")
     deposit: int = Field(default=0, ge=0, description="Upfront deposit in yen.")
     key_money: int = Field(default=0, ge=0, description="Upfront key money in yen.")
 
@@ -46,29 +44,21 @@ class ListingSummary(BaseModel):
     url: str = Field(description="Canonical AtHome listing URL.")
     title: str = Field(description="Human-readable listing title.")
     address: str = Field(description="Street/presented address of the unit.")
-    station: str | None = Field(
-        default=None, description="Nearest station name, when known."
-    )
+    station: str | None = Field(default=None, description="Nearest station name, when known.")
     walk_minutes: float | None = Field(
         default=None, ge=0, description="Minutes walking from the station."
     )
     building_type: str | None = Field(
         default=None, description="Building category (e.g. apartment, house)."
     )
-    floors: str | None = Field(
-        default=None, description="Floor/build-height descriptor, raw text."
-    )
+    floors: str | None = Field(default=None, description="Floor/build-height descriptor, raw text.")
     age: float | None = Field(
         default=None, ge=0, description="Building age in years; None for new builds."
     )
     price: PriceBreakdown = Field(description="Monetary breakdown for the unit.")
-    floor_plan: str | None = Field(
-        default=None, description="Layout descriptor (e.g. 1LDK)."
-    )
+    floor_plan: str | None = Field(default=None, description="Layout descriptor (e.g. 1LDK).")
     area_m2: float = Field(ge=0, description="Floor area in square meters.")
-    usp_tags: list[str] = Field(
-        default_factory=list, description="Confirmed feature highlights."
-    )
+    usp_tags: list[str] = Field(default_factory=list, description="Confirmed feature highlights.")
     probable_negatives: list[str] = Field(
         default_factory=list,
         description="Features plausibly absent, from disabled-feature DOM markers.",
@@ -185,9 +175,7 @@ class RunReport(BaseModel):
     results_seen: int = Field(
         default=0, ge=0, description="Total listings harvested across all pages."
     )
-    pages_scraped: int = Field(
-        default=0, ge=0, description="Number of result pages fetched."
-    )
+    pages_scraped: int = Field(default=0, ge=0, description="Number of result pages fetched.")
     shortlist: list[ListingSummary] = Field(
         default_factory=list, description="Top-X shortlist from the LLM scorer."
     )

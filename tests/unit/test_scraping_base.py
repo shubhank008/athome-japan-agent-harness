@@ -73,9 +73,7 @@ def test_block_detected_marker_is_redacted() -> None:
     """The [BLOCK_DETECTED] marker strips query strings and credentials."""
     url = "https://user:secret@www.athome.co.jp/list/?PAGENO=2&x=1"
     exc = BlockDetected(url, "403")
-    assert str(exc) == (
-        "[BLOCK_DETECTED] url=<https://www.athome.co.jp/list/> signature=<403>"
-    )
+    assert str(exc) == ("[BLOCK_DETECTED] url=<https://www.athome.co.jp/list/> signature=<403>")
     assert "secret" not in str(exc)
     assert "PAGENO" not in str(exc)
 

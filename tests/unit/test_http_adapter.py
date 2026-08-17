@@ -59,13 +59,16 @@ def make_adapter(
     )
 
 
-@pytest.mark.parametrize("signature,status,body", [
-    (None, 200, "<html>ok</html>"),
-    ("403", 403, "<html>denied</html>"),
-    ("429", 429, "<html>slow down</html>"),
-    ("captcha", 200, "<html>reCAPTCHA</html>"),
-    ("captcha", 403, "<html>verify you are human</html>"),
-])
+@pytest.mark.parametrize(
+    "signature,status,body",
+    [
+        (None, 200, "<html>ok</html>"),
+        ("403", 403, "<html>denied</html>"),
+        ("429", 429, "<html>slow down</html>"),
+        ("captcha", 200, "<html>reCAPTCHA</html>"),
+        ("captcha", 403, "<html>verify you are human</html>"),
+    ],
+)
 def test_detect_signature(signature, status, body) -> None:
     """The block-signature mapper honors the documented signals."""
     assert _detect_signature(status, body) == signature
@@ -74,9 +77,7 @@ def test_detect_signature(signature, status, body) -> None:
 def test_fetch_html_returns_decoded_text() -> None:
     """A 200 response body with HTML text comes back decoded."""
     with respx.mock(base_url="https://www.athome.co.jp") as router:
-        router.get("/list/").mock(
-            return_value=httpx.Response(200, text="<html>居室</html>")
-        )
+        router.get("/list/").mock(return_value=httpx.Response(200, text="<html>居室</html>"))
         adapter, _ = make_adapter()
         assert adapter.fetch_html("https://www.athome.co.jp/list/") == "<html>居室</html>"
 
@@ -153,9 +154,7 @@ def test_proxy_rotate_and_recover_markers() -> None:
 def test_proxy_exhausted_raises_block_detected() -> None:
     """When the provider runs out of proxies, the block is surfaced."""
     with respx.mock(base_url="https://www.athome.co.jp") as router:
-        router.get("/list/").mock(
-            side_effect=[httpx.Response(403), httpx.Response(403)]
-        )
+        router.get("/list/").mock(side_effect=[httpx.Response(403), httpx.Response(403)])
         proxy = StubProxy(["http://proxy.invalid:8080"])
         adapter, _ = make_adapter(proxy_provider=proxy)
         with pytest.raises(BlockDetected):

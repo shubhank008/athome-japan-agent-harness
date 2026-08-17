@@ -4,17 +4,20 @@ Live project plan. Updated after every feature or update, per AGENTS.md.
 
 ## Current state
 
-M0 (project skeleton + hygiene) implemented and verified on branch
-`feat/001-m0-skeleton` (local, not pushed). Package `src/athome_harness/` with
-`config.py` (strict env parser + `Budgets`) and `models.py` (pydantic data models);
-`pyproject.toml` + exact-pinned `requirements.txt`; 31 unit tests green; ruff and
-mypy clean. No runtime behavior yet (no scraping, LLM, or store).
+M0 (project skeleton + hygiene) and M1 (scraper core) implemented and verified.
+M0: `config.py` (strict env parser + `Budgets`), `models.py` (pydantic data models),
+`pyproject.toml` + exact-pinned `requirements.txt`. M1: `scraping/base.py`
+(`BaseScraper`, `BlockDetected`, `ProxyProvider`), `scraping/rate_limiter.py`
+(token-bucket with jitter), `scraping/http_adapter.py` (httpx + selectolax DOM
+adapter with block detection and proxy rotation), `scraping/playwright_adapter.py`
+(scaffold), `scraping/proxy/base.py` + `scraping/proxy/webshare.py` (proxy rotation
+policy). 75 unit tests green; ruff and mypy clean. No LLM, store, or orchestration yet.
 
 ## Active feature
 
 | Feature | Spec | Status |
 |---------|------|--------|
-| 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | Spec approved in conversation; implementation not started |
+| 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0 and M1 done; M2-M8 pending |
 
 ## Feature 001 summary
 
@@ -34,7 +37,7 @@ revalidation, vision A/B benchmarks.
 | Milestone | Tasks | State |
 |-----------|-------|-------|
 | M0 Skeleton | T01-T04 | done (2026-07-08, `feat/001-m0-skeleton`, verified) |
-| M1 Scraper core | T05-T09 | todo |
+| M1 Scraper core | T05-T09 | done (2026-08-17, `feat/001-m1-scraper`, verified) |
 | M2 Filter map | T10-T13 | todo |
 | M3 Parsing | T14-T16 | todo |
 | M4 LLM layer | T17-T21 | todo |

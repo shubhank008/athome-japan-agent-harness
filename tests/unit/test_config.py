@@ -48,9 +48,7 @@ def test_budgets_defaults(settings: Settings) -> None:
     assert b.llm_temperature == 0.0
 
 
-def test_env_overrides_settings(
-    clean_env: None, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_env_overrides_settings(clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
     """Explicit env keys override the defaults."""
     monkeypatch.setenv("ATHOME_GENERAL_MODEL", "custom/model")
     monkeypatch.setenv("ATHOME_MAX_PAGES", "50")
@@ -108,7 +106,6 @@ def test_env_example_lists_only_documented_athome_keys() -> None:
     parser_keys = {
         str(field.validation_alias if field.validation_alias else name).upper()
         for name, field in Settings.model_fields.items()
-        if field.validation_alias
-        and str(field.validation_alias).upper().startswith("ATHOME_")
+        if field.validation_alias and str(field.validation_alias).upper().startswith("ATHOME_")
     }
     assert example_keys == parser_keys

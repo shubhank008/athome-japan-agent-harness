@@ -47,9 +47,7 @@ def _listing() -> ListingSummary:
 def test_price_total_is_sum_of_components(costs: tuple[int, int, int, int, int]) -> None:
     """The gross cost must equal rent plus fee plus deposit plus key money."""
     rent, fee, deposit, key_money, expected = costs
-    price = PriceBreakdown(
-        rent=rent, management_fee=fee, deposit=deposit, key_money=key_money
-    )
+    price = PriceBreakdown(rent=rent, management_fee=fee, deposit=deposit, key_money=key_money)
     assert price.total == expected
 
 

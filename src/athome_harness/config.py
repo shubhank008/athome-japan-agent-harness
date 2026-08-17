@@ -89,38 +89,18 @@ class Settings(BaseSettings):
     )
 
     # Exposed budget knobs (each maps 1:1 to a field on :class:`Budgets`).
-    rate_requests: int = Field(
-        default=1, validation_alias="ATHOME_RATE_REQUESTS"
-    )
-    rate_interval_s: float = Field(
-        default=2.0, validation_alias="ATHOME_RATE_INTERVAL_S"
-    )
-    rate_jitter_max_s: float = Field(
-        default=1.0, validation_alias="ATHOME_RATE_JITTER_MAX_S"
-    )
-    results_per_page: int = Field(
-        default=30, validation_alias="ATHOME_RESULTS_PER_PAGE"
-    )
-    shortlist_size: int = Field(
-        default=20, validation_alias="ATHOME_SHORTLIST_SIZE"
-    )
-    recommendations_count: int = Field(
-        default=5, validation_alias="ATHOME_RECOMMENDATIONS_COUNT"
-    )
+    rate_requests: int = Field(default=1, validation_alias="ATHOME_RATE_REQUESTS")
+    rate_interval_s: float = Field(default=2.0, validation_alias="ATHOME_RATE_INTERVAL_S")
+    rate_jitter_max_s: float = Field(default=1.0, validation_alias="ATHOME_RATE_JITTER_MAX_S")
+    results_per_page: int = Field(default=30, validation_alias="ATHOME_RESULTS_PER_PAGE")
+    shortlist_size: int = Field(default=20, validation_alias="ATHOME_SHORTLIST_SIZE")
+    recommendations_count: int = Field(default=5, validation_alias="ATHOME_RECOMMENDATIONS_COUNT")
     max_pages: int = Field(default=100, validation_alias="ATHOME_MAX_PAGES")
-    runtime_minutes: int = Field(
-        default=30, validation_alias="ATHOME_RUNTIME_MINUTES"
-    )
-    http_timeout_s: float = Field(
-        default=30.0, validation_alias="ATHOME_HTTP_TIMEOUT_S"
-    )
+    runtime_minutes: int = Field(default=30, validation_alias="ATHOME_RUNTIME_MINUTES")
+    http_timeout_s: float = Field(default=30.0, validation_alias="ATHOME_HTTP_TIMEOUT_S")
     proxy_retries: int = Field(default=3, validation_alias="ATHOME_PROXY_RETRIES")
-    prefetch_ttl_hours: float = Field(
-        default=48.0, validation_alias="ATHOME_PREFETCH_TTL_HOURS"
-    )
-    llm_temperature: float = Field(
-        default=0.0, validation_alias="ATHOME_LLM_TEMPERATURE"
-    )
+    prefetch_ttl_hours: float = Field(default=48.0, validation_alias="ATHOME_PREFETCH_TTL_HOURS")
+    llm_temperature: float = Field(default=0.0, validation_alias="ATHOME_LLM_TEMPERATURE")
 
     @property
     def budgets(self) -> Budgets:
