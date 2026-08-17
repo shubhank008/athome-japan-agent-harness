@@ -1,0 +1,1890 @@
+{
+  "content_hash": "60239da4489d",
+  "mappings": {
+    "buy": {
+      "CHIKUNENSU": [
+        {
+          "code": "kn001",
+          "label": "指定なし"
+        },
+        {
+          "code": "kn002",
+          "label": "新築"
+        },
+        {
+          "code": "kn003",
+          "label": "3年以内"
+        },
+        {
+          "code": "kn004",
+          "label": "5年以内"
+        },
+        {
+          "code": "kn005",
+          "label": "10年以内"
+        },
+        {
+          "code": "kn006",
+          "label": "15年以内"
+        },
+        {
+          "code": "kn007",
+          "label": "20年以内"
+        },
+        {
+          "code": "kn021",
+          "label": "25年以内"
+        },
+        {
+          "code": "kn022",
+          "label": "30年以内"
+        },
+        {
+          "code": "kn023",
+          "label": "35年以内"
+        },
+        {
+          "code": "kn024",
+          "label": "40年以内"
+        }
+      ],
+      "EKITOHO": [
+        {
+          "code": "ke001",
+          "label": "指定なし"
+        },
+        {
+          "code": "ke102",
+          "label": "1分以内"
+        },
+        {
+          "code": "ke002",
+          "label": "3分以内"
+        },
+        {
+          "code": "ke003",
+          "label": "5分以内"
+        },
+        {
+          "code": "ke101",
+          "label": "7分以内"
+        },
+        {
+          "code": "ke004",
+          "label": "10分以内"
+        },
+        {
+          "code": "ke005",
+          "label": "15分以内"
+        },
+        {
+          "code": "ke006",
+          "label": "20分以内"
+        }
+      ],
+      "GAZO": [
+        {
+          "code": "kg001",
+          "label": "間取図あり"
+        },
+        {
+          "code": "kg002",
+          "label": "写真あり"
+        }
+      ],
+      "KKGROUP": [
+        {
+          "code": "kk002",
+          "label": "オーナーチェンジを除く"
+        },
+        {
+          "code": "kk003",
+          "label": "賃貸中を除く"
+        }
+      ],
+      "MADORI": [
+        {
+          "code": "km002",
+          "label": "1R"
+        },
+        {
+          "code": "km003",
+          "label": "1K"
+        },
+        {
+          "code": "km004",
+          "label": "1DK"
+        },
+        {
+          "code": "km005",
+          "label": "1LDK"
+        },
+        {
+          "code": "km008",
+          "label": "2K"
+        },
+        {
+          "code": "km009",
+          "label": "2DK"
+        },
+        {
+          "code": "km010",
+          "label": "2LDK"
+        },
+        {
+          "code": "km013",
+          "label": "3K"
+        },
+        {
+          "code": "km014",
+          "label": "3DK"
+        },
+        {
+          "code": "km015",
+          "label": "3LDK"
+        },
+        {
+          "code": "km018",
+          "label": "4K"
+        },
+        {
+          "code": "km019",
+          "label": "4DK"
+        },
+        {
+          "code": "km021",
+          "label": "4LDK以上"
+        }
+      ],
+      "MENSEKI": [
+        {
+          "code": "kt101",
+          "label": "下限なし"
+        },
+        {
+          "code": "kt102",
+          "label": "20m²"
+        },
+        {
+          "code": "kt103",
+          "label": "25m²"
+        },
+        {
+          "code": "kt104",
+          "label": "30m²"
+        },
+        {
+          "code": "kt105",
+          "label": "35m²"
+        },
+        {
+          "code": "kt106",
+          "label": "40m²"
+        },
+        {
+          "code": "kt107",
+          "label": "45m²"
+        },
+        {
+          "code": "kt108",
+          "label": "50m²"
+        },
+        {
+          "code": "kt109",
+          "label": "55m²"
+        },
+        {
+          "code": "kt110",
+          "label": "60m²"
+        },
+        {
+          "code": "kt111",
+          "label": "65m²"
+        },
+        {
+          "code": "kt112",
+          "label": "70m²"
+        },
+        {
+          "code": "kt113",
+          "label": "75m²"
+        },
+        {
+          "code": "kt114",
+          "label": "80m²"
+        },
+        {
+          "code": "kt115",
+          "label": "85m²"
+        },
+        {
+          "code": "kt116",
+          "label": "90m²"
+        },
+        {
+          "code": "kt117",
+          "label": "95m²"
+        },
+        {
+          "code": "kt118",
+          "label": "100m²"
+        },
+        {
+          "code": "kt119",
+          "label": "120m²"
+        },
+        {
+          "code": "kt120",
+          "label": "150m²"
+        }
+      ],
+      "MENSEKITO": [
+        {
+          "code": "kt425",
+          "label": "20m²"
+        },
+        {
+          "code": "kt426",
+          "label": "25m²"
+        },
+        {
+          "code": "kt427",
+          "label": "30m²"
+        },
+        {
+          "code": "kt428",
+          "label": "35m²"
+        },
+        {
+          "code": "kt429",
+          "label": "40m²"
+        },
+        {
+          "code": "kt430",
+          "label": "45m²"
+        },
+        {
+          "code": "kt431",
+          "label": "50m²"
+        },
+        {
+          "code": "kt432",
+          "label": "55m²"
+        },
+        {
+          "code": "kt433",
+          "label": "60m²"
+        },
+        {
+          "code": "kt434",
+          "label": "65m²"
+        },
+        {
+          "code": "kt435",
+          "label": "70m²"
+        },
+        {
+          "code": "kt436",
+          "label": "75m²"
+        },
+        {
+          "code": "kt437",
+          "label": "80m²"
+        },
+        {
+          "code": "kt438",
+          "label": "85m²"
+        },
+        {
+          "code": "kt439",
+          "label": "90m²"
+        },
+        {
+          "code": "kt440",
+          "label": "95m²"
+        },
+        {
+          "code": "kt441",
+          "label": "100m²"
+        },
+        {
+          "code": "kt442",
+          "label": "120m²"
+        },
+        {
+          "code": "kt443",
+          "label": "150m²"
+        },
+        {
+          "code": "kt424",
+          "label": "上限なし"
+        }
+      ],
+      "PRICEFROM": [
+        {
+          "code": "kp001",
+          "label": "下限なし"
+        },
+        {
+          "code": "kp002",
+          "label": "500万円"
+        },
+        {
+          "code": "kp003",
+          "label": "1,000万円"
+        },
+        {
+          "code": "kp004",
+          "label": "1,500万円"
+        },
+        {
+          "code": "kp005",
+          "label": "2,000万円"
+        },
+        {
+          "code": "kp006",
+          "label": "2,500万円"
+        },
+        {
+          "code": "kp007",
+          "label": "3,000万円"
+        },
+        {
+          "code": "kp008",
+          "label": "3,500万円"
+        },
+        {
+          "code": "kp009",
+          "label": "4,000万円"
+        },
+        {
+          "code": "kp010",
+          "label": "4,500万円"
+        },
+        {
+          "code": "kp011",
+          "label": "5,000万円"
+        },
+        {
+          "code": "kp012",
+          "label": "5,500万円"
+        },
+        {
+          "code": "kp013",
+          "label": "6,000万円"
+        },
+        {
+          "code": "kp014",
+          "label": "6,500万円"
+        },
+        {
+          "code": "kp015",
+          "label": "7,000万円"
+        },
+        {
+          "code": "kp016",
+          "label": "8,000万円"
+        },
+        {
+          "code": "kp017",
+          "label": "9,000万円"
+        },
+        {
+          "code": "kp018",
+          "label": "1億円"
+        },
+        {
+          "code": "kp025",
+          "label": "1億1,000万円"
+        },
+        {
+          "code": "kp026",
+          "label": "1億2,000万円"
+        },
+        {
+          "code": "kp027",
+          "label": "1億3,000万円"
+        },
+        {
+          "code": "kp028",
+          "label": "1億4,000万円"
+        },
+        {
+          "code": "kp019",
+          "label": "1億5,000万円"
+        },
+        {
+          "code": "kp029",
+          "label": "1億6,000万円"
+        },
+        {
+          "code": "kp030",
+          "label": "1億7,000万円"
+        },
+        {
+          "code": "kp031",
+          "label": "1億8,000万円"
+        },
+        {
+          "code": "kp032",
+          "label": "1億9,000万円"
+        },
+        {
+          "code": "kp020",
+          "label": "2億円"
+        },
+        {
+          "code": "kp033",
+          "label": "2億5,000万円"
+        },
+        {
+          "code": "kp034",
+          "label": "3億円"
+        },
+        {
+          "code": "kp035",
+          "label": "3億5,000万円"
+        },
+        {
+          "code": "kp036",
+          "label": "4億円"
+        }
+      ],
+      "PRICETO": [
+        {
+          "code": "kp120",
+          "label": "上限なし"
+        },
+        {
+          "code": "kp101",
+          "label": "500万円"
+        },
+        {
+          "code": "kp102",
+          "label": "1,000万円"
+        },
+        {
+          "code": "kp103",
+          "label": "1,500万円"
+        },
+        {
+          "code": "kp104",
+          "label": "2,000万円"
+        },
+        {
+          "code": "kp105",
+          "label": "2,500万円"
+        },
+        {
+          "code": "kp106",
+          "label": "3,000万円"
+        },
+        {
+          "code": "kp107",
+          "label": "3,500万円"
+        },
+        {
+          "code": "kp108",
+          "label": "4,000万円"
+        },
+        {
+          "code": "kp109",
+          "label": "4,500万円"
+        },
+        {
+          "code": "kp110",
+          "label": "5,000万円"
+        },
+        {
+          "code": "kp111",
+          "label": "5,500万円"
+        },
+        {
+          "code": "kp112",
+          "label": "6,000万円"
+        },
+        {
+          "code": "kp113",
+          "label": "6,500万円"
+        },
+        {
+          "code": "kp114",
+          "label": "7,000万円"
+        },
+        {
+          "code": "kp115",
+          "label": "8,000万円"
+        },
+        {
+          "code": "kp116",
+          "label": "9,000万円"
+        },
+        {
+          "code": "kp117",
+          "label": "1億円"
+        },
+        {
+          "code": "kp126",
+          "label": "1億1,000万円"
+        },
+        {
+          "code": "kp127",
+          "label": "1億2,000万円"
+        },
+        {
+          "code": "kp128",
+          "label": "1億3,000万円"
+        },
+        {
+          "code": "kp129",
+          "label": "1億4,000万円"
+        },
+        {
+          "code": "kp118",
+          "label": "1億5,000万円"
+        },
+        {
+          "code": "kp130",
+          "label": "1億6,000万円"
+        },
+        {
+          "code": "kp131",
+          "label": "1億7,000万円"
+        },
+        {
+          "code": "kp132",
+          "label": "1億8,000万円"
+        },
+        {
+          "code": "kp133",
+          "label": "1億9,000万円"
+        },
+        {
+          "code": "kp119",
+          "label": "2億円"
+        },
+        {
+          "code": "kp134",
+          "label": "2億5,000万円"
+        },
+        {
+          "code": "kp135",
+          "label": "3億円"
+        },
+        {
+          "code": "kp136",
+          "label": "3億5,000万円"
+        },
+        {
+          "code": "kp137",
+          "label": "4億円"
+        }
+      ],
+      "SORT": [
+        {
+          "code": "7",
+          "label": "価格が安い順"
+        },
+        {
+          "code": "8",
+          "label": "価格が高い順"
+        },
+        {
+          "code": "1",
+          "label": "駅順"
+        },
+        {
+          "code": "3",
+          "label": "住所順"
+        },
+        {
+          "code": "10",
+          "label": "部屋数が多い順"
+        },
+        {
+          "code": "9",
+          "label": "部屋数が少ない順"
+        },
+        {
+          "code": "12",
+          "label": "面積が広い順"
+        },
+        {
+          "code": "11",
+          "label": "面積が狭い順"
+        },
+        {
+          "code": "20",
+          "label": "完成時期（築年月）が浅い順"
+        },
+        {
+          "code": "19",
+          "label": "完成時期（築年月）が古い順"
+        },
+        {
+          "code": "33",
+          "label": "新着順"
+        },
+        {
+          "code": "95",
+          "label": "指定なし"
+        }
+      ],
+      "itemus": [
+        {
+          "code": "10",
+          "label": "10件"
+        },
+        {
+          "code": "20",
+          "label": "20件"
+        },
+        {
+          "code": "30",
+          "label": "30件"
+        },
+        {
+          "code": "40",
+          "label": "40件"
+        },
+        {
+          "code": "50",
+          "label": "50件"
+        }
+      ]
+    },
+    "rent": {
+      "APPEAL": [
+        {
+          "code": "ka001",
+          "label": "「おすすめコメント」あり"
+        }
+      ],
+      "CHIKUNENSU": [
+        {
+          "code": "kn001",
+          "label": "指定なし"
+        },
+        {
+          "code": "kn002",
+          "label": "新築"
+        },
+        {
+          "code": "kn003",
+          "label": "3年以内"
+        },
+        {
+          "code": "kn004",
+          "label": "5年以内"
+        },
+        {
+          "code": "kn005",
+          "label": "10年以内"
+        },
+        {
+          "code": "kn006",
+          "label": "15年以内"
+        },
+        {
+          "code": "kn007",
+          "label": "20年以内"
+        },
+        {
+          "code": "kn021",
+          "label": "25年以内"
+        },
+        {
+          "code": "kn022",
+          "label": "30年以内"
+        },
+        {
+          "code": "kn023",
+          "label": "35年以内"
+        },
+        {
+          "code": "kn024",
+          "label": "40年以内"
+        }
+      ],
+      "EKITOHO": [
+        {
+          "code": "ke001",
+          "label": "指定なし"
+        },
+        {
+          "code": "ke102",
+          "label": "1分以内"
+        },
+        {
+          "code": "ke002",
+          "label": "3分以内"
+        },
+        {
+          "code": "ke003",
+          "label": "5分以内"
+        },
+        {
+          "code": "ke101",
+          "label": "7分以内"
+        },
+        {
+          "code": "ke004",
+          "label": "10分以内"
+        },
+        {
+          "code": "ke005",
+          "label": "15分以内"
+        },
+        {
+          "code": "ke006",
+          "label": "20分以内"
+        }
+      ],
+      "GAZO": [
+        {
+          "code": "kg001",
+          "label": "間取図あり"
+        },
+        {
+          "code": "kg002",
+          "label": "写真あり"
+        },
+        {
+          "code": "kg008",
+          "label": "パノラマあり"
+        },
+        {
+          "code": "kg010",
+          "label": "VRあり"
+        }
+      ],
+      "KEIYAKU": [
+        {
+          "code": "ki001",
+          "label": "定期借家除く"
+        },
+        {
+          "code": "ki002",
+          "label": "定期借家含む"
+        },
+        {
+          "code": "ki003",
+          "label": "定期借家のみ"
+        }
+      ],
+      "KODAWARI": [
+        {
+          "code": "K01",
+          "label": "システムキッチン"
+        },
+        {
+          "code": "K02",
+          "label": "カウンターキッチン"
+        },
+        {
+          "code": "K03",
+          "label": "IHクッキングヒーター"
+        },
+        {
+          "code": "K04",
+          "label": "ガスコンロ使用可"
+        },
+        {
+          "code": "K18",
+          "label": "2口以上コンロ"
+        },
+        {
+          "code": "K06",
+          "label": "浄水器"
+        },
+        {
+          "code": "K07",
+          "label": "食器(洗浄)乾燥機"
+        },
+        {
+          "code": "K05",
+          "label": "ディスポーザー"
+        },
+        {
+          "code": "B01",
+          "label": "バス・トイレ別"
+        },
+        {
+          "code": "B10",
+          "label": "バス・トイレ同室"
+        },
+        {
+          "code": "B02",
+          "label": "追焚き機能"
+        },
+        {
+          "code": "B03",
+          "label": "浴室乾燥機"
+        },
+        {
+          "code": "B18",
+          "label": "浴室暖房"
+        },
+        {
+          "code": "B19",
+          "label": "ＴＶ付浴室"
+        },
+        {
+          "code": "B17",
+          "label": "ミストサウナ"
+        },
+        {
+          "code": "B05",
+          "label": "シャワー付洗面化粧台"
+        },
+        {
+          "code": "B15",
+          "label": "洗面所独立"
+        },
+        {
+          "code": "B06",
+          "label": "温水洗浄便座"
+        },
+        {
+          "code": "B21",
+          "label": "タンクレストイレ"
+        },
+        {
+          "code": "A01",
+          "label": "エアコン"
+        },
+        {
+          "code": "A12",
+          "label": "全居室エアコン"
+        },
+        {
+          "code": "A02",
+          "label": "床暖房"
+        },
+        {
+          "code": "I01",
+          "label": "ウォークインクローゼット"
+        },
+        {
+          "code": "I02",
+          "label": "収納スペース"
+        },
+        {
+          "code": "I03",
+          "label": "床下収納"
+        },
+        {
+          "code": "I04",
+          "label": "トランクルーム"
+        },
+        {
+          "code": "I06",
+          "label": "シューズボックス"
+        },
+        {
+          "code": "T01",
+          "label": "BS端子"
+        },
+        {
+          "code": "T02",
+          "label": "CS"
+        },
+        {
+          "code": "T03",
+          "label": "CATV"
+        },
+        {
+          "code": "T04",
+          "label": "光ファイバー"
+        },
+        {
+          "code": "T11",
+          "label": "インターネット無料"
+        },
+        {
+          "code": "S01",
+          "label": "オートロック"
+        },
+        {
+          "code": "S02",
+          "label": "モニタ付インターホン"
+        },
+        {
+          "code": "S03",
+          "label": "宅配ボックス"
+        },
+        {
+          "code": "S04",
+          "label": "24時間セキュリティ"
+        },
+        {
+          "code": "S06",
+          "label": "ディンプルキー"
+        },
+        {
+          "code": "S16",
+          "label": "電動シャッター"
+        },
+        {
+          "code": "S07",
+          "label": "防犯カメラ"
+        },
+        {
+          "code": "S11",
+          "label": "防犯用ガラス"
+        },
+        {
+          "code": "P02",
+          "label": "2階以上"
+        },
+        {
+          "code": "P03",
+          "label": "最上階"
+        },
+        {
+          "code": "P01",
+          "label": "1階"
+        },
+        {
+          "code": "P05",
+          "label": "角部屋"
+        },
+        {
+          "code": "C03",
+          "label": "即入居可"
+        },
+        {
+          "code": "C04",
+          "label": "二人入居可"
+        },
+        {
+          "code": "C05",
+          "label": "女性限定"
+        },
+        {
+          "code": "C34",
+          "label": "女性限定除く"
+        },
+        {
+          "code": "C35",
+          "label": "男性限定除く"
+        },
+        {
+          "code": "C06",
+          "label": "高齢者相談"
+        },
+        {
+          "code": "C08",
+          "label": "ペット相談"
+        },
+        {
+          "code": "Ob1",
+          "label": "大型犬相談"
+        },
+        {
+          "code": "Ob2",
+          "label": "小型犬相談"
+        },
+        {
+          "code": "Ob3",
+          "label": "猫相談"
+        },
+        {
+          "code": "C09",
+          "label": "楽器相談"
+        },
+        {
+          "code": "C10",
+          "label": "事務所可"
+        },
+        {
+          "code": "C11",
+          "label": "フリーレント"
+        },
+        {
+          "code": "C13",
+          "label": "二世帯向き"
+        },
+        {
+          "code": "C32",
+          "label": "常時ゴミ出し可能"
+        },
+        {
+          "code": "C41",
+          "label": "DIY可"
+        },
+        {
+          "code": "C47",
+          "label": "保証人不要"
+        },
+        {
+          "code": "O08",
+          "label": "エレベーター"
+        },
+        {
+          "code": "C48",
+          "label": "管理人常駐"
+        },
+        {
+          "code": "F24",
+          "label": "フロントサービス"
+        },
+        {
+          "code": "F14",
+          "label": "フィットネス施設"
+        },
+        {
+          "code": "F19",
+          "label": "車寄せスペースあり"
+        },
+        {
+          "code": "O03",
+          "label": "フローリング"
+        },
+        {
+          "code": "O1000",
+          "label": "全居室フローリング"
+        },
+        {
+          "code": "E23",
+          "label": "室内洗濯機置き場"
+        },
+        {
+          "code": "O04",
+          "label": "洗濯機置き場"
+        },
+        {
+          "code": "O86",
+          "label": "洗濯・衣類乾燥機"
+        },
+        {
+          "code": "O25",
+          "label": "都市ガス"
+        },
+        {
+          "code": "O26",
+          "label": "プロパンガス"
+        },
+        {
+          "code": "S05",
+          "label": "複層ガラス"
+        },
+        {
+          "code": "O19",
+          "label": "24時間換気システム"
+        },
+        {
+          "code": "E22",
+          "label": "省エネ給湯器"
+        },
+        {
+          "code": "E16",
+          "label": "室内物干し"
+        },
+        {
+          "code": "E21",
+          "label": "EV車充電設備"
+        },
+        {
+          "code": "D14",
+          "label": "南向き"
+        },
+        {
+          "code": "O02",
+          "label": "閑静な住宅街"
+        },
+        {
+          "code": "O13",
+          "label": "分譲タイプ"
+        },
+        {
+          "code": "C07",
+          "label": "バリアフリー"
+        },
+        {
+          "code": "O37",
+          "label": "オール電化"
+        },
+        {
+          "code": "O38",
+          "label": "家具付き"
+        },
+        {
+          "code": "Oae",
+          "label": "家電付き"
+        },
+        {
+          "code": "O11",
+          "label": "出窓"
+        },
+        {
+          "code": "O15",
+          "label": "メゾネット"
+        },
+        {
+          "code": "O12",
+          "label": "ロフト"
+        },
+        {
+          "code": "D11",
+          "label": "デザイナーズ"
+        },
+        {
+          "code": "O14",
+          "label": "外観タイル張り"
+        },
+        {
+          "code": "D12",
+          "label": "スマートハウス"
+        },
+        {
+          "code": "M21",
+          "label": "ノンホルムアルデヒド"
+        },
+        {
+          "code": "O65",
+          "label": "二重床・二重天井"
+        },
+        {
+          "code": "O05",
+          "label": "バルコニー"
+        },
+        {
+          "code": "O06",
+          "label": "ルーフバルコニー"
+        },
+        {
+          "code": "O07",
+          "label": "バルコニー2面以上"
+        },
+        {
+          "code": "O64",
+          "label": "ウッドデッキ"
+        },
+        {
+          "code": "O09",
+          "label": "庭(専用庭)"
+        },
+        {
+          "code": "O20",
+          "label": "駐車場(近隣含む)"
+        },
+        {
+          "code": "O21",
+          "label": "駐車場2台分"
+        },
+        {
+          "code": "F22",
+          "label": "来客用駐車場あり"
+        },
+        {
+          "code": "O23",
+          "label": "駐輪場"
+        },
+        {
+          "code": "O51",
+          "label": "バイク置き場"
+        }
+      ],
+      "MADORI": [
+        {
+          "code": "km002",
+          "label": "1R"
+        },
+        {
+          "code": "km003",
+          "label": "1K"
+        },
+        {
+          "code": "km004",
+          "label": "1DK"
+        },
+        {
+          "code": "km005",
+          "label": "1LDK"
+        },
+        {
+          "code": "km008",
+          "label": "2K"
+        },
+        {
+          "code": "km009",
+          "label": "2DK"
+        },
+        {
+          "code": "km010",
+          "label": "2LDK"
+        },
+        {
+          "code": "km013",
+          "label": "3K"
+        },
+        {
+          "code": "km014",
+          "label": "3DK"
+        },
+        {
+          "code": "km015",
+          "label": "3LDK"
+        },
+        {
+          "code": "km018",
+          "label": "4K"
+        },
+        {
+          "code": "km019",
+          "label": "4DK"
+        },
+        {
+          "code": "km021",
+          "label": "4LDK以上"
+        }
+      ],
+      "MENSEKI": [
+        {
+          "code": "kt001",
+          "label": "指定なし"
+        },
+        {
+          "code": "kt002",
+          "label": "20m²以上"
+        },
+        {
+          "code": "kt003",
+          "label": "25m²以上"
+        },
+        {
+          "code": "kt004",
+          "label": "30m²以上"
+        },
+        {
+          "code": "kt005",
+          "label": "35m²以上"
+        },
+        {
+          "code": "kt006",
+          "label": "40m²以上"
+        },
+        {
+          "code": "kt007",
+          "label": "45m²以上"
+        },
+        {
+          "code": "kt008",
+          "label": "50m²以上"
+        },
+        {
+          "code": "kt009",
+          "label": "55m²以上"
+        },
+        {
+          "code": "kt010",
+          "label": "60m²以上"
+        },
+        {
+          "code": "kt011",
+          "label": "65m²以上"
+        },
+        {
+          "code": "kt012",
+          "label": "70m²以上"
+        },
+        {
+          "code": "kt013",
+          "label": "75m²以上"
+        },
+        {
+          "code": "kt014",
+          "label": "80m²以上"
+        },
+        {
+          "code": "kt015",
+          "label": "85m²以上"
+        },
+        {
+          "code": "kt016",
+          "label": "90m²以上"
+        },
+        {
+          "code": "kt017",
+          "label": "95m²以上"
+        },
+        {
+          "code": "kt018",
+          "label": "100m²以上"
+        }
+      ],
+      "PRICEFROM": [
+        {
+          "code": "kc001",
+          "label": "下限なし"
+        },
+        {
+          "code": "kc041",
+          "label": "2万円"
+        },
+        {
+          "code": "kc042",
+          "label": "2.5万円"
+        },
+        {
+          "code": "kc002",
+          "label": "3万円"
+        },
+        {
+          "code": "kc003",
+          "label": "3.5万円"
+        },
+        {
+          "code": "kc004",
+          "label": "4万円"
+        },
+        {
+          "code": "kc005",
+          "label": "4.5万円"
+        },
+        {
+          "code": "kc006",
+          "label": "5万円"
+        },
+        {
+          "code": "kc007",
+          "label": "5.5万円"
+        },
+        {
+          "code": "kc008",
+          "label": "6万円"
+        },
+        {
+          "code": "kc009",
+          "label": "6.5万円"
+        },
+        {
+          "code": "kc010",
+          "label": "7万円"
+        },
+        {
+          "code": "kc011",
+          "label": "7.5万円"
+        },
+        {
+          "code": "kc012",
+          "label": "8万円"
+        },
+        {
+          "code": "kc013",
+          "label": "8.5万円"
+        },
+        {
+          "code": "kc014",
+          "label": "9万円"
+        },
+        {
+          "code": "kc015",
+          "label": "9.5万円"
+        },
+        {
+          "code": "kc016",
+          "label": "10万円"
+        },
+        {
+          "code": "kc017",
+          "label": "10.5万円"
+        },
+        {
+          "code": "kc018",
+          "label": "11万円"
+        },
+        {
+          "code": "kc019",
+          "label": "11.5万円"
+        },
+        {
+          "code": "kc020",
+          "label": "12万円"
+        },
+        {
+          "code": "kc021",
+          "label": "12.5万円"
+        },
+        {
+          "code": "kc022",
+          "label": "13万円"
+        },
+        {
+          "code": "kc023",
+          "label": "13.5万円"
+        },
+        {
+          "code": "kc024",
+          "label": "14万円"
+        },
+        {
+          "code": "kc025",
+          "label": "14.5万円"
+        },
+        {
+          "code": "kc026",
+          "label": "15万円"
+        },
+        {
+          "code": "kc027",
+          "label": "15.5万円"
+        },
+        {
+          "code": "kc028",
+          "label": "16万円"
+        },
+        {
+          "code": "kc029",
+          "label": "16.5万円"
+        },
+        {
+          "code": "kc030",
+          "label": "17万円"
+        },
+        {
+          "code": "kc031",
+          "label": "17.5万円"
+        },
+        {
+          "code": "kc032",
+          "label": "18万円"
+        },
+        {
+          "code": "kc033",
+          "label": "18.5万円"
+        },
+        {
+          "code": "kc034",
+          "label": "19万円"
+        },
+        {
+          "code": "kc051",
+          "label": "19.5万円"
+        },
+        {
+          "code": "kc035",
+          "label": "20万円"
+        },
+        {
+          "code": "kc052",
+          "label": "21万円"
+        },
+        {
+          "code": "kc053",
+          "label": "22万円"
+        },
+        {
+          "code": "kc054",
+          "label": "23万円"
+        },
+        {
+          "code": "kc055",
+          "label": "24万円"
+        },
+        {
+          "code": "kc056",
+          "label": "25万円"
+        },
+        {
+          "code": "kc057",
+          "label": "26万円"
+        },
+        {
+          "code": "kc058",
+          "label": "27万円"
+        },
+        {
+          "code": "kc059",
+          "label": "28万円"
+        },
+        {
+          "code": "kc060",
+          "label": "29万円"
+        },
+        {
+          "code": "kc036",
+          "label": "30万円"
+        },
+        {
+          "code": "kc061",
+          "label": "35万円"
+        },
+        {
+          "code": "kc062",
+          "label": "40万円"
+        },
+        {
+          "code": "kc037",
+          "label": "50万円"
+        },
+        {
+          "code": "kc063",
+          "label": "70万円"
+        },
+        {
+          "code": "kc038",
+          "label": "100万円"
+        }
+      ],
+      "PRICEOPT": [
+        {
+          "code": "kc201",
+          "label": "管理費等含む"
+        },
+        {
+          "code": "kc205",
+          "label": "駐車場料金含む"
+        },
+        {
+          "code": "kc202",
+          "label": "礼金なし"
+        },
+        {
+          "code": "kc203",
+          "label": "敷金/保証金なし"
+        },
+        {
+          "code": "kc206",
+          "label": "初期費用カード決済可"
+        },
+        {
+          "code": "kc207",
+          "label": "家賃カード決済可"
+        }
+      ],
+      "PRICETO": [
+        {
+          "code": "kc141",
+          "label": "2万円"
+        },
+        {
+          "code": "kc142",
+          "label": "2.5万円"
+        },
+        {
+          "code": "kc101",
+          "label": "3万円"
+        },
+        {
+          "code": "kc102",
+          "label": "3.5万円"
+        },
+        {
+          "code": "kc103",
+          "label": "4万円"
+        },
+        {
+          "code": "kc104",
+          "label": "4.5万円"
+        },
+        {
+          "code": "kc105",
+          "label": "5万円"
+        },
+        {
+          "code": "kc106",
+          "label": "5.5万円"
+        },
+        {
+          "code": "kc107",
+          "label": "6万円"
+        },
+        {
+          "code": "kc108",
+          "label": "6.5万円"
+        },
+        {
+          "code": "kc109",
+          "label": "7万円"
+        },
+        {
+          "code": "kc110",
+          "label": "7.5万円"
+        },
+        {
+          "code": "kc111",
+          "label": "8万円"
+        },
+        {
+          "code": "kc112",
+          "label": "8.5万円"
+        },
+        {
+          "code": "kc113",
+          "label": "9万円"
+        },
+        {
+          "code": "kc114",
+          "label": "9.5万円"
+        },
+        {
+          "code": "kc115",
+          "label": "10万円"
+        },
+        {
+          "code": "kc116",
+          "label": "10.5万円"
+        },
+        {
+          "code": "kc117",
+          "label": "11万円"
+        },
+        {
+          "code": "kc118",
+          "label": "11.5万円"
+        },
+        {
+          "code": "kc119",
+          "label": "12万円"
+        },
+        {
+          "code": "kc120",
+          "label": "12.5万円"
+        },
+        {
+          "code": "kc121",
+          "label": "13万円"
+        },
+        {
+          "code": "kc122",
+          "label": "13.5万円"
+        },
+        {
+          "code": "kc123",
+          "label": "14万円"
+        },
+        {
+          "code": "kc124",
+          "label": "14.5万円"
+        },
+        {
+          "code": "kc125",
+          "label": "15万円"
+        },
+        {
+          "code": "kc126",
+          "label": "15.5万円"
+        },
+        {
+          "code": "kc127",
+          "label": "16万円"
+        },
+        {
+          "code": "kc128",
+          "label": "16.5万円"
+        },
+        {
+          "code": "kc129",
+          "label": "17万円"
+        },
+        {
+          "code": "kc130",
+          "label": "17.5万円"
+        },
+        {
+          "code": "kc131",
+          "label": "18万円"
+        },
+        {
+          "code": "kc132",
+          "label": "18.5万円"
+        },
+        {
+          "code": "kc133",
+          "label": "19万円"
+        },
+        {
+          "code": "kc151",
+          "label": "19.5万円"
+        },
+        {
+          "code": "kc134",
+          "label": "20万円"
+        },
+        {
+          "code": "kc152",
+          "label": "21万円"
+        },
+        {
+          "code": "kc153",
+          "label": "22万円"
+        },
+        {
+          "code": "kc154",
+          "label": "23万円"
+        },
+        {
+          "code": "kc155",
+          "label": "24万円"
+        },
+        {
+          "code": "kc156",
+          "label": "25万円"
+        },
+        {
+          "code": "kc157",
+          "label": "26万円"
+        },
+        {
+          "code": "kc158",
+          "label": "27万円"
+        },
+        {
+          "code": "kc159",
+          "label": "28万円"
+        },
+        {
+          "code": "kc160",
+          "label": "29万円"
+        },
+        {
+          "code": "kc135",
+          "label": "30万円"
+        },
+        {
+          "code": "kc161",
+          "label": "35万円"
+        },
+        {
+          "code": "kc162",
+          "label": "40万円"
+        },
+        {
+          "code": "kc136",
+          "label": "50万円"
+        },
+        {
+          "code": "kc163",
+          "label": "70万円"
+        },
+        {
+          "code": "kc137",
+          "label": "100万円"
+        },
+        {
+          "code": "kc138",
+          "label": "上限なし"
+        }
+      ],
+      "RENOVATION": [
+        {
+          "code": "ak101",
+          "label": "リフォーム・リノベーション済/予定含む"
+        }
+      ],
+      "SHUMOKU": [
+        {
+          "code": "kb001",
+          "label": "アパート"
+        },
+        {
+          "code": "kb002",
+          "label": "マンション"
+        },
+        {
+          "code": "kb003",
+          "label": "一戸建て"
+        }
+      ],
+      "SORT": [
+        {
+          "code": "95",
+          "label": "指定なし"
+        },
+        {
+          "code": "7",
+          "label": "賃料が安い順"
+        },
+        {
+          "code": "8",
+          "label": "賃料が高い順"
+        },
+        {
+          "code": "1",
+          "label": "駅順"
+        },
+        {
+          "code": "3",
+          "label": "住所順"
+        },
+        {
+          "code": "9",
+          "label": "間取り順"
+        },
+        {
+          "code": "12",
+          "label": "面積が広い順"
+        },
+        {
+          "code": "20",
+          "label": "築年月が浅い順"
+        },
+        {
+          "code": "19",
+          "label": "築年月が古い順"
+        },
+        {
+          "code": "33",
+          "label": "新着順"
+        }
+      ],
+      "SYUHENKANKYO": [
+        {
+          "code": "kw001",
+          "label": "コンビニまで徒歩約5分以内（400ｍ以内）"
+        },
+        {
+          "code": "kw002",
+          "label": "ショッピング施設（スーパー、商業施設など）まで徒歩約15分以内（1,200ｍ以内）"
+        },
+        {
+          "code": "kw003",
+          "label": "飲食店まで徒歩約10分以内（800ｍ以内）"
+        },
+        {
+          "code": "kw004",
+          "label": "病院まで徒歩約15分以内（1,200ｍ以内）"
+        },
+        {
+          "code": "kw005",
+          "label": "幼稚園、保育園まで徒歩約10分以内（800ｍ以内）"
+        }
+      ],
+      "TATEKOUZOU": [
+        {
+          "code": "kh001",
+          "label": "鉄筋系"
+        },
+        {
+          "code": "kh002",
+          "label": "鉄骨系"
+        },
+        {
+          "code": "kh003",
+          "label": "木造"
+        },
+        {
+          "code": "kh004",
+          "label": "その他"
+        }
+      ],
+      "TATEMONONUM": [
+        {
+          "code": "10",
+          "label": "10件"
+        },
+        {
+          "code": "20",
+          "label": "20件"
+        },
+        {
+          "code": "30",
+          "label": "30件"
+        }
+      ]
+    }
+  },
+  "version": 1
+}
