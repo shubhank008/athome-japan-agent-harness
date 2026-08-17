@@ -20,6 +20,10 @@
   so I can see what you are working on, what is done, and what is next.
 - When you spawn a subagent, tell me at that moment: which model it runs on
   and what it is doing. Report what it came back with when it finishes.
+- When the main agent (the orchestrating chat) is waiting on a delegated
+  subagent, poll its status no more often than once every 180 seconds. Subagent
+  tasks take minutes; polling faster only burns orchestrator context tokens on
+  "still running" without changing the outcome.
 - Never use Haiku.
 - Do not use em-dashes or emojis. Comment every method and important code. Maintain up-to-date documentation so a new developer can easily takeover. English everywhere.
 - Plan ahead using a PLAN.md and keep it updated after every feature or update.
@@ -98,3 +102,18 @@ place.
 * Pipeline-generated commits remain part of the feature history and must be synchronized locally before the task is reported complete.
 * Runtime configuration changes must update `.env.example` in the same change, and `.env.example` changes must be reconciled with the runtime configuration parser; never leave the template and accepted environment keys out of sync.
 * Production Python dependencies are exact-pinned in `requirements.txt`; dependency updates require deliberate compatibility testing. The weekly major-version workflow may report updates but must never modify production requirements automatically.
+
+### Orchestration invariants (main chat + delegated subagents)
+
+* The main chat is the orchestrator and evaluator: it dispatches one subagent per milestone or well-scoped task, evaluates the returned diff and claims, and owns `PLAN.md` and `AGENTS.md` updates. Subagents implement; they do not push, open PRs, or edit `PLAN.md`/`AGENTS.md`.
+* While waiting on a subagent, poll its status at most once every 180 seconds (see Working Rules). Faster polling wastes orchestrator context tokens on "still running".
+* Do not take a subagent's report at face value. Before accepting a milestone, the orchestrator independently re-runs the gatekeeper (`ruff`, `mypy`, `pytest`) and inspects the actual diff.
+* When a subagent reports landmines, the orchestrator (not the subagent) evaluates each for project-wide applicability and promotes the durable ones into this Architecture invariants list. Task-specific or one-off notes are recorded in the milestone report instead.
+* Delegated work uses the project-verified models (SPEC section 6 / PLAN.md decisions), never Haiku. Only downgrade to a lesser model for genuinely mechanical tasks.
+
+### Engineering landmines (verified, promote durable surprises here)
+
+* pydantic v2 `model_copy(update=...)` does NOT re-run validators. Tests that assert a value invariant (for example a non-negative price) must construct the invalid instance via `Model.model_validate({...})` or direct construction, not by copying a valid one.
+* Accessing `model_fields` on a pydantic `Settings`/model instance raises `PydanticDeprecatedSince211`; read it off the class with `type(self).model_fields`.
+* This repo uses a `src/` layout. Outside pytest, verification commands (`mypy`, ad-hoc imports) need `PYTHONPATH=src` (pytest already sets it via `pythonpath` config).
+* Name any throwaway verification virtualenv `.venv-verify`, not `.venv`, because `.venv` matches the gitignore pattern; delete it after use.

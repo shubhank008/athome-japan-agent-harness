@@ -7,7 +7,11 @@ returns a ranked, reasoned shortlist with direct links.
 
 ## Project status
 
-Pre-implementation. No source code yet; documentation and planning are in progress.
+M0 (project skeleton + hygiene) and M1 (scraper core) are implemented. The package
+`src/athome_harness/` contains configuration parsing, pydantic data models, the
+scraper abstraction layer (`BaseScraper`, `BlockDetected`, `ProxyProvider`), a
+token-bucket rate limiter, and an HTTP DOM adapter with block detection and proxy
+rotation. LLM, store, and orchestration are pending.
 
 ## Documentation
 

@@ -75,31 +75,31 @@ PLAN.md                     # repo-level live plan, updated after every feature
 
 ### M0: Project skeleton and hygiene
 
-- [ ] T01 `pyproject.toml` (ruff, mypy strict-ish, pytest config), `requirements.txt`
+- [x] T01 `pyproject.toml` (ruff, mypy strict-ish, pytest config), `requirements.txt`
   exact-pinned: httpx, selectolax, beautifulsoup4, pydantic, pytest, pytest-asyncio (if
   needed). Python 3.12.
-- [ ] T02 `.env.example` with `OPENROUTER_API_KEY`, `WEBSHARE_PROXY_USER`,
+- [x] T02 `.env.example` with `OPENROUTER_API_KEY`, `WEBSHARE_PROXY_USER`,
   `WEBSHARE_PROXY_PASS`, budget knobs; `config.py` parser that fails loudly on unknown
   env keys (keeps template and parser in sync per invariant).
-- [ ] T03 `models.py` core pydantic models with docstrings; unit tests for model
+- [x] T03 `models.py` core pydantic models with docstrings; unit tests for model
   invariants (e.g., price breakdown total consistency).
-- [ ] T04 `config.py` budgets object (rate limit, max pages, runtime, tokens) with
+- [x] T04 `config.py` budgets object (rate limit, max pages, runtime, tokens) with
   defaults from spec's Numeric Values table; unit tests.
 
 ### M1: Scraper core (Abstract First)
 
-- [ ] T05 `scraping/base.py`: `BaseScraper` (fetch_html, fetch_binary), `BlockDetected`
+- [x] T05 `scraping/base.py`: `BaseScraper` (fetch_html, fetch_binary), `BlockDetected`
   exception carrying detection signature, `ProxyProvider` protocol. Unit test the
   contract with a fake adapter.
-- [ ] T06 `scraping/rate_limiter.py`: token-bucket with jitter, injectable clock for
+- [x] T06 `scraping/rate_limiter.py`: token-bucket with jitter, injectable clock for
   tests. Unit tests prove spacing and jitter bounds.
-- [ ] T07 `scraping/http_adapter.py`: httpx client, browser-like headers, retry with
+- [x] T07 `scraping/http_adapter.py`: httpx client, browser-like headers, retry with
   exponential backoff, block detection (403/429/captcha markers), proxy hook point.
   Unit tests with `respx`-style transport mocking; integration test marked `live`.
-- [ ] T08 `scraping/playwright_adapter.py`: scaffold implementing `BaseScraper` that
+- [x] T08 `scraping/playwright_adapter.py`: scaffold implementing `BaseScraper` that
   raises `NotImplementedError` with a clear message; contract test ensures interface
   conformance so the swap is drop-in later.
-- [ ] T09 `scraping/proxy/base.py` + `proxy/webshare.py`: endpoint list from env,
+- [x] T09 `scraping/proxy/base.py` + `proxy/webshare.py`: endpoint list from env,
   rotation policy (try direct first, rotate on block, budget 3). Unit tests with fake
   transport; no live proxy calls in CI.
 
