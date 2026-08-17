@@ -7,11 +7,13 @@ returns a ranked, reasoned shortlist with direct links.
 
 ## Project status
 
-M0 (project skeleton + hygiene) and M1 (scraper core) are implemented. The package
-`src/athome_harness/` contains configuration parsing, pydantic data models, the
-scraper abstraction layer (`BaseScraper`, `BlockDetected`, `ProxyProvider`), a
-token-bucket rate limiter, and an HTTP DOM adapter with block detection and proxy
-rotation. LLM, store, and orchestration are pending.
+M0 (project skeleton + hygiene), M1 (scraper core), and M2 (filter map) are
+implemented. The package `src/athome_harness/` contains configuration parsing, pydantic
+data models, the scraper abstraction layer (`BaseScraper`, `BlockDetected`,
+`ProxyProvider`), a token-bucket rate limiter, an HTTP DOM adapter with block detection
+and proxy rotation, a versioned filter-map schema with validation, a SearchPlan encoder
+that produces AtHome POST parameters, and a weekly-refresh extraction tool with a
+checked-in snapshot. LLM, store, and orchestration are pending.
 
 ## Documentation
 
