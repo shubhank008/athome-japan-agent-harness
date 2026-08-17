@@ -306,15 +306,15 @@ def _label_magnitude(label: str) -> int | None:
             else:
                 total += number
         return int(total)
-    m_match = re.search(r"(\d[\d,]*)m", lower)
-    if m_match:
-        return int(m_match.group(1).replace(",", ""))
     if "million" in lower:
         milli = re.search(r"([\d,]+)\s*million", lower)
         return int(milli.group(1).replace(",", "")) * 1_000_000 if milli else None
     if "thousand" in lower:
         thous = re.search(r"([\d,]+)\s*thousand", lower)
         return int(thous.group(1).replace(",", "")) * 1_000 if thous else None
+    m_match = re.search(r"(\d[\d,]*)m", lower)
+    if m_match:
+        return int(m_match.group(1).replace(",", ""))
     # Bare comma-separated number (e.g. "320,000 yen", "20m² or more"). The
     # Japanese yen/unit cases were already handled above.
     number_match = re.search(r"([\d,]+)", text)
