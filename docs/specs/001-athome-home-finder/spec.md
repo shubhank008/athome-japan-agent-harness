@@ -135,7 +135,7 @@ map and files an issue when AtHome's DOM changes, so search never silently break
 - [ ] The harness refuses to encode filters against a map whose schema version it does
       not understand, with a clear error.
 
-### US-007: Purchase-flow search
+### US-007: Purchase-flow search (post-MVP)
 **Description:** As a home buyer, I want the same conversational search over purchase
 listings (mansion/kodate) so I can use one tool for rent and buy.
 
@@ -211,6 +211,7 @@ cues (poor condition, old fixtures, bad layout) can improve recommendations late
 - No redistribution/hosting of scraped data; the store is local-only.
 - No Playwright implementation beyond an interface-conforming scaffold.
 - No vision evaluation enabled by default; benchmark tooling only.
+- No purchase-flow search in this milestone (deferred to post-MVP; see US-007).
 - No purchase-flow-specific negotiation features (e.g., loan calculators).
 
 ## Numeric Values
