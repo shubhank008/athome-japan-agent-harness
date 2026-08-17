@@ -119,3 +119,6 @@ place.
 * Name any throwaway verification virtualenv `.venv-verify`, not `.venv`, because `.venv` matches the gitignore pattern; delete it after use.
 * Webshare's rotating plan uses one credentialed gateway URL; a pool of length one is intentional. The proxy retry budget, not pool size, bounds consecutive proxy attempts. A base proxy provider must reuse its last candidate when the pool is shorter than the retry budget, or the configured budget is never consumed.
 * `Settings` requires `OPENROUTER_API_KEY`; tests constructing settings directly must pass an explicit throwaway key rather than relying on a local `.env` file or a real credential.
+* Numeric label parsers must check specific unit words such as `million` and `thousand` before generic suffix patterns such as `m`; otherwise `5million` is misread as 5.
+* Negative log-marker tests must assert universal absence, for example `not any(marker in record for record in records)`, not merely that one record lacks the marker.
+* Validators for snapshots with multiple supported flows must reject a missing entire flow, not only malformed fields within flows that happen to be present.
