@@ -25,6 +25,9 @@ ignore = []
 testpaths = ["tests"]
 addopts = "-q"
 pythonpath = ["src"]
+markers = [
+    "live: real-network checks, skipped unless explicitly selected (e.g. -m live)",
+]
 
 [tool.mypy]
 python_version = "3.12"
