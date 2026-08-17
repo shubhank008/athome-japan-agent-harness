@@ -150,7 +150,7 @@ class Settings(BaseSettings):
         """
         accepted = {
             str(field.validation_alias if field.validation_alias else field_name).upper()
-            for field_name, field in self.model_fields.items()
+            for field_name, field in type(self).model_fields.items()
         }
         for raw_key in os.environ:
             normalized = raw_key.upper()
