@@ -49,10 +49,6 @@ _TRANSIENT_RETRIES = 3
 _BACKOFF_BASE_S = 0.5
 _BACKOFF_MAX_S = 8.0
 
-# Retryable transport/HTTP status codes. 403/429 are excluded: they are raised
-# as :class:`BlockDetected` by the caller and must never be swallowed by retry.
-_RETRYABLE_CODES = {408, 425, 429, 500, 502, 503, 504}
-
 
 def _detect_signature(status_code: int, body: str) -> BlockSignature | None:
     """Map an HTTP response to a block signature, or ``None`` when not blocked.
@@ -84,10 +80,9 @@ class HttpDomAdapter(BaseScraper):
        retries the request, up to ``Budgets.proxy_retries`` proxy attempts.
        Direct connection always comes first; a proxy engages only on a block.
 
-    A plain successful GET is subject to exponential-backoff retries only for
-    transient errors (5xx and connection failures); those are silent at the
-    marker level because the marker contract only names block and rotation
-    events.
+    A plain successful GET is subject to exponential-backoff retries for
+    connection failures only; those are silent at the marker level because the
+    marker contract only names block and rotation events.
     """
 
     def __init__(
@@ -103,12 +98,11 @@ class HttpDomAdapter(BaseScraper):
         self._sleep: Callable[[float], None] = sleep_fn or time.sleep
         self._client = client or self._build_client(None)
 
-    @staticmethod
-    def _build_client(proxy: str | None) -> httpx.Client:
+    def _build_client(self, proxy: str | None) -> httpx.Client:
         """Build an httpx.Client with browser headers and the budget timeout."""
         return httpx.Client(
             headers=BROWSER_HEADERS,
-            timeout=httpx.Timeout(Budgets().http_timeout_s),
+            timeout=httpx.Timeout(self._budgets.http_timeout_s),
             proxy=proxy,
             follow_redirects=True,
         )

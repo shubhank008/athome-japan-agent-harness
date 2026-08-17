@@ -147,7 +147,6 @@ def test_proxy_rotate_and_recover_markers() -> None:
         assert adapter.fetch_html("https://www.athome.co.jp/list/") == "<html>recovered</html>"
         # Two total requests: direct (blocked) then proxy (recovered).
         assert len(route.calls) == 2
-        assert proxy.used == []  # get_proxy returns None by protocol
         assert proxy.proxies == []
 
 

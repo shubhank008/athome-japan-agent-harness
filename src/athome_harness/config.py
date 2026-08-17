@@ -32,30 +32,30 @@ class Budgets(BaseModel):
 
     # Rate limiting: requests per interval with a random 0..max jitter added to spread
     # polite spacing. Defaults to 1 request every 2s plus up to 1s jitter.
-    rate_requests: int = 1
-    rate_interval_s: float = 2.0
-    rate_jitter_max_s: float = 1.0
+    rate_requests: int = Field(default=1, ge=0)
+    rate_interval_s: float = Field(default=2.0, ge=0)
+    rate_jitter_max_s: float = Field(default=1.0, ge=0)
 
     # VERIFIED: AtHome returns 30 results per page.
-    results_per_page: int = 30
+    results_per_page: int = Field(default=30, ge=0)
 
     # DESIGN-FRESH thresholds for the LLM funnel.
-    shortlist_size: int = 20
-    recommendations_count: int = 5
+    shortlist_size: int = Field(default=20, ge=0)
+    recommendations_count: int = Field(default=5, ge=0)
 
     # Hard ceilings for a single live search.
-    max_pages: int = 100
-    runtime_minutes: int = 30
+    max_pages: int = Field(default=100, ge=0)
+    runtime_minutes: int = Field(default=30, ge=0)
 
     # Network and fault tolerance.
-    http_timeout_s: float = 30.0
-    proxy_retries: int = 3
+    http_timeout_s: float = Field(default=30.0, ge=0)
+    proxy_retries: int = Field(default=3, ge=0)
 
     # Prefetch cache freshness (post-MVP feature gate).
-    prefetch_ttl_hours: float = 48.0
+    prefetch_ttl_hours: float = Field(default=48.0, ge=0)
 
     # Determinism: LLM scoring is always temperature 0 (SPEC section 5).
-    llm_temperature: float = 0.0
+    llm_temperature: float = Field(default=0.0, ge=0)
 
 
 class Settings(BaseSettings):

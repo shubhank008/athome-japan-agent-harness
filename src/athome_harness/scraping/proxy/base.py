@@ -72,5 +72,5 @@ class BaseProxyProvider(ABC):
         return self._pool[index]
 
     def reset(self) -> None:
-        """Re-arm the rotation for a new session (pool is rebuilt fresh)."""
+        """Re-arm the rotation counter for a new session."""
         self._retries_used = 0
