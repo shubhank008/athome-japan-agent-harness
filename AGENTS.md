@@ -20,10 +20,10 @@
   so I can see what you are working on, what is done, and what is next.
 - When you spawn a subagent, tell me at that moment: which model it runs on
   and what it is doing. Report what it came back with when it finishes.
-- When the main agent (the orchestrating chat) is waiting on a delegated
-  subagent, poll its status no more often than once every 180 seconds. Subagent
-  tasks take minutes; polling faster only burns orchestrator context tokens on
-  "still running" without changing the outcome.
+- After dispatching a delegated subagent, verify once that its conversation was
+  created, is running, has the expected model/tools, and has no immediate error.
+  Then stop. Do not poll or wait for completion; the user will announce when the
+  subagent finishes, at which point the main agent evaluates its report and diff.
 - Never use Haiku.
 - Do not use em-dashes or emojis. Comment every method and important code. Maintain up-to-date documentation so a new developer can easily takeover. English everywhere.
 - Plan ahead using a PLAN.md and keep it updated after every feature or update.
@@ -105,8 +105,8 @@ place.
 
 ### Orchestration invariants (main chat + delegated subagents)
 
-* The main chat is the orchestrator and evaluator: it dispatches one subagent per milestone or well-scoped task, evaluates the returned diff and claims, and owns `PLAN.md` and `AGENTS.md` updates. Subagents implement; they do not push, open PRs, or edit `PLAN.md`/`AGENTS.md`.
-* While waiting on a subagent, poll its status at most once every 180 seconds (see Working Rules). Faster polling wastes orchestrator context tokens on "still running".
+* The main chat is the orchestrator and evaluator: it dispatches one subagent per milestone or well-scoped task, evaluates the returned diff and claims, and owns `PLAN.md` and `AGENTS.md` updates. Subagents own implementation; when the assignment explicitly includes publication, they may invoke `/no-mistakes` to push and open the single milestone PR, but they never edit `PLAN.md`/`AGENTS.md`.
+* After the one-time dispatch health check, do not poll or wait for a subagent. The user reports completion; only then does the orchestrator inspect the final report, branch/PR, diff, and verification evidence.
 * Do not take a subagent's report at face value. Before accepting a milestone, the orchestrator independently re-runs the gatekeeper (`ruff`, `mypy`, `pytest`) and inspects the actual diff.
 * When a subagent reports landmines, the orchestrator (not the subagent) evaluates each for project-wide applicability and promotes the durable ones into this Architecture invariants list. Task-specific or one-off notes are recorded in the milestone report instead.
 * Delegated work uses the project-verified models (SPEC section 6 / PLAN.md decisions), never Haiku. Only downgrade to a lesser model for genuinely mechanical tasks.
@@ -117,3 +117,5 @@ place.
 * Accessing `model_fields` on a pydantic `Settings`/model instance raises `PydanticDeprecatedSince211`; read it off the class with `type(self).model_fields`.
 * This repo uses a `src/` layout. Outside pytest, verification commands (`mypy`, ad-hoc imports) need `PYTHONPATH=src` (pytest already sets it via `pythonpath` config).
 * Name any throwaway verification virtualenv `.venv-verify`, not `.venv`, because `.venv` matches the gitignore pattern; delete it after use.
+* Webshare's rotating plan uses one credentialed gateway URL; a pool of length one is intentional. The proxy retry budget, not pool size, bounds consecutive proxy attempts. A base proxy provider must reuse its last candidate when the pool is shorter than the retry budget, or the configured budget is never consumed.
+* `Settings` requires `OPENROUTER_API_KEY`; tests constructing settings directly must pass an explicit throwaway key rather than relying on a local `.env` file or a real credential.

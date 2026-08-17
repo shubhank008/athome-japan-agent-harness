@@ -37,7 +37,7 @@ revalidation, vision A/B benchmarks.
 | Milestone | Tasks | State |
 |-----------|-------|-------|
 | M0 Skeleton | T01-T04 | done (2026-07-08, `feat/001-m0-skeleton`, verified) |
-| M1 Scraper core | T05-T09 | done (2026-08-17, `feat/001-m1-scraper`, verified) |
+| M1 Scraper core | T05-T09 | done (2026-07-08, `feat/001-m1-scraper`, PR #2 merged, independently verified) |
 | M2 Filter map | T10-T13 | todo |
 | M3 Parsing | T14-T16 | todo |
 | M4 LLM layer | T17-T21 | todo |
@@ -70,6 +70,9 @@ revalidation, vision A/B benchmarks.
   recorded as Probable Negatives and surfaced as caveats, not ignored.
 - 2026-07-08: Execution model adopted: main chat orchestrates and evaluates; one
   delegated subagent (local agent-server conversation) implements each milestone
-  sequentially. Subagents never push/PR and never edit `PLAN.md`/`AGENTS.md`; the
-  orchestrator re-runs the gatekeeper and vets reported landmines before accepting.
-  Orchestrator polls subagent status at most once per 180s to conserve context.
+  sequentially. After one dispatch health check, the main chat stops and waits for
+  the user to announce completion; it does not poll or burn context while waiting.
+  The orchestrator re-runs the gatekeeper and vets reported landmines before accepting.
+- 2026-07-08: M1 was published by no-mistakes as PR #2 and merged. Independent local
+  verification reproduced the subagent evidence: ruff clean, mypy clean, 75 tests pass.
+  Durable M1 landmines were promoted to AGENTS.md.
