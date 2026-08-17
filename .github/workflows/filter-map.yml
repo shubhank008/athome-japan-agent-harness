@@ -1,0 +1,101 @@
+name: filter-map-refresh
+
+# Weekly refresh of the checked-in filter snapshot (M2, T12).
+#
+# Runs the extraction tool against both canary pages (rental Osaka, purchase
+# Tokyo). When the refreshed snapshot validates and differs from the committed
+# one it is committed and pushed to main. When extraction or validation fails,
+# it pushes nothing and files a GitHub issue carrying the tool's report via
+# GITHUB_TOKEN. No other secrets are involved and tool logs never contain
+# secret material, so no secret is ever written to the log.
+
+on:
+  schedule:
+    # Weekly on Monday 02:17 UTC. Cron times in GitHub Actions are UTC.
+    - cron: "17 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  # Least privilege: only repository contents (snapshot commit/push) and issues
+  # (failure report). No other scopes are requested.
+  contents: write
+  issues: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out default branch
+        uses: actions/checkout@v4
+        with:
+          # Push refreshed snapshots to the branch the build updates.
+          ref: main
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install exact-pinned dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Refresh filter map snapshot
+        id: refresh
+        # Always succeed so later steps decide from the recorded exit code.
+        run: |
+          set +e
+          PYTHONPATH=src python -m tools.dump_filter_map \
+            --output filters/data/filter_map.v1.json > /tmp/fmap.log 2>&1
+          status=$?
+          set -e
+          echo "dump_exit=$status" >> "$GITHUB_OUTPUT"
+          cat /tmp/fmap.log
+        env:
+          PYTHONPATH: src
+
+      - name: Commit refreshed snapshot when valid
+        if: steps.refresh.outputs.dump_exit == '0'
+        run: |
+          git config --get user.name >/dev/null 2>&1 || \
+            git config user.name "github-actions[bot]"
+          git config --get user.email >/dev/null 2>&1 || \
+            git config user.email \
+              "41898282+github-actions[bot]@users.noreply.github.com"
+          git add filters/data/filter_map.v1.json
+          if git diff --cached --quiet; then
+            echo "Filter map unchanged; nothing to commit."
+          else
+            git commit -m "chore(ci): refresh filter map snapshot"
+            git push
+            echo "Committed and pushed refreshed filter map snapshot."
+          fi
+
+      - name: File issue on failure
+        if: steps.refresh.outputs.dump_exit != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "### Filter map refresh failed on $(date -u +%Y-%m-%d)"
+            echo
+            echo "The weekly filter map extraction could not be completed."
+            echo
+            echo '```'
+            cat /tmp/fmap.log
+            echo '```'
+          } > /tmp/issue-body.md
+          # Reuse an existing open issue for this failure when present, so a
+          # broken canary does not create a fresh issue every week.
+          existing="$(gh issue list \
+            --state open \
+            --search 'in:title "filter map refresh failed"' \
+            --json number --jq '.[0].number // empty')"
+          if [ -n "$existing" ]; then
+            echo "[FILTERMAP_ISSUE_FILED] url=https://github.com/${{ github.repository }}/issues/$existing (existing)"
+          else
+            issue_url="$(gh issue create \
+              --title "Filter map refresh failed" \
+              --body-file /tmp/issue-body.md)"
+            echo "[FILTERMAP_ISSUE_FILED] url=${issue_url}"
+          fi

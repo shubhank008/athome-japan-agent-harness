@@ -105,16 +105,16 @@ PLAN.md                     # repo-level live plan, updated after every feature
 
 ### M2: Filter map
 
-- [ ] T10 `filters/map_schema.py`: versioned schema (flow -> filter name -> [{code,
+- [x] T10 `filters/map_schema.py`: versioned schema (flow -> filter name -> [{code,
   label}]), validation rules (required filters per flow, code regex `kc\d+`, non-empty
   labels, monotonic price ordering sanity check). Unit tests.
-- [ ] T11 `tools/dump_filter_map.py`: fetches reference pages (rental Osaka, purchase
+- [x] T11 `tools/dump_filter_map.py`: fetches reference pages (rental Osaka, purchase
   Tokyo as canaries), extracts selects/options into the map JSON, validates, writes
   `filters/data/filter_map.v1.json` with content hash. `--check` mode exits non-zero on
   schema failure and prints an issue-ready report.
-- [ ] T12 `.github/workflows/filter-map.yml`: weekly schedule + manual dispatch; commits
+- [x] T12 `.github/workflows/filter-map.yml`: weekly schedule + manual dispatch; commits
   updated map or opens a GitHub issue with the failure diff (uses GITHUB_TOKEN).
-- [ ] T13 `filters/encoder.py`: SearchPlan + map -> POST params; honors the conditions
+- [x] T13 `filters/encoder.py`: SearchPlan + map -> POST params; honors the conditions
   map cardinality (SPEC.md 1.1): `single` -> `FIELD=code`, `multi` -> repeated
   `FIELD[]=code`, `range` -> FROM/TO pair, `bool` -> toggle. Raises
   `UnknownFilter`/`UnknownFilterValue` on anything unmappable. Property-based unit tests
