@@ -4,7 +4,11 @@ Live project plan. Updated after every feature or update, per AGENTS.md.
 
 ## Current state
 
-Project is pre-implementation. No source code yet.
+M0 (project skeleton + hygiene) implemented and verified on branch
+`feat/001-m0-skeleton` (local, not pushed). Package `src/athome_harness/` with
+`config.py` (strict env parser + `Budgets`) and `models.py` (pydantic data models);
+`pyproject.toml` + exact-pinned `requirements.txt`; 31 unit tests green; ruff and
+mypy clean. No runtime behavior yet (no scraping, LLM, or store).
 
 ## Active feature
 
@@ -29,7 +33,7 @@ revalidation, vision A/B benchmarks.
 
 | Milestone | Tasks | State |
 |-----------|-------|-------|
-| M0 Skeleton | T01-T04 | todo |
+| M0 Skeleton | T01-T04 | done (2026-07-08, `feat/001-m0-skeleton`, verified) |
 | M1 Scraper core | T05-T09 | todo |
 | M2 Filter map | T10-T13 | todo |
 | M3 Parsing | T14-T16 | todo |
@@ -61,3 +65,8 @@ revalidation, vision A/B benchmarks.
   other multi filters accept lists.
 - 2026-07-08: Disabled features (`p-property__information-facility_disabled-list`) are
   recorded as Probable Negatives and surfaced as caveats, not ignored.
+- 2026-07-08: Execution model adopted: main chat orchestrates and evaluates; one
+  delegated subagent (local agent-server conversation) implements each milestone
+  sequentially. Subagents never push/PR and never edit `PLAN.md`/`AGENTS.md`; the
+  orchestrator re-runs the gatekeeper and vets reported landmines before accepting.
+  Orchestrator polls subagent status at most once per 180s to conserve context.
