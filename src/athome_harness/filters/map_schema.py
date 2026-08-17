@@ -183,8 +183,9 @@ def validate(filter_map: FilterMap) -> FilterMap:
 
     Rules enforced:
       * schema version must equal :data:`SUPPORTED_SCHEMA_VERSION`;
-      * every flow in ``mappings`` must be a known flow and carry every filter
-        named by :data:`REQUIRED_FILTERS`;
+      * ``mappings`` must contain every flow in :data:`FLOWS` (a map that
+        silently drops the rent or buy flow is invalid);
+      * every flow must carry every filter named by :data:`REQUIRED_FILTERS`;
       * every field must be defined in :data:`CONDITIONS`;
       * option codes must match the field's regex, be unique and have a
         non-empty label;
@@ -200,6 +201,11 @@ def validate(filter_map: FilterMap) -> FilterMap:
         raise UnsupportedSchemaVersionError(
             f"unsupported filter map schema version {filter_map.version}; "
             f"expected {SUPPORTED_SCHEMA_VERSION}"
+        )
+    missing_flows = FLOWS - set(filter_map.mappings)
+    if missing_flows:
+        raise FilterMapSchemaViolation(
+            f"filter map missing flows: {', '.join(sorted(missing_flows))}"
         )
     for flow, fields in filter_map.mappings.items():
         _validate_flow(flow, fields)
