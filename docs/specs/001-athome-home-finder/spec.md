@@ -38,6 +38,22 @@ now, WebUI later. Architecture decisions below are made to not close those doors
    adapter as fallback scaffold (USER).
 7. Stack: Python 3.12, httpx, selectolax (fallback BeautifulSoup), pydantic v2,
    SQLite via sqlite3, pytest, ruff + mypy (USER).
+8. Models: general LLM `deepseek/deepseek-v4-flash-0731`; vision model
+   `google/gemma-4-31b-it` (both VERIFIED on OpenRouter 2026-07-08).
+9. Webshare: cheapest ($3) plan; proxy/IP rotated per session; Webshare invoked only
+   when the main IP is actually blocked (USER).
+10. Prefetch scope: Osaka prefecture first, scaling to all prefectures slowly (USER).
+11. Multi-value filters: many filters accept a list (e.g., layout "2LDK or 3DK" ->
+    `MADORI[]=[...]`). The conditions map (SPEC.md section 1.1) encodes each field's
+    cardinality so tool-calling knows the expected parameter signature (USER).
+12. Probable Negatives: disabled features in the DOM
+    (`p-property__information-facility_disabled-list`, VERIFIED 550 occurrences in the
+    Osaka dump) are recorded as Probable Negatives (e.g., "Pets MIGHT not be allowed"),
+    scored as caveats, and surfaced in reports (USER).
+
+The project-scoped PRD.md and SPEC.md at the repo root hold the product contract and
+the canonical conditions map; this feature spec defers to them for product intent and
+filter/field truth.
 
 ## User Stories
 
@@ -83,7 +99,8 @@ Y presented with reasons so I can act without opening dozens of tabs.
 
 **Acceptance Criteria:**
 - [ ] Each shortlisted listing's detail page is scraped into the full detail model: all
-      text fields, photo URLs, floor-plan image URL, USP feature tags (USER).
+      text fields, photo URLs, floor-plan image URL, USP feature tags, and Probable
+      Negatives from disabled-feature DOM markers (USER).
 - [ ] The recommender produces top Y (default 5, DESIGN-FRESH, configurable) with
       per-property reasons mapped to the original query constraints.
 - [ ] Output is a markdown report AND structured JSON, both containing direct AtHome URLs (USER).
@@ -241,7 +258,9 @@ cues (poor condition, old fixtures, bad layout) can improve recommendations late
 
 ## Open Questions
 
-1. Exact Webshare plan/limits and whether rotation is per-request or sticky-session.
-   Owner: user. Blocks US-008 implementation details only.
-2. Which prefecture/city sets qualify for prefetch once US-009 starts. Owner: user.
-3. Vision model choice for `VisionFloorPlanEvaluator` benchmarks. Owner: future session.
+1. Which city sets within Osaka qualify for the first prefetch config. Owner: user.
+   (Prefecture scope resolved: Osaka first, then scale slowly.)
+
+Resolved 2026-07-08: Webshare = cheapest plan, per-session rotation, invoked only on a
+real main-IP block. Models = `deepseek/deepseek-v4-flash-0731` (general) and
+`google/gemma-4-31b-it` (vision).

@@ -114,9 +114,11 @@ PLAN.md                     # repo-level live plan, updated after every feature
   schema failure and prints an issue-ready report.
 - [ ] T12 `.github/workflows/filter-map.yml`: weekly schedule + manual dispatch; commits
   updated map or opens a GitHub issue with the failure diff (uses GITHUB_TOKEN).
-- [ ] T13 `filters/encoder.py`: SearchPlan + map -> POST params; raises
+- [ ] T13 `filters/encoder.py`: SearchPlan + map -> POST params; honors the conditions
+  map cardinality (SPEC.md 1.1): `single` -> `FIELD=code`, `multi` -> repeated
+  `FIELD[]=code`, `range` -> FROM/TO pair, `bool` -> toggle. Raises
   `UnknownFilter`/`UnknownFilterValue` on anything unmappable. Property-based unit tests
-  against the checked-in map snapshot.
+  against the checked-in map snapshot, incl. a multi-value layout case.
 
 ### M3: Parsing
 
@@ -127,7 +129,8 @@ PLAN.md                     # repo-level live plan, updated after every feature
   building identity. Unit tests against fixtures incl. detached-house edge case (no
   room number) and missing optional fields (parse warnings recorded, FR-8).
 - [ ] T16 `scraping/detail_parser.py`: full field extraction + photo URLs + floor-plan
-  image URL + USP tags -> `ListingDetail`. Unit tests against fixtures.
+  image URL + USP tags + Probable Negatives (from `facility_disabled` DOM markers) ->
+  `ListingDetail`. Unit tests against fixtures, incl. a disabled-feature case.
 
 ### M4: LLM layer
 

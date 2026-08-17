@@ -49,3 +49,15 @@ revalidation, vision A/B benchmarks.
   mechanically; user decision, on record.
 - 2026-07-08: Filter map is context-keyed by (flow, filter name) because `kcXXX` codes
   collide across PRICEFROM/PRICETO and flows.
+- 2026-07-08: Project-scoped PRD.md and SPEC.md live at repo root; the feature spec in
+  docs/specs is task-scoped and defers to them for product intent and filter truth.
+- 2026-07-08: Models: general `deepseek/deepseek-v4-flash-0731`, vision
+  `google/gemma-4-31b-it` (both verified on OpenRouter).
+- 2026-07-08: Webshare cheapest plan, per-session proxy rotation, invoked only on a
+  real main-IP block.
+- 2026-07-08: Prefetch scope Osaka prefecture first, scale to all prefectures slowly.
+- 2026-07-08: Conditions map (SPEC.md 1.1) encodes per-field cardinality (single /
+  multi / range / bool) so tool-calling knows each parameter's signature; layout and
+  other multi filters accept lists.
+- 2026-07-08: Disabled features (`p-property__information-facility_disabled-list`) are
+  recorded as Probable Negatives and surfaced as caveats, not ignored.

@@ -216,3 +216,6 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Raw page dumps (large captured artifacts; curated fixtures live in tests/fixtures)
+dump/
