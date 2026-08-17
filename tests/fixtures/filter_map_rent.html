@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja"><body>
+<!-- ============ RENT page (osaka) mirror ============ -->
+<h2>chintai osaka</h2>
+<form id="rent">
+<select name="PRICEFROM" id="rentfrom">
+  <option value="kc001" label="">No lower limit</option>
+  <option value="kc041" label="">20,000 yen</option>
+  <option value="kc042" label="">25,000 yen</option>
+  <option value="kc099" label="">1 million yen</option>
+</select>
+<select name="PRICETO" id="rentto">
+  <option value="kc001" label="">No upper limit</option>
+  <option value="kc041" label="">20,000 yen</option>
+  <option value="kc099" label="">1 million yen</option>
+</select>
+<select name="MENSEKI"><option value="kt001">No specification</option><option value="kt002">20m² or more</option><option value="kt003">25m² or more</option></select>
+<select name="EKITOHO"><option value="ke001">No specification</option><option value="ke002">5 min or less</option><option value="ke003">10 min or less</option></select>
+<select name="CHIKUNENSU"><option value="kn001">New construction</option><option value="kn002">Within 10 years</option><option value="kn003">Within 20 years</option></select>
+<select name="KEIYAKU"><option value="ki001">General tenancy</option><option value="ki002">Sublease</option><option value="ki003">Fixed-term</option></select>
+<select name="SORT"><option value="1">Recommended order</option><option value="2">New order</option><option value="3">Rent low to high</option><option value="4">Rent high to low</option></select>
+<select name="TATEMONONUM"><option value="1">1 building</option><option value="2">2 buildings</option><option value="3">All</option></select>
+<input type="checkbox" name="MADORI[]" value="km002" id="km02"><label for="km02">1R</label>
+<input type="checkbox" name="MADORI[]" value="km003" id="km03"><label for="km03">1K</label>
+<input type="checkbox" name="MADORI[]" value="km004" id="km04"><label for="km04">1DK</label>
+<input type="checkbox" name="PRICEOPT[]" value="kc201" id="kc201"><label for="kc201">No management fee</label>
+<input type="checkbox" name="PRICEOPT[]" value="kc202" id="kc202"><label for="kc202">No deposit</label>
+<input type="checkbox" name="PRICEOPT[]" value="kc203" id="kc203"><label for="kc203">No key money</label>
+<input type="checkbox" name="SHUMOKU[]" value="kb001" id="kb01"><label for="kb01">Apartments</label>
+<input type="checkbox" name="SHUMOKU[]" value="kb002" id="kb02"><label for="kb02">Houses</label>
+<input type="checkbox" name="TATEKOUZOU[]" value="kh001" id="kh01"><label for="kh01">Steel</label>
+<input type="checkbox" name="TATEKOUZOU[]" value="kh002" id="kh02"><label for="kh02">Wooden</label>
+<input type="checkbox" name="TATEKOUZOU[]" value="kh003" id="kh03"><label for="kh03">RC</label>
+<input type="checkbox" name="SYUHENKANKYO[]" value="kw001" id="kw01"><label for="kw01">Convenience store</label>
+<input type="checkbox" name="SYUHENKANKYO[]" value="kw002" id="kw02"><label for="kw02">Supermarket</label>
+<input type="checkbox" name="GAZO[]" value="kg001" id="kg01"><label for="kg01">With floor plan</label>
+<input type="checkbox" name="GAZO[]" value="kg002" id="kg02"><label for="kg02">With photo</label>
+<input type="checkbox" name="KODAWARI[]" value="K01" id="k01"><label for="k01">Pet friendly</label>
+<input type="checkbox" name="KODAWARI[]" value="K05" id="k05"><label for="k05">Balcony</label>
+<input type="checkbox" name="KODAWARI[]" value="Oae" id="oae"><label for="oae">Appliances included</label>
+<input type="checkbox" name="APPEAL[]" value="ka001" id="ka01"><label for="ka01">Stylish</label>
+<input type="checkbox" name="REFORM[]" value="ak001" id="ak01"><label for="ak01">Renovated</label>
