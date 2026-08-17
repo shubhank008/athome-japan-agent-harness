@@ -146,7 +146,9 @@ class HttpDomAdapter(BaseScraper):
                 if proxy_url is None:
                     raise BlockDetected(url, signature)
                 logger.warning(
-                    "[PROXY_ROTATE] attempt=<%d> of=<%d>", attempt + 1, attempts + 1
+                    "[PROXY_ROTATE] attempt=<%d> of=<%d>",
+                    attempt + 1,
+                    self._budgets.proxy_retries,
                 )
                 continue
             if proxy_url is not None:
