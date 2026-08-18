@@ -8,7 +8,7 @@ request, so one URL is enough; the pool has length one and the retry budget
 bounds consecutive proxy attempts.
 
 Credential handling obeys the marker contract: the proxy URL includes the
-credentials internally (httpx needs them in the URL) but the provider never
+credentials internally (curl-cffi needs them in the URL) but the provider never
 logs it. The [BLOCK_DETECTED] guard in ``base.redact_url`` strips any userinfo
 before a URL is logged, and :meth:`get_proxy` result is consumed by the adapter
 which never logs the full URL (``PROXY_CREDENTIALS_IN_URL_LOG`` guard).
@@ -28,7 +28,7 @@ _WEBSHARE_PORT = 80
 def _build_webshare_url(user: str, password: str) -> str:
     """Build the credentialed Webshare proxy URL for one session.
 
-    The userinfo is required by httpx to authenticate; it must never be logged.
+    The userinfo is required by curl-cffi to authenticate; it must never be logged.
     """
     return f"http://{user}:{password}@{_WEBSHARE_HOST}:{_WEBSHARE_PORT}"
 
