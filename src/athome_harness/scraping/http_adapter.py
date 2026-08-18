@@ -2,9 +2,11 @@
 
 Concrete :class:`BaseScraper` implementation that talks to AtHome over plain
 HTTP. It presents browser-like headers, retries transient failures with
-exponential backoff, detects IP blocks (403/429/captcha markers) and, when an
+exponential backoff, detects IP blocks (403/429/captcha markers) and HTTP 200
+AtHome puzzle/authentication pages via precise body markers and, when an
 optional :class:`ProxyProvider` is configured, rotates to a proxy on block and
-recovers. Proxy rotation emits the contract markers verbatim.
+recovers. Proxy rotation and challenge events emit the contract markers
+verbatim with redacted URLs.
 
 This is one of only two modules (the other is ``playwright_adapter.py``) allowed
 to import a third-party HTTP/scraping library, per the Abstract First invariant.
@@ -25,6 +27,7 @@ from athome_harness.scraping.base import (
     BlockDetected,
     BlockSignature,
     ProxyProvider,
+    redact_url,
 )
 
 logger = logging.getLogger(__name__)
@@ -43,6 +46,21 @@ BROWSER_HEADERS: dict[str, str] = {
 # Substrings that mark a response body as a captcha challenge page.
 _CAPTCHA_MARKERS = ("recaptcha", "captcha", "verify you are human")
 
+# Substrings that mark a response body as an AtHome anti-bot challenge page,
+# even when the HTTP status is 200 (US-008, T09a). AtHome can answer with a
+# puzzle/authentication page instead of content; these precise markers are
+# detected before parsing or saving so a challenge page never becomes listing
+# data. A challenge is never solved or circumvented: the adapter only rotates
+# through the configured proxy path and degrades to BlockDetected when bounded
+# alternate requests are exhausted.
+_ATHOME_PUZZLE_MARKERS = (
+    "click to verify",
+    "認証にご協力ください",
+)
+_ATHOME_JAVASCRIPT_MARKERS = (
+    "to regain access, please make sure that cookies and javascript are enabled",
+)
+
 # Transient-failure retry policy. Not a config knob: the SPEC budgets table has
 # no HTTP backoff entry, so these stay as documented constants.
 _TRANSIENT_RETRIES = 3
@@ -50,16 +68,36 @@ _BACKOFF_BASE_S = 0.5
 _BACKOFF_MAX_S = 8.0
 
 
+def _detect_athome_challenge(body: str) -> str | None:
+    """Return the kind of AtHome anti-bot challenge in ``body``, or ``None``.
+
+    Case-insensitive exact marker match against the AtHome puzzle page
+    (``[ATHOME_CHALLENGE] kind=puzzle``) and the Chrome JavaScript/cookie
+    interstitial (``kind=javascript``). These challenge pages can arrive with
+    HTTP 200, so the status code is not consulted here; the caller decides
+    whether to emit the marker and how to classify the block.
+    """
+    lowered = body.lower()
+    if any(marker in lowered for marker in _ATHOME_PUZZLE_MARKERS):
+        return "puzzle"
+    if any(marker in lowered for marker in _ATHOME_JAVASCRIPT_MARKERS):
+        return "javascript"
+    return None
+
+
 def _detect_signature(status_code: int, body: str) -> BlockSignature | None:
     """Map an HTTP response to a block signature, or ``None`` when not blocked.
 
-    HTTP 403 and 429 are hard block signals; any body containing a captcha
-    marker is classified as ``captcha`` regardless of the status code. Note 429
-    is therefore both a block signal and a retryable code; the adapter treats it
-    as a block signal whenever it appears, per SPEC section 4.
+    HTTP 403 and 429 are hard block signals; any body containing a generic
+    captcha marker or an AtHome challenge marker is classified as ``captcha``
+    regardless of the status code. Note 429 is therefore both a block signal and
+    a retryable code; the adapter treats it as a block signal whenever it
+    appears, per SPEC section 4.
     """
     lowered = body.lower()
-    if any(marker in lowered for marker in _CAPTCHA_MARKERS):
+    if _detect_athome_challenge(body) is not None or any(
+        marker in lowered for marker in _CAPTCHA_MARKERS
+    ):
         return "captcha"
     if status_code in (403, 429):
         return "403" if status_code == 403 else "429"
@@ -79,6 +117,12 @@ class HttpDomAdapter(BaseScraper):
        proxies (emitting [PROXY_ROTATE] and [PROXY_RECOVERED] markers) and
        retries the request, up to ``Budgets.proxy_retries`` proxy attempts.
        Direct connection always comes first; a proxy engages only on a block.
+
+    AtHome can also answer with an HTTP 200 puzzle/authentication page. Such a
+    page is detected via precise body markers, emits the ``[ATHOME_CHALLENGE]``
+    contract marker with a redacted URL, and is classified as a captcha block so
+    it follows the same bounded proxy path and never reaches parsers or fixture
+    files. The challenge itself is never solved or circumvented.
 
     A plain successful GET is subject to exponential-backoff retries for
     connection failures only; those are silent at the marker level because the
@@ -132,6 +176,13 @@ class HttpDomAdapter(BaseScraper):
 
         for attempt in range(attempts + 1):
             response = self._http_get(url, proxy_url)
+            challenge_kind = _detect_athome_challenge(response.text)
+            if challenge_kind is not None:
+                logger.warning(
+                    "[ATHOME_CHALLENGE] url=<%s> kind=<%s>",
+                    redact_url(url),
+                    challenge_kind,
+                )
             signature = _detect_signature(response.status_code, response.text)
             if signature is not None:
                 if self._proxy_provider is None:

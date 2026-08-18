@@ -127,6 +127,26 @@ def test_unknown_flow_is_rejected() -> None:
         validate(invalid)
 
 
+def test_map_missing_rent_flow_is_rejected() -> None:
+    """A valid snapshot must contain every supported flow; omitting rent fails."""
+    filter_map = fixture_map()
+    invalid = deep_copy_map(filter_map)
+    del invalid.mappings["rent"]
+    invalid.content_hash = compute_content_hash(invalid.mappings)
+    with pytest.raises(FilterMapSchemaViolation, match="missing flows"):
+        validate(invalid)
+
+
+def test_map_missing_buy_flow_is_rejected() -> None:
+    """A valid snapshot must contain every supported flow; omitting buy fails."""
+    filter_map = fixture_map()
+    invalid = deep_copy_map(filter_map)
+    del invalid.mappings["buy"]
+    invalid.content_hash = compute_content_hash(invalid.mappings)
+    with pytest.raises(FilterMapSchemaViolation, match="missing flows"):
+        validate(invalid)
+
+
 def test_missing_required_filter_is_rejected() -> None:
     """Removing a filter REQUIRED_FILTERS names must fail validation."""
     filter_map = fixture_map()

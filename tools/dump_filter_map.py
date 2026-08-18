@@ -38,7 +38,7 @@ from athome_harness.filters.map_schema import (
     validate,
 )
 from athome_harness.models import FilterMap, FilterOption
-from athome_harness.scraping.base import BaseScraper, redact_url
+from athome_harness.scraping.base import BaseScraper, BlockDetected, redact_url
 
 logger = logging.getLogger(__name__)
 
@@ -314,12 +314,18 @@ def default_fetcher() -> FetchFn:
 
 
 def cmd_dump(args: argparse.Namespace) -> int:
-    """Fetch both canaries, validate, and write the snapshot JSON."""
+    """Fetch both canaries, validate, and write the snapshot JSON.
+
+    A fetch that surfaces :class:`BlockDetected` (for example an AtHome
+    challenge page, which is classified as a captcha block by the HTTP adapter)
+    exits nonzero without writing any file, so challenge HTML can never become a
+    map fixture.
+    """
     fetch = default_fetcher()
     try:
         fetched = extract_canaries(fetch)
         filter_map = build_map(fetched)
-    except (FilterMapExtractionError, FilterMapSchemaViolation) as exc:
+    except (FilterMapExtractionError, FilterMapSchemaViolation, BlockDetected) as exc:
         logger.error("%s", exc)
         return 1
     write_map(filter_map, args.output)

@@ -29,6 +29,17 @@
 - Plan ahead using a PLAN.md and keep it updated after every feature or update.
 - **When something surprises you, write it down here.** A landmine that costs
   an hour and is not recorded costs that hour again.
+- **Three-strike rule:** For the same terminal command, test target, or compilation
+  block, three consecutive failures end that attempt. A fourth variation is forbidden
+  without first changing the strategy.
+- **Mandatory pivot:** After the third consecutive failure, stop the current approach,
+  preserve the failure output, inspect `git status` and `git diff`, restore only files
+  changed by the failed attempt, explain the failure, and choose a materially different
+  programmatic strategy. Never use a blanket `git checkout` or `git restore` that could
+  erase pre-existing user work.
+- **No dependency rabbit holes:** Do not repeatedly patch or work around a broken
+  sub-dependency. After confirming the dependency is the source of failure, prefer a
+  simpler native or already-supported project path and record the dependency limitation.
 
 
 ## Where code lives
@@ -119,3 +130,8 @@ place.
 * Name any throwaway verification virtualenv `.venv-verify`, not `.venv`, because `.venv` matches the gitignore pattern; delete it after use.
 * Webshare's rotating plan uses one credentialed gateway URL; a pool of length one is intentional. The proxy retry budget, not pool size, bounds consecutive proxy attempts. A base proxy provider must reuse its last candidate when the pool is shorter than the retry budget, or the configured budget is never consumed.
 * `Settings` requires `OPENROUTER_API_KEY`; tests constructing settings directly must pass an explicit throwaway key rather than relying on a local `.env` file or a real credential.
+* Numeric label parsers must check specific unit words such as `million` and `thousand` before generic suffix patterns such as `m`; otherwise `5million` is misread as 5.
+* Negative log-marker tests must assert universal absence, for example `not any(marker in record for record in records)`, not merely that one record lacks the marker.
+* Validators for snapshots with multiple supported flows must reject a missing entire flow, not only malformed fields within flows that happen to be present.
+* AtHome can return an HTTP 200 puzzle/authentication page instead of content. Treat `Click to verify`, `To regain access, please make sure that cookies and JavaScript are enabled`, and the Japanese authentication heading as challenge markers before parsing or saving HTML; use bounded alternate-request handling and never attempt to solve or circumvent the puzzle.
+* A live capture must validate that it contains expected page content before becoming a fixture. Never save an AtHome challenge page as a parser fixture, and record the challenge marker and redacted request context when capture is blocked.

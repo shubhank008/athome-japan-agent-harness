@@ -151,9 +151,12 @@ through Webshare proxies so a search does not die mid-run.
 **Acceptance Criteria:**
 - [ ] A proxy provider interface exists; Webshare is the first implementation, reading
       credentials from environment variables only.
-- [ ] On detected block (403/429/captcha signature), the HTTP adapter rotates proxy and
-      retries the in-flight request once per proxy, up to the proxy retry budget.
-- [ ] Rotation events are logged with marker lines (see contracts/log-markers.md).
+- [ ] On detected block (403/429/captcha signature), including an HTTP 200 AtHome
+      puzzle/authentication page, the HTTP adapter emits the challenge/block markers,
+      rotates proxy and retries the in-flight request once per proxy, up to the proxy
+      retry budget. The challenge page is never parsed or saved as listing data.
+- [ ] Rotation and AtHome challenge events are logged with marker lines (see
+      contracts/log-markers.md), using redacted URLs only.
 - [ ] Direct connection is always tried first; proxies are never used when healthy.
 
 ### US-009: Optional prefetch cache (post-MVP)

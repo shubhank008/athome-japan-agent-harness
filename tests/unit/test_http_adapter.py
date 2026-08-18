@@ -16,7 +16,11 @@ import respx
 
 from athome_harness.config import Budgets
 from athome_harness.scraping.base import BlockDetected, ProxyProvider
-from athome_harness.scraping.http_adapter import HttpDomAdapter, _detect_signature
+from athome_harness.scraping.http_adapter import (
+    HttpDomAdapter,
+    _detect_athome_challenge,
+    _detect_signature,
+)
 
 # Redacted form of the fixture URL used across tests; the marker contract never
 # logs full URLs, so assertions use the redacted variant.
@@ -24,6 +28,16 @@ REDACTED = "https://www.athome.co.jp/list"
 
 # A plausible URL with a query string and credentials to prove redaction.
 FULL_URL = "https://user:secret@www.athome.co.jp/list/?PAGENO=2&x=1"
+
+# Inline representative AtHome challenge bodies, exactly as captured in the M3
+# incident: AtHome answers HTTP 200 with a puzzle/auth page.
+PUZZLE_BODY = "<html><body><h1>Click to verify</h1><p>For security...</p></body></html>"
+JAPANESE_PUZZLE_BODY = "<html><body><h1>認証にご協力ください</h1></body></html>"
+JAVASCRIPT_BODY = (
+    "<html><body>To regain access, please make sure that "
+    "cookies and JavaScript are enabled.</body></html>"
+)
+UPPER_PUZZLE_BODY = "<html><body><h1>CLICK TO VERIFY</h1></body></html>"
 
 
 class StubProxy:
@@ -67,11 +81,43 @@ def make_adapter(
         ("429", 429, "<html>slow down</html>"),
         ("captcha", 200, "<html>reCAPTCHA</html>"),
         ("captcha", 403, "<html>verify you are human</html>"),
+        ("captcha", 200, PUZZLE_BODY),
+        ("captcha", 200, JAPANESE_PUZZLE_BODY),
+        ("captcha", 200, JAVASCRIPT_BODY),
+        ("captcha", 403, JAVASCRIPT_BODY),
     ],
 )
 def test_detect_signature(signature, status, body) -> None:
     """The block-signature mapper honors the documented signals."""
     assert _detect_signature(status, body) == signature
+
+
+@pytest.mark.parametrize(
+    "kind,body",
+    [
+        ("puzzle", PUZZLE_BODY),
+        ("puzzle", JAPANESE_PUZZLE_BODY),
+        ("puzzle", UPPER_PUZZLE_BODY),
+        ("javascript", JAVASCRIPT_BODY),
+    ],
+)
+def test_detect_athome_challenge(kind, body) -> None:
+    """Precise AtHome challenge markers map to the documented kinds."""
+    assert _detect_athome_challenge(body) == kind
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "<html>ok</html>",
+        "<html>reCAPTCHA here</html>",
+        "click here to verify your email address",
+        "enable JavaScript for this widget",
+    ],
+)
+def test_detect_athome_challenge_rejects_normal_pages(body) -> None:
+    """Non-challenge pages, near-misses, and generic captchas are not challenges."""
+    assert _detect_athome_challenge(body) is None
 
 
 def test_fetch_html_returns_decoded_text() -> None:
@@ -170,6 +216,87 @@ def test_redaction_in_marker_disallows_credentials_and_query() -> None:
             adapter.fetch_html(FULL_URL)
     assert "secret" not in str(excinfo.value)
     assert "PAGENO" not in str(excinfo.value)
+
+
+def test_challenge_200_raises_block_detected_without_proxy() -> None:
+    """A 200 puzzle page is a captcha block when there is no proxy provider."""
+    with respx.mock(base_url="https://www.athome.co.jp") as router:
+        router.get("/list/").mock(return_value=httpx.Response(200, text=PUZZLE_BODY))
+        adapter, _ = make_adapter()
+        with pytest.raises(BlockDetected) as excinfo:
+            adapter.fetch_html("https://www.athome.co.jp/list/")
+    assert excinfo.value.signature == "captcha"
+
+
+def test_challenge_marker_redacts_url_and_kind(caplog) -> None:
+    """The [ATHOME_CHALLENGE] marker carries a redacted URL and the kind."""
+    with respx.mock(base_url="https://www.athome.co.jp") as router:
+        router.get("/list/").mock(return_value=httpx.Response(200, text=JAPANESE_PUZZLE_BODY))
+        adapter, _ = make_adapter()
+        with pytest.raises(BlockDetected):
+            adapter.fetch_html(FULL_URL)
+    messages = [r.getMessage() for r in caplog.records]
+    matches = [m for m in messages if "[ATHOME_CHALLENGE]" in m]
+    assert len(matches) == 1
+    assert "kind=<puzzle>" in matches[0]
+    # redact_url drops the userinfo and the query string but keeps the path.
+    assert "url=<https://www.athome.co.jp/list/>" in matches[0]
+    assert "secret" not in matches[0]
+    assert "PAGENO" not in matches[0]
+    assert "user:" not in matches[0]
+
+
+def test_challenge_javascript_kind_marker(caplog) -> None:
+    """The JavaScript/cookie interstitial is marked kind=javascript."""
+    with respx.mock(base_url="https://www.athome.co.jp") as router:
+        router.get("/list/").mock(return_value=httpx.Response(200, text=JAVASCRIPT_BODY))
+        adapter, _ = make_adapter()
+        with pytest.raises(BlockDetected) as excinfo:
+            adapter.fetch_html("https://www.athome.co.jp/list/")
+    assert excinfo.value.signature == "captcha"
+    messages = [r.getMessage() for r in caplog.records]
+    marker = "[ATHOME_CHALLENGE] url=<https://www.athome.co.jp/list/> kind=<javascript>"
+    assert any(marker in m for m in messages)
+
+
+def test_challenge_proxy_recovery(caplog) -> None:
+    """A challenge rotates to a proxy and recovers without solving the puzzle."""
+    with respx.mock(base_url="https://www.athome.co.jp") as router:
+        route = router.get("/list/").mock(
+            side_effect=[
+                httpx.Response(200, text=PUZZLE_BODY),
+                httpx.Response(200, text="<html>recovered</html>"),
+            ]
+        )
+        proxy = StubProxy(["http://proxy.invalid:8080"])
+        adapter, _ = make_adapter(proxy_provider=proxy)
+        assert adapter.fetch_html("https://www.athome.co.jp/list/") == "<html>recovered</html>"
+        assert len(route.calls) == 2
+    messages = [r.getMessage() for r in caplog.records]
+    marker = "[ATHOME_CHALLENGE] url=<https://www.athome.co.jp/list/> kind=<puzzle>"
+    assert any(marker in m for m in messages)
+    assert any("[PROXY_ROTATE]" in m for m in messages)
+    assert any("[PROXY_RECOVERED]" in m for m in messages)
+
+
+def test_challenge_exhausted_retries(caplog) -> None:
+    """When every bounded alternate request hits a challenge, BlockDetected surfaces."""
+    with respx.mock(base_url="https://www.athome.co.jp") as router:
+        route = router.get("/list/").mock(
+            side_effect=[
+                httpx.Response(200, text=PUZZLE_BODY),
+                httpx.Response(200, text=JAPANESE_PUZZLE_BODY),
+            ]
+        )
+        proxy = StubProxy(["http://proxy.invalid:8080"])
+        adapter, _ = make_adapter(proxy_provider=proxy)
+        with pytest.raises(BlockDetected) as excinfo:
+            adapter.fetch_html("https://www.athome.co.jp/list/")
+        assert len(route.calls) == 2
+    assert excinfo.value.signature == "captcha"
+    messages = [r.getMessage() for r in caplog.records]
+    challenges = [m for m in messages if "[ATHOME_CHALLENGE]" in m]
+    assert len(challenges) == 2
 
 
 def test_transient_error_retries_with_backoff() -> None:

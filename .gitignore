@@ -219,3 +219,6 @@ __marimo__/
 
 # Raw page dumps (large captured artifacts; curated fixtures live in tests/fixtures)
 dump/
+
+# Debug capture artifacts (headers, dumps, one-off captures)
+debug/

@@ -1,0 +1,137 @@
+"""Unit tests for the AtHome list-page parser (M3 T15).
+
+The primary cases exercise the real captured Osaka rental page under
+``tests/fixtures/`` (genuine live data, not synthetic). A detached-house
+(no-room-number) edge case is covered by a minimal synthetic DOM tree that is
+explicitly labelled synthetic; that data does not appear in the live capture and
+exists only to prove missing-optional-field handling (FR-8).
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from athome_harness.scraping.list_parser import parse_list_page
+
+FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
+LIST_FIXTURE = FIXTURES / "osaka_rental_list.html"
+
+
+def _load_list() -> str:
+    return LIST_FIXTURE.read_text(encoding="utf-8")
+
+
+def test_captured_list_parses_into_summaries() -> None:
+    """The live Osaka list page yields one summary per unit sub-block."""
+    summaries = parse_list_page(_load_list())
+    # 30 building blocks / 460 unit boxes confirmed on the captured page.
+    assert len(summaries) == 460
+
+
+def test_captured_list_summaries_are_unique() -> None:
+    """Every unit summary carries a distinct internal/athome key."""
+    summaries = parse_list_page(_load_list())
+    keys = [s.internal_id for s in summaries]
+    assert len(keys) == len(set(keys))
+    assert all(s.athome_key == s.internal_id for s in summaries)
+
+
+def test_multi_unit_building_shares_identity() -> None:
+    """Units of one building share title/address/station but differ in room data."""
+    summaries = parse_list_page(_load_list())
+    grouped: dict[str, list] = {}
+    for s in summaries:
+        grouped.setdefault(s.title, []).append(s)
+    multi = next(units for units in grouped.values() if len(units) >= 2)
+    base = multi[0]
+    for unit in multi[1:]:
+        assert unit.title == base.title
+        assert unit.address == base.address
+        assert unit.station == base.station
+        assert unit.building_type == base.building_type
+    # Different rooms in the same building have distinct keys.
+    assert len({u.internal_id for u in multi}) == len(multi)
+
+
+def test_captured_unit_scalar_fields() -> None:
+    """Rent, management fee, floor plan, and area parse from the first unit."""
+    summaries = parse_list_page(_load_list())
+    first = summaries[0]
+    assert first.price.rent == 68_000
+    assert first.price.management_fee == 4_000
+    assert first.floors == "1階"
+    assert first.floor_plan == "1LDK"
+    assert first.area_m2 == pytest.approx(28.98)
+
+
+def test_captured_facilities_split_into_usp_and_negatives() -> None:
+    """Enabled facility items become USP tags, disabled ones probable negatives."""
+    summaries = parse_list_page(_load_list())
+    first = summaries[0]
+    assert any("駐車場" in tag for tag in first.usp_tags)
+    assert any("ペット相談" in tag for tag in first.probable_negatives)
+    total_neg = sum(len(s.probable_negatives) for s in summaries)
+    # 733 disabled markers are present across the captured list page.
+    assert total_neg >= 700
+
+
+def test_captured_unit_has_detail_url_and_photo() -> None:
+    """Each unit exposes a canonical detail URL built from its key."""
+    summaries = parse_list_page(_load_list())
+    first = summaries[0]
+    assert first.url == f"https://www.athome.co.jp/chintai/{first.athome_key}/"
+    assert len(first.photo_urls) >= 1
+
+
+# Synthetic edge cases. This DOM is hand-built (not from a live capture) purely
+# to exercise the missing-optional-field path: a detached house has no room
+# number, and rent/key-money cells are present while the management-fee span and
+# facility list are absent.
+SYNTHETIC_DETACHED_HTML = """
+<html><body>
+<div class="p-property--building">
+  <h2 class="p-property__title--building">テスト一戸建て SY-001</h2>
+  <dl class="p-property__information-hint">
+    <dd>大阪市北区テスト町1-2-3</dd>
+    <dd>地下鉄御堂筋線 「梅田」駅 徒歩5分</dd>
+    <dd>賃貸一戸建て 2階建</dd>
+  </dl>
+  <div class="p-property__room--detail js-bukken">
+    <div class="p-property__room--detailbox" data-bukken-no="999900001">
+      <div class="p-property__floor">３ＬＤＫ</div>
+      <p class="p-property__information-price">
+        <b class="p-property__information-rent">12.5</b>万円</p>
+      <li class="p-property__room-keymoney"><p>5万円</p><span>なし</span></li>
+      <li class="p-property__room-floorplan"><span>75.20m²</span></li>
+    </div>
+  </div>
+</div>
+</body></html>
+"""
+
+
+def test_detached_house_without_room_number_still_parses(caplog: pytest.LogCaptureFixture) -> None:
+    """A unit with no room-number cell parses with a warning, not an abort (FR-8)."""
+    with caplog.at_level("WARNING", logger="athome_harness.scraping.list_parser"):
+        summaries = parse_list_page(SYNTHETIC_DETACHED_HTML)
+    assert len(summaries) == 1
+    unit = summaries[0]
+    assert unit.floors is None
+    assert unit.athome_key == "999900001"
+    assert unit.price.rent == 125_000
+    assert unit.price.deposit == 50_000
+    assert unit.price.key_money == 0
+    assert unit.floor_plan == "３ＬＤＫ"
+    assert unit.area_m2 == pytest.approx(75.20)
+    assert any("no room number" in record.message for record in caplog.records)
+
+
+def test_detached_house_missing_optional_cells_are_empty(caplog: pytest.LogCaptureFixture) -> None:
+    """Absent facility list yields empty tags without failing the page."""
+    with caplog.at_level("WARNING", logger="athome_harness.scraping.list_parser"):
+        summaries = parse_list_page(SYNTHETIC_DETACHED_HTML)
+    assert len(summaries) == 1
+    assert summaries[0].usp_tags == []
+    assert summaries[0].probable_negatives == []

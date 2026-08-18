@@ -102,6 +102,10 @@ PLAN.md                     # repo-level live plan, updated after every feature
 - [x] T09 `scraping/proxy/base.py` + `proxy/webshare.py`: endpoint list from env,
   rotation policy (try direct first, rotate on block, budget 3). Unit tests with fake
   transport; no live proxy calls in CI.
+- [x] T09a AtHome challenge handling: detect HTTP 200 puzzle/authentication pages,
+  emit `[ATHOME_CHALLENGE]`, prevent challenge HTML from reaching parsers or fixture
+  files, and use bounded alternate-request handling without solving the challenge.
+  Unit tests must cover the exact `Click to verify` and JavaScript/cookie markers.
 
 ### M2: Filter map
 
@@ -122,13 +126,13 @@ PLAN.md                     # repo-level live plan, updated after every feature
 
 ### M3: Parsing
 
-- [ ] T14 Capture fixtures: save one real list page (Osaka rental) and 2-3 detail pages
+- [x] T14 Capture fixtures: save one real list page (Osaka rental) and 2-3 detail pages
   into `tests/fixtures/` (sanity-checked, no personal data). Document capture date.
-- [ ] T15 `scraping/list_parser.py`: heading block + per-unit sub-blocks ->
+- [x] T15 `scraping/list_parser.py`: heading block + per-unit sub-blocks ->
   `ListingSummary` list; multi-unit buildings yield one summary per unit sharing a
   building identity. Unit tests against fixtures incl. detached-house edge case (no
   room number) and missing optional fields (parse warnings recorded, FR-8).
-- [ ] T16 `scraping/detail_parser.py`: full field extraction + photo URLs + floor-plan
+- [x] T16 `scraping/detail_parser.py`: full field extraction + photo URLs + floor-plan
   image URL + USP tags + Probable Negatives (from `facility_disabled` DOM markers) ->
   `ListingDetail`. Unit tests against fixtures, incl. a disabled-feature case.
 
