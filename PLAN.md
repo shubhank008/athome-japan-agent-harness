@@ -9,7 +9,7 @@ implemented and verified. M0: `config.py` (strict env parser + `Budgets`), `mode
 (pydantic data models), `pyproject.toml` + exact-pinned `requirements.txt`. M1:
 `scraping/base.py` (`BaseScraper`, `BlockDetected`, `ProxyProvider`),
 `scraping/rate_limiter.py` (token-bucket with jitter), `scraping/http_adapter.py`
-(httpx + selectolax DOM adapter with block detection, proxy rotation, and AtHome
+(curl-cffi + selectolax DOM adapter with block detection, proxy rotation, and AtHome
 challenge detection), `scraping/playwright_adapter.py` (scaffold),
 `scraping/proxy/base.py` + `scraping/proxy/webshare.py` (proxy rotation policy). M2:
 `filters/map_schema.py` (versioned schema + validation with missing-flow rejection),
@@ -18,13 +18,16 @@ challenge detection), `scraping/playwright_adapter.py` (scaffold),
 `filters/data/filter_map.v1.json`. M3: `scraping/list_parser.py` (results HTML ->
 `ListingSummary` list), `scraping/detail_parser.py` (detail HTML -> `ListingDetail`),
 live-captured fixtures in `tests/fixtures/`. 165 unit tests green; ruff and mypy clean.
-No LLM, store, or orchestration yet.
+Feature 002 adds the Playwright cookie farmer and typed curl-cffi handoff;
+full tests, ruff, and mypy are green. No LLM, store, or orchestration yet.
 
 ## Active feature
 
 | Feature | Spec | Status |
 |---------|------|--------|
 | 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0, M1, M2 done; M3-M8 pending |
+| 002 Playwright Cookie Fetcher | `docs/specs/002-playwright-cookie-fetcher/` | done and verified on `feat/playwright-cookie-fetcher` |
+| 003 curl-cffi HTTP Integration | `docs/specs/003-curl-cffi-http-integration/` | implementation and offline gates done; live AtHome challenge remains unresolved |
 
 ## Feature 001 summary
 
@@ -32,8 +35,9 @@ Conversational CLI that turns natural-language housing wishes into ranked rental
 purchase recommendations from athome.co.jp. Funnel: NL query -> SearchPlan -> AtHome
 filter encoding (versioned filter map) -> full harvest of filtered results -> LLM
 shortlist (top X) -> detail scrape -> top-Y report (markdown + JSON) -> persistent
-memory (seen/saved/rejected). Abstract-first: BaseScraper (HTTP adapter now, Playwright
-scaffold), BaseLLMProvider (OpenRouter first), BaseDataStore (SQLite first),
+memory (seen/saved/rejected). Abstract-first: BaseScraper (curl-cffi adapter now,
+Playwright scaffold), PlaywrightCookieFetcher (async browser farmer producing a
+typed CookieHandoff), BaseLLMProvider (OpenRouter first), BaseDataStore (SQLite first),
 BaseFloorPlanEvaluator (text default, vision stub). Webshare proxy rotation on block
 detection only. Weekly GitHub Action re-extracts the filter map and files an issue on
 DOM drift. Post-MVP: prefetch cache with freshness ordering and dead-listing
@@ -83,3 +87,11 @@ revalidation, vision A/B benchmarks.
 - 2026-07-08: M1 was published by no-mistakes as PR #2 and merged. Independent local
   verification reproduced the subagent evidence: ruff clean, mypy clean, 75 tests pass.
   Durable M1 landmines were promoted to AGENTS.md.
+- 2026-07-08: WAF clearance farming is isolated in an async Playwright adapter; curl-cffi
+  workers consume a proxy/user-agent/cookie handoff, and challenge puzzles are never
+  dragged or solved programmatically.
+- 2026-07-08: Cookie handoffs persist the curl-cffi impersonation profile (`chrome` by default,
+  with `safari_ios` supported), so workers reuse the exact browser identity. The live
+  Playwright verification reached AtHome but remained on the security challenge after
+  one permitted Click to Verify attempt; before/after captures were retained only under
+  ignored `debug/` paths.

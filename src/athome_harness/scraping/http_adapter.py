@@ -1,12 +1,12 @@
-"""HTTP DOM scraper adapter using httpx and selectolax (T07).
+"""HTTP DOM scraper adapter using curl-cffi and selectolax (T07).
 
-Concrete :class:`BaseScraper` implementation that talks to AtHome over plain
-HTTP. It presents browser-like headers, retries transient failures with
-exponential backoff, detects IP blocks (403/429/captcha markers) and HTTP 200
-AtHome puzzle/authentication pages via precise body markers and, when an
-optional :class:`ProxyProvider` is configured, rotates to a proxy on block and
-recovers. Proxy rotation and challenge events emit the contract markers
-verbatim with redacted URLs.
+Concrete :class:`BaseScraper` implementation that talks to AtHome through
+curl-cffi with a browser impersonation profile. It presents browser-like headers,
+retries transient failures with exponential backoff, detects IP blocks
+(403/429/captcha markers) and HTTP 200 AtHome puzzle/authentication pages via
+precise body markers and, when an optional :class:`ProxyProvider` is configured,
+rotates to a proxy on block and recovers. A Playwright :class:`CookieHandoff` is
+pinned to its original proxy and raises a block for the caller to refarm.
 
 This is one of only two modules (the other is ``playwright_adapter.py``) allowed
 to import a third-party HTTP/scraping library, per the Abstract First invariant.
@@ -17,8 +17,9 @@ from __future__ import annotations
 import logging
 import time
 from collections.abc import Callable
+from typing import Protocol, cast
 
-import httpx
+from curl_cffi import requests as curl_requests
 from selectolax.parser import HTMLParser
 
 from athome_harness.config import Budgets
@@ -28,6 +29,12 @@ from athome_harness.scraping.base import (
     BlockSignature,
     ProxyProvider,
     redact_url,
+)
+from athome_harness.scraping.challenge import detect_athome_challenge
+from athome_harness.scraping.cookie_handoff import (
+    CookieHandoff,
+    ImpersonateProfile,
+    proxy_identity,
 )
 
 logger = logging.getLogger(__name__)
@@ -46,21 +53,6 @@ BROWSER_HEADERS: dict[str, str] = {
 # Substrings that mark a response body as a captcha challenge page.
 _CAPTCHA_MARKERS = ("recaptcha", "captcha", "verify you are human")
 
-# Substrings that mark a response body as an AtHome anti-bot challenge page,
-# even when the HTTP status is 200 (US-008, T09a). AtHome can answer with a
-# puzzle/authentication page instead of content; these precise markers are
-# detected before parsing or saving so a challenge page never becomes listing
-# data. A challenge is never solved or circumvented: the adapter only rotates
-# through the configured proxy path and degrades to BlockDetected when bounded
-# alternate requests are exhausted.
-_ATHOME_PUZZLE_MARKERS = (
-    "click to verify",
-    "認証にご協力ください",
-)
-_ATHOME_JAVASCRIPT_MARKERS = (
-    "to regain access, please make sure that cookies and javascript are enabled",
-)
-
 # Transient-failure retry policy. Not a config knob: the SPEC budgets table has
 # no HTTP backoff entry, so these stay as documented constants.
 _TRANSIENT_RETRIES = 3
@@ -69,20 +61,8 @@ _BACKOFF_MAX_S = 8.0
 
 
 def _detect_athome_challenge(body: str) -> str | None:
-    """Return the kind of AtHome anti-bot challenge in ``body``, or ``None``.
-
-    Case-insensitive exact marker match against the AtHome puzzle page
-    (``[ATHOME_CHALLENGE] kind=puzzle``) and the Chrome JavaScript/cookie
-    interstitial (``kind=javascript``). These challenge pages can arrive with
-    HTTP 200, so the status code is not consulted here; the caller decides
-    whether to emit the marker and how to classify the block.
-    """
-    lowered = body.lower()
-    if any(marker in lowered for marker in _ATHOME_PUZZLE_MARKERS):
-        return "puzzle"
-    if any(marker in lowered for marker in _ATHOME_JAVASCRIPT_MARKERS):
-        return "javascript"
-    return None
+    """Return the shared AtHome challenge classification for compatibility."""
+    return detect_athome_challenge(body)
 
 
 def _detect_signature(status_code: int, body: str) -> BlockSignature | None:
@@ -104,8 +84,39 @@ def _detect_signature(status_code: int, body: str) -> BlockSignature | None:
     return None
 
 
+class CurlResponse(Protocol):
+    """Minimal response surface required from curl-cffi or a test session."""
+
+    @property
+    def content(self) -> bytes:
+        """Return the raw response body."""
+        ...
+
+    @property
+    def status_code(self) -> int:
+        """Return the HTTP status code."""
+        ...
+
+    @property
+    def text(self) -> str:
+        """Return the decoded response body."""
+        ...
+
+
+class CurlSession(Protocol):
+    """Minimal curl-cffi session surface used by the concrete adapter."""
+
+    def get(self, url: str, **kwargs: object) -> CurlResponse:
+        """Perform one GET request."""
+        ...
+
+    def close(self) -> None:
+        """Release the session resources."""
+        ...
+
+
 class HttpDomAdapter(BaseScraper):
-    """Fetch AtHome pages over httpx and detect blocks.
+    """Fetch AtHome pages over curl-cffi and detect blocks.
 
     A request that is not blocked returns the body unchanged (``fetch_html`` as
     text, ``fetch_binary`` as bytes, ``fetch_dom`` as a selectolax tree). When a
@@ -134,22 +145,55 @@ class HttpDomAdapter(BaseScraper):
         budgets: Budgets,
         *,
         proxy_provider: ProxyProvider | None = None,
-        client: httpx.Client | None = None,
+        handoff: CookieHandoff | None = None,
+        impersonate: ImpersonateProfile = "chrome",
+        client: CurlSession | None = None,
         sleep_fn: Callable[[float], None] | None = None,
     ) -> None:
+        """Configure a curl-cffi adapter, optionally bound to a browser handoff."""
         self._budgets = budgets
-        self._proxy_provider = proxy_provider
+        self._proxy_provider = None if handoff is not None else proxy_provider
+        self._handoff = handoff
+        self._impersonate = handoff.impersonate if handoff is not None else impersonate
         self._sleep: Callable[[float], None] = sleep_fn or time.sleep
-        self._client = client or self._build_client(None)
+        initial_proxy = handoff.proxy_url if handoff is not None else None
+        self._client_owned = client is None
+        self._client: CurlSession = client or self._build_client(initial_proxy)
+        if handoff is not None:
+            logger.warning(
+                "[CURL_HANDOFF_BOUND] proxy=<%s> cookies=<%d> impersonate=<%s>",
+                proxy_identity(handoff.proxy_url),
+                len(handoff.cookies),
+                self._impersonate,
+            )
 
-    def _build_client(self, proxy: str | None) -> httpx.Client:
-        """Build an httpx.Client with browser headers and the budget timeout."""
-        return httpx.Client(
-            headers=BROWSER_HEADERS,
-            timeout=httpx.Timeout(self._budgets.http_timeout_s),
-            proxy=proxy,
-            follow_redirects=True,
+    def _build_client(self, proxy: str | None) -> CurlSession:
+        """Build a curl-cffi session with the selected browser fingerprint."""
+        return cast(
+            CurlSession,
+            curl_requests.Session(
+                impersonate=self._impersonate,
+                default_headers=False,
+                proxy=proxy,
+            ),
         )
+
+    def _request_kwargs(self, proxy_url: str | None) -> dict[str, object]:
+        """Build redaction-safe request options for one exact session identity."""
+        if self._handoff is not None:
+            options = self._handoff.to_curl_cffi_kwargs()
+        else:
+            options = {
+                "headers": dict(BROWSER_HEADERS),
+                "default_headers": False,
+                "impersonate": self._impersonate,
+            }
+        options["timeout"] = self._budgets.http_timeout_s
+        if proxy_url is not None:
+            options["proxy"] = proxy_url
+        else:
+            options.pop("proxy", None)
+        return options
 
     def fetch_html(self, url: str) -> str:
         """Fetch ``url`` and return the decoded HTML body as text."""
@@ -171,8 +215,12 @@ class HttpDomAdapter(BaseScraper):
         retries through it. Only when the provider is exhausted does the
         adapter raise :class:`BlockDetected`.
         """
-        proxy_url: str | None = None
-        attempts = self._budgets.proxy_retries if self._proxy_provider else 0
+        proxy_url: str | None = self._handoff.proxy_url if self._handoff else None
+        attempts = (
+            0
+            if self._handoff is not None
+            else (self._budgets.proxy_retries if self._proxy_provider else 0)
+        )
 
         for attempt in range(attempts + 1):
             response = self._http_get(url, proxy_url)
@@ -185,6 +233,13 @@ class HttpDomAdapter(BaseScraper):
                 )
             signature = _detect_signature(response.status_code, response.text)
             if signature is not None:
+                if self._handoff is not None:
+                    logger.warning(
+                        "[CURL_BLOCK_REHANDOFF] url=<%s> signature=<%s>",
+                        redact_url(url),
+                        signature,
+                    )
+                    raise BlockDetected(url, signature)
                 if self._proxy_provider is None:
                     raise BlockDetected(url, signature)
                 proxy_url = self._proxy_provider.report_block(url)
@@ -201,24 +256,27 @@ class HttpDomAdapter(BaseScraper):
             return response.content
         raise BlockDetected(url, "429")
 
-    def _http_get(self, url: str, proxy_url: str | None) -> httpx.Response:
-        """GET ``url``, retrying transient errors with exponential backoff.
-
-        When ``proxy_url`` is not ``None`` the client is rebuilt to use it; the
-        direct connection (``proxy_url is None``) is always attempted first.
-        """
-        if proxy_url is not None:
+    def _http_get(self, url: str, proxy_url: str | None) -> CurlResponse:
+        """GET ``url``, retrying curl transport errors with exponential backoff."""
+        if proxy_url is not None and self._handoff is None and self._client_owned:
             self._client.close()
             self._client = self._build_client(proxy_url)
+        options = self._request_kwargs(proxy_url)
+        logger.warning(
+            "[CURL_REQUEST] url=<%s> impersonate=<%s> timeout=<%s>",
+            redact_url(url),
+            options.get("impersonate", "chrome"),
+            self._budgets.http_timeout_s,
+        )
         for attempt in range(_TRANSIENT_RETRIES):
             try:
-                return self._client.get(url)
-            except httpx.TransportError:
+                return self._client.get(url, **options)
+            except curl_requests.errors.RequestsError:
                 if attempt == _TRANSIENT_RETRIES - 1:
                     raise
                 self._sleep(min(_BACKOFF_MAX_S, _BACKOFF_BASE_S * (2**attempt)))
         raise AssertionError("unreachable")
 
     def close(self) -> None:
-        """Release the underlying httpx transport."""
+        """Release the underlying curl-cffi transport."""
         self._client.close()
