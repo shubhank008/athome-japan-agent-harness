@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -149,7 +149,7 @@ class FakePage:
         assert event == "request"
         self._request_handler = handler
 
-    def get_by_role(self, role: str, *, name: Any) -> FakeLocator:
+    def get_by_role(self, role: str, *, name: Any) -> FakeLocator | EmptyLocator:
         """Return no semantic control so the text fallback is exercised."""
         assert role in {"button", "link"}
         assert name.search("Click to verify")
@@ -171,6 +171,7 @@ class FakeTracing:
     def __init__(self) -> None:
         self.started = False
         self.stopped_path: str | None = None
+        self.raise_on_stop = False
 
     async def start(self, **options: object) -> None:
         """Record tracing startup options."""
@@ -181,6 +182,8 @@ class FakeTracing:
     async def stop(self, *, path: str) -> None:
         """Write a deterministic trace placeholder."""
         self.stopped_path = path
+        if self.raise_on_stop:
+            raise RuntimeError("trace stop failed")
         Path(path).write_bytes(b"fake-trace")
 
 
@@ -190,6 +193,7 @@ class FakeContext:
     def __init__(self, page: FakePage) -> None:
         self.page = page
         self.closed = False
+        self.raise_on_close = False
         self.tracing = FakeTracing()
 
     async def new_page(self) -> FakePage:
@@ -203,45 +207,42 @@ class FakeContext:
     async def close(self) -> None:
         """Record context shutdown."""
         self.closed = True
+        if self.raise_on_close:
+            raise RuntimeError("context close failed")
 
 
-class FakeBrowser:
-    """Browser substitute recording context and shutdown behavior."""
+class FakeChromium:
+    """Persistent Chrome launcher capturing Patchright context options."""
 
-    def __init__(self, page: FakePage) -> None:
-        self.context = FakeContext(page)
-        self.closed = False
+    def __init__(self, context: FakeContext) -> None:
+        self.context = context
+        self.user_data_dir: str | None = None
+        self.options: dict[str, object] | None = None
 
-    async def new_context(self, **options: object) -> FakeContext:
-        """Create the Japanese-locale context requested by the farmer."""
+    async def launch_persistent_context(
+        self,
+        *,
+        user_data_dir: str,
+        **options: object,
+    ) -> FakeContext:
+        """Return the fake context and retain persistent Chrome settings."""
+        self.user_data_dir = user_data_dir
+        self.options = options
+        assert options["channel"] == "chrome"
+        assert options["headless"] is True
+        assert options["no_viewport"] is True
         assert options["locale"] == "ja-JP"
+        assert options["proxy"] is None or options["proxy"]
         assert options["record_video_dir"]
         assert options["record_video_size"] == {"width": 1280, "height": 720}
         return self.context
 
-    async def close(self) -> None:
-        """Record browser shutdown."""
-        self.closed = True
-
-
-class FakeChromium:
-    """Chromium launcher capturing the browser launch options."""
-
-    def __init__(self, browser: FakeBrowser) -> None:
-        self.browser = browser
-        self.options: dict[str, object] | None = None
-
-    async def launch(self, **options: object) -> FakeBrowser:
-        """Return the fake browser and retain launch settings."""
-        self.options = options
-        return self.browser
-
 
 class FakePlaywright:
-    """Async Playwright context manager used by the tests."""
+    """Async Patchright context manager used by the tests."""
 
-    def __init__(self, browser: FakeBrowser) -> None:
-        self.chromium = FakeChromium(browser)
+    def __init__(self, context: FakeContext) -> None:
+        self.chromium = FakeChromium(context)
 
     async def __aenter__(self) -> FakePlaywright:
         """Enter the fake Playwright runtime."""
@@ -254,21 +255,21 @@ class FakePlaywright:
 
 @pytest.fixture
 def patch_playwright(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
-    """Patch browser startup and stealth while retaining real farmer behavior."""
+    """Patch Patchright startup while retaining real farmer behavior."""
     state: dict[str, object] = {}
 
     def install(page: FakePage) -> None:
-        browser = FakeBrowser(page)
-        runtime = FakePlaywright(browser)
+        context = FakeContext(page)
+        runtime = FakePlaywright(context)
         monkeypatch.setattr(
             "athome_harness.scraping.playwright_cookie_fetcher.async_playwright",
             lambda: runtime,
         )
+        state.update(context=context, chromium=runtime.chromium)
         monkeypatch.setattr(
             "athome_harness.scraping.playwright_cookie_fetcher._legacy_stealth_async",
             lambda _: _completed(),
         )
-        state.update(browser=browser, chromium=runtime.chromium)
 
     state["install"] = install
     return state
@@ -312,7 +313,10 @@ async def test_farm_persists_handoff_for_curl_workers(
     assert (tmp_path / "cookies.txt").read_text() == "reese84=clearance\n"
     assert (tmp_path / "playwright_events.jsonl").exists()
     assert (tmp_path / "playwright_challenge_trace.zip").read_bytes() == b"fake-trace"
-    assert patch_playwright["browser"].closed  # type: ignore[union-attr]
+    context = cast(FakeContext, patch_playwright["context"])
+    assert context.closed
+    chromium = cast(FakeChromium, patch_playwright["chromium"])
+    assert chromium.user_data_dir
 
 
 @pytest.mark.asyncio
@@ -384,3 +388,29 @@ async def test_farm_rejects_challenge_that_remains_after_click(
     assert not (tmp_path / "cookie_handoff_direct.json").exists()
     assert (tmp_path / "playwright_after.html").exists()
     assert (tmp_path / "playwright_challenge_trace.zip").read_bytes() == b"fake-trace"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_failures_do_not_mask_render_error(
+    tmp_path: Path,
+    patch_playwright: dict[str, object],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Tracing and context cleanup errors are logged without replacing the cause."""
+    page = FakePage("<html></html>")
+    install = patch_playwright["install"]
+    assert callable(install)
+    install(page)
+    context = cast(FakeContext, patch_playwright["context"])
+    context.tracing.raise_on_stop = True
+    context.raise_on_close = True
+    fetcher = PlaywrightCookieFetcher(debug_dir=tmp_path, wait_seconds=0)
+
+    with caplog.at_level("ERROR"), pytest.raises(
+        PlaywrightCookieFetcherError, match="reason=<render>"
+    ):
+        await fetcher.farm()
+
+    assert context.closed
+    assert "[PATCHRIGHT_TRACE_STOP_FAILED]" in caplog.text
+    assert "[PATCHRIGHT_CONTEXT_CLOSE_FAILED]" in caplog.text

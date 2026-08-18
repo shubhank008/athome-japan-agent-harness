@@ -1,4 +1,4 @@
-"""Async Playwright farmer for AtHome browser-session cookies."""
+"""Async Patchright farmer for AtHome browser-session cookies."""
 
 from __future__ import annotations
 
@@ -6,13 +6,14 @@ import asyncio
 import json
 import logging
 import re
+import tempfile
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, cast
 
-from playwright.async_api import (
-    Browser,
+from patchright.async_api import (
+    BrowserContext,
     Frame,
     Locator,
     Page,
@@ -96,28 +97,38 @@ class PlaywrightCookieFetcher:
     async def farm(self) -> CookieHandoff:
         """Render AtHome, optionally verify once, and persist the handoff."""
         logger.warning(
-            "[PLAYWRIGHT_FARM_START] url=<%s> proxy=<%s>",
+            "[PATCHRIGHT_FARM_START] url=<%s> proxy=<%s>",
             redact_url(self._url),
             proxy_identity(self._proxy_url),
         )
-        async with async_playwright() as playwright:
-            browser = await playwright.chromium.launch(
-                headless=True,
-                proxy=self._playwright_proxy(),
-            )
-            try:
-                return await self._farm_in_browser(browser)
-            finally:
-                await browser.close()
+        async with async_playwright() as patchright:
+            with tempfile.TemporaryDirectory(prefix="athome-patchright-") as user_data_dir:
+                context = await patchright.chromium.launch_persistent_context(
+                    user_data_dir=user_data_dir,
+                    channel="chrome",
+                    headless=True,
+                    no_viewport=True,
+                    proxy=self._playwright_proxy(),
+                    **cast(Any, self._context_options()),
+                )
+                self._event(
+                    "context_started",
+                    marker="[PATCHRIGHT_CONTEXT_STARTED]",
+                    proxy=proxy_identity(self._proxy_url),
+                )
+                return await self._farm_in_context(context)
 
-    async def _farm_in_browser(self, browser: Browser) -> CookieHandoff:
-        """Run the page workflow inside a browser that the caller owns."""
-        context_options: dict[str, Any] = {"locale": "ja-JP"}
+    def _context_options(self) -> dict[str, object]:
+        """Return context options shared by persistent Chrome sessions."""
+        options: dict[str, object] = {"locale": "ja-JP"}
         if self._diagnostics:
             self._debug_dir.mkdir(parents=True, exist_ok=True)
-            context_options["record_video_dir"] = str(self._debug_dir)
-            context_options["record_video_size"] = {"width": 1280, "height": 720}
-        context = await browser.new_context(**context_options)
+            options["record_video_dir"] = str(self._debug_dir)
+            options["record_video_size"] = {"width": 1280, "height": 720}
+        return options
+
+    async def _farm_in_context(self, context: BrowserContext) -> CookieHandoff:
+        """Run the page workflow inside a persistent browser context."""
         trace_started = False
         page_video: Video | None = None
         try:
@@ -131,7 +142,6 @@ class PlaywrightCookieFetcher:
                 self._event("diagnostics_start", artifacts=self._artifact_names())
             page = await context.new_page()
             page_video = page.video
-            await _legacy_stealth_async(page)
             request_headers: dict[str, str] = {}
 
             def remember_request_headers(request: Request) -> None:
@@ -140,6 +150,7 @@ class PlaywrightCookieFetcher:
                     request_headers.update(dict(request.headers))
 
             page.on("request", remember_request_headers)
+            await _legacy_stealth_async(page)
             await page.goto(self._url, wait_until="domcontentloaded")
             await self._sleep(self._wait_seconds)
             html = await page.content()
@@ -201,10 +212,19 @@ class PlaywrightCookieFetcher:
             return handoff
         finally:
             if trace_started:
-                await context.tracing.stop(path=str(self._trace_path))
-            await context.close()
+                try:
+                    await context.tracing.stop(path=str(self._trace_path))
+                except Exception:
+                    logger.exception("[PATCHRIGHT_TRACE_STOP_FAILED]")
+            try:
+                await context.close()
+            except Exception:
+                logger.exception("[PATCHRIGHT_CONTEXT_CLOSE_FAILED]")
             if page_video is not None:
-                await self._finalize_video(page_video)
+                try:
+                    await self._finalize_video(page_video)
+                except Exception:
+                    logger.exception("[PATCHRIGHT_VIDEO_FINALIZE_FAILED]")
             if self._diagnostics:
                 logger.warning(
                     "[PLAYWRIGHT_DIAGNOSTICS_SAVED] events=<%s> trace=<%s> video=<%s>",

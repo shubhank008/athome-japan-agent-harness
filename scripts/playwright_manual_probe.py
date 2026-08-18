@@ -6,10 +6,12 @@ import argparse
 import asyncio
 import hashlib
 import json
+import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any, cast
 
-from playwright.async_api import async_playwright
+from patchright.async_api import async_playwright
 
 from athome_harness.scraping.base import redact_url
 from athome_harness.scraping.challenge import detect_athome_challenge
@@ -21,7 +23,7 @@ except ImportError:
 
     async def stealth_async(page: object) -> None:
         """Apply the current playwright-stealth API under the legacy name."""
-        await Stealth().apply_stealth_async(page)  # type: ignore[arg-type]
+        await Stealth().apply_stealth_async(page)
 
 
 DEFAULT_URL = "https://www.athome.co.jp/chintai/osaka/list/"
@@ -54,61 +56,68 @@ async def _capture(page: object, debug_dir: Path, stage: str) -> str:
     html = await page.content()  # type: ignore[attr-defined]
     (debug_dir / f"playwright_{stage}.html").write_text(html, encoding="utf-8")
     await page.screenshot(path=str(debug_dir / f"playwright_{stage}.png"))  # type: ignore[attr-defined]
-    return html
+    return cast(str, html)
 
 
 async def _run(args: argparse.Namespace) -> None:
     """Launch the headed browser and wait for the operator's manual actions."""
     args.debug_dir.mkdir(parents=True, exist_ok=True)
-    async with async_playwright() as playwright:
-        launch_options: dict[str, object] = {"headless": False}
-        if args.proxy:
-            launch_options["proxy"] = {"server": args.proxy}
-        browser = await playwright.chromium.launch(**launch_options)
-        context = await browser.new_context(
-            locale="ja-JP",
-            record_video_dir=str(args.debug_dir),
-            record_video_size={"width": 1280, "height": 720},
-        )
-        await context.tracing.start(screenshots=True, snapshots=True, sources=False)
-        page = await context.new_page()
-        try:
-            await stealth_async(page)
-            await page.goto(args.url, wait_until="domcontentloaded")
-            await asyncio.sleep(args.wait_seconds)
-            before_html = await _capture(page, args.debug_dir, "before")
-            _event(
-                args.debug_dir,
-                "manual_before",
-                challenge_kind=detect_athome_challenge(before_html),
-                html_chars=len(before_html),
-                body_sha256=hashlib.sha256(before_html.encode()).hexdigest(),
-                url=redact_url(page.url),
+    async with async_playwright() as patchright:
+        with tempfile.TemporaryDirectory(prefix="athome-patchright-manual-") as user_data_dir:
+            launch_options: dict[str, object] = {
+                "user_data_dir": user_data_dir,
+                "channel": "chrome",
+                "headless": False,
+                "no_viewport": True,
+                "locale": "ja-JP",
+                "record_video_dir": str(args.debug_dir),
+                "record_video_size": {"width": 1280, "height": 720},
+            }
+            if args.proxy:
+                launch_options["proxy"] = {"server": args.proxy}
+            context = await patchright.chromium.launch_persistent_context(
+                **cast(Any, launch_options)
             )
-            print(
-                "Browser is ready for manual observation. You may inspect and interact "
-                "with the page, then press Enter here to finish."
-            )
-            await asyncio.to_thread(input)
-            after_html = await _capture(page, args.debug_dir, "after")
-            _event(
-                args.debug_dir,
-                "manual_after",
-                challenge_kind=detect_athome_challenge(after_html),
-                html_chars=len(after_html),
-                body_sha256=hashlib.sha256(after_html.encode()).hexdigest(),
-                url=redact_url(page.url),
-            )
-        finally:
-            await context.tracing.stop(path=str(args.debug_dir / "playwright_challenge_trace.zip"))
-            video = page.video
-            await context.close()
-            if video is not None:
-                generated_video = Path(await video.path())
-                target_video = args.debug_dir / "playwright_challenge.webm"
-                if generated_video != target_video and generated_video.exists():
-                    generated_video.replace(target_video)
-            await browser.close()
+            await context.tracing.start(screenshots=True, snapshots=True, sources=False)
+            page = await context.new_page()
+            try:
+                await stealth_async(page)
+                await page.goto(args.url, wait_until="domcontentloaded")
+                await asyncio.sleep(args.wait_seconds)
+                before_html = await _capture(page, args.debug_dir, "before")
+                _event(
+                    args.debug_dir,
+                    "manual_before",
+                    challenge_kind=detect_athome_challenge(before_html),
+                    html_chars=len(before_html),
+                    body_sha256=hashlib.sha256(before_html.encode()).hexdigest(),
+                    url=redact_url(page.url),
+                )
+                print(
+                    "Browser is ready for manual observation. You may inspect and interact "
+                    "with the page, then press Enter here to finish."
+                )
+                await asyncio.to_thread(input)
+                after_html = await _capture(page, args.debug_dir, "after")
+                _event(
+                    args.debug_dir,
+                    "manual_after",
+                    challenge_kind=detect_athome_challenge(after_html),
+                    html_chars=len(after_html),
+                    body_sha256=hashlib.sha256(after_html.encode()).hexdigest(),
+                    url=redact_url(page.url),
+                )
+            finally:
+                await context.tracing.stop(
+                    path=str(args.debug_dir / "playwright_challenge_trace.zip")
+                )
+                video = page.video
+                await context.close()
+                if video is not None:
+                    generated_video = Path(await video.path())
+                    target_video = args.debug_dir / "playwright_challenge.webm"
+                    if generated_video != target_video and generated_video.exists():
+                        generated_video.replace(target_video)
     print(f"Diagnostics saved under {args.debug_dir}/")
 
 
