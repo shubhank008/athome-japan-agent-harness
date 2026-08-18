@@ -43,6 +43,13 @@ except ImportError:
 
 
 DEFAULT_URL = "https://www.athome.co.jp/chintai/osaka/list/"
+# Set to true to capture and save screenshot, video and tracestack
+DEBUG = False
+
+# --- 1. Define Selectors for Waiting either main content load or WAF Challenge load ---
+CHALLENGE_SELECTOR = "#captcha-box"
+LISTING_SELECTOR = "#container, .maincontents"
+COMBINED_TARGET = f"{CHALLENGE_SELECTOR}, {LISTING_SELECTOR}"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -61,6 +68,51 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--capsolver-key", default=os.getenv("CAPSOLVER_API_KEY", None))
     return parser
 
+async def intercept_route(route):
+    # Curated list of trackers based on AtHome's network waterfall, help save page load time
+    BLOCKED_DOMAINS = [
+        "google-analytics.com",
+        "googletagmanager.com",
+        "googletagservices.com",
+        "doubleclick.net",
+        "amazon-adsystem.com",
+        "googlesyndication.com",
+        "adservice.google",
+        "scorecardresearch.com",
+        "criteo.com",
+        "amzn.js",  # Amazon ad library
+        "pubmatic.com",
+        "google.com/ccm/",
+        "google.com/pagead/"
+    ]
+
+    request = route.request
+    resource_type = request.resource_type
+    url = request.url.lower()
+
+    try:
+        # 1. Block heavy visual/audio assets that do not affect DOM logic
+        #if resource_type in ["image", "media", "font"]:
+        #    await route.abort()
+        #    return
+
+        # 2. Block specific ad/analytics domains via substring match
+        for domain in BLOCKED_DOMAINS:
+            if domain in url:
+                if DEBUG:
+                    print(f"{_getTime()} - [intercept_route] Abort loading of resources from: " + domain)
+                await route.abort()
+                return
+        # Allow all core structural assets (HTML, internal JS, CSS)
+        await route.continue_()
+    except Exception as e:
+        # 4. Fail-safe: If the interceptor logic crashes, let the request through
+        # so it doesn't break the entire Playwright execution pipeline.
+        try:
+            await route.continue_()
+        except:
+            pass
+
 
 def _event(debug_dir: Path, name: str, **fields: object) -> None:
     """Append a redacted event to the probe JSONL log."""
@@ -76,8 +128,9 @@ def _event(debug_dir: Path, name: str, **fields: object) -> None:
 
 async def _capture(page: object, debug_dir: Path, stage: str) -> str:
     """Capture page HTML and screenshot for one manual-observation stage."""
-    # Screenshot first so we know what the browser is seeing
-    await page.screenshot(path=str(debug_dir / f"playwright_{stage}.png"))  # type: ignore[attr-defined]
+    if DEBUG:
+        # Screenshot first so we know what the browser is seeing
+        await page.screenshot(path=str(debug_dir / f"playwright_{stage}.png"))  # type: ignore[attr-defined]
     html = await page.content()  # type: ignore[attr-defined]
     (debug_dir / f"playwright_{stage}.html").write_text(html, encoding="utf-8")
     return cast(str, html)
@@ -286,11 +339,30 @@ async def save_session_state(context, user_agent, chrome_version, proxy_url=None
 
 async def _run(args: argparse.Namespace) -> None:
     """Launch the headed browser and wait for the operator's manual actions."""
+    # Start the timer
+    start_time = time.perf_counter()
     #args.debug_dir.mkdir(parents=True, exist_ok=True)
     _clearDebug(args.debug_dir)
     print(_getTime() + " - Prepare browser")
+    # Store timing data for scripts
+    script_timings = {}
+    active_requests = {}
+
     async with async_playwright() as patchright:
         with tempfile.TemporaryDirectory(prefix="athome-patchright-manual-") as user_data_dir:
+            # Track when a request starts
+            def on_request(request):
+                if request.resource_type == "fetch" or request.resource_type == "script" or request.url.endswith(".js"):
+                #if "athome.co.jp" not in request.url:
+                    active_requests[request.url] = time.time()
+
+            # Track when the response finishes and compute duration
+            def on_response(response):
+                url = response.url
+                if url in active_requests:
+                    duration = (time.time() - active_requests[url]) * 1000  # in ms
+                    script_timings[url] = duration
+                    
             chrome_ver = get_installed_chrome_version() or "151.0.0.0"
             launch_options: dict[str, object] = {
                 "user_data_dir": user_data_dir,
@@ -300,8 +372,6 @@ async def _run(args: argparse.Namespace) -> None:
                 "viewport": {"width": 1280, "height": 720},
                 "locale": "ja-JP",
                 "timezone_id": "Asia/Tokyo",
-                "record_video_dir": str(args.debug_dir),
-                "record_video_size": {"width": 1280, "height": 720},
                 "args": [
                     "--window-size=1280,720",
                     "--start-maximized",
@@ -310,20 +380,51 @@ async def _run(args: argparse.Namespace) -> None:
                     f"--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
                 ],
             }
-            print(_getTime() + " - Using LaunchOptions: " + json.dumps(launch_options, indent=4))
             if args.proxy:
-                launch_options["proxy"] = {"server": args.proxy}
+                launch_options["proxy"] = {"server": args.proxy}            
+            if DEBUG:
+                launch_options["record_video_dir"] = str(args.debug_dir)
+                launch_options["record_video_size"] = {"width": 1280, "height": 720}
+                print(_getTime() + " - Using LaunchOptions: " + json.dumps(launch_options, indent=4))
+            
             context = await patchright.chromium.launch_persistent_context(
                 **cast(Any, launch_options)
             )
-            await context.tracing.start(screenshots=True, snapshots=True, sources=False)
+            if DEBUG:                
+                await context.tracing.start(screenshots=True, snapshots=True, sources=False)
+
             page = await context.new_page()
-            print(_getTime() + " - Ready browser")
+            await page.route("**/*", intercept_route)
+            if DEBUG:
+                page.on("request", on_request)
+                page.on("response", on_response)
+            print(_getTime() + " - Ready browser, start loading page")
             try:
                 #await stealth_async(page)
                 await page.goto(args.url, wait_until="domcontentloaded")
-                print(_getTime() + " - Page Loaded, waiting..")
-                await asyncio.sleep(args.wait_seconds)
+                print(_getTime() + " - Page DomContent Loaded, waiting for selectors..")
+                try:
+                    # Wait for whichever DOM element attaches first (timeout: 15s)
+                    winning_element = await page.wait_for_selector(COMBINED_TARGET, state="attached", timeout=30000)
+                    if winning_element and DEBUG != False:
+                        # 1. Get the exact HTML signature of what popped up
+                        element_id = await winning_element.evaluate("el => el.id || 'N/A'")
+                        element_class = await winning_element.evaluate("el => el.className || 'N/A'")
+                        element_tag = await winning_element.evaluate("el => el.tagName.toLowerCase()")
+                        
+                        print(f"{_getTime()} - RACE WON BY: <{element_tag} id='{element_id}' class='{element_class}'>")
+
+                        # 2. Determine which logical branch we are in
+                        if await page.locator(CHALLENGE_SELECTOR).count() > 0:
+                            print(f"{_getTime()} - STATUS: WAF Challenge Detected.")
+                        elif await page.locator(LISTING_SELECTOR).count() > 0:
+                            print(f"{_getTime()} - STATUS: Clean Property Listing Detected.")                    
+                    print(_getTime() + " - Selectors found, waiting a little extra seconds..")
+                except Exception as e:
+                    print(f"{_getTime()} - Warning: Neither specific selector appeared within 15s: {e}")
+                # Since we are already waiting for selectors, this can be as little as 0.5s now
+                #await asyncio.sleep(args.wait_seconds)
+                await asyncio.sleep(0.5)
                 print(_getTime() + " - Prepare beforeCapture")
                 before_html = await _capture(page, args.debug_dir, "before")
                 print(_getTime() + " - Capture Done")
@@ -403,7 +504,7 @@ async def _run(args: argparse.Namespace) -> None:
                                     await asyncio.sleep(5.0)
 
                 print(_getTime() + 
-                    "Browser is ready for manual observation. You may inspect and interact "
+                    " - Browser is ready for manual observation. You may inspect and interact "
                     "with the page, then press Enter here to finish."
                 )
                 #await asyncio.to_thread(input)
@@ -430,20 +531,35 @@ async def _run(args: argparse.Namespace) -> None:
                 )
                 print(_getTime() + " - Event recorded")
             finally:
-                await context.tracing.stop(
-                    path=str(args.debug_dir / "playwright_challenge_trace.zip")
-                )
-                print(_getTime() + " - Trace zip saved")
-                video = page.video
+                video = None
+                if DEBUG:                
+                    await context.tracing.stop(
+                        path=str(args.debug_dir / "playwright_challenge_trace.zip")
+                    )
+                    print(_getTime() + " - Trace zip saved")
+                    video = page.video
+                    print(_getTime() + " - Video fetched")
                 await context.close()
-                print(_getTime() + " - Video fetched, browser context closed")
+                print(_getTime() + " - Browser context closed")
                 if video is not None:
                     generated_video = Path(await video.path())
                     target_video = args.debug_dir / "playwright_challenge.webm"
                     if generated_video != target_video and generated_video.exists():
                         generated_video.replace(target_video)
                         print(_getTime() + " - Video Saved")
-    print(f"" +_getTime()+ "- Diagnostics saved under {args.debug_dir}/")
+    print(f"" +_getTime()+ f"- Diagnostics saved under {args.debug_dir}/")
+    # End the timer
+    end_time = time.perf_counter()
+    # Calculate elapsed time
+    execution_time = end_time - start_time
+    if DEBUG:
+        # Sort scripts by duration (slowest first)
+        sorted_scripts = sorted(script_timings.items(), key=lambda x: x[1], reverse=True)
+        print("\n--- Resources Load Times (Slowest to Fastest) ---")
+        for url, duration in sorted_scripts:
+            print(f"{duration:.2f} ms : {url}")
+    
+    print(f"Execution time: {execution_time:.6f} seconds")
 
 
 def main() -> None:
