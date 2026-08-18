@@ -4,6 +4,7 @@ Live project plan. Updated after every feature or update, per AGENTS.md.
 
 ## Current state
 
+<<<<<<< HEAD
 M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), and M3 (parsing)
 implemented and verified. M0: `config.py` (strict env parser + `Budgets`), `models.py`
 (pydantic data models), `pyproject.toml` + exact-pinned `requirements.txt`. M1:
@@ -18,13 +19,16 @@ challenge detection), `scraping/playwright_adapter.py` (scaffold),
 `filters/data/filter_map.v1.json`. M3: `scraping/list_parser.py` (results HTML ->
 `ListingSummary` list), `scraping/detail_parser.py` (detail HTML -> `ListingDetail`),
 live-captured fixtures in `tests/fixtures/`. 165 unit tests green; ruff and mypy clean.
-No LLM, store, or orchestration yet.
+Feature 002 adds the Playwright cookie farmer and typed curl-cffi handoff;
+full tests, ruff, and mypy are green. No LLM, store, or orchestration yet.
 
 ## Active feature
 
 | Feature | Spec | Status |
 |---------|------|--------|
 | 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0, M1, M2 done; M3-M8 pending |
+
+| 002 Playwright Cookie Fetcher | `docs/specs/002-playwright-cookie-fetcher/` | done and verified on `feat/playwright-cookie-fetcher` |
 
 ## Feature 001 summary
 
@@ -83,3 +87,6 @@ revalidation, vision A/B benchmarks.
 - 2026-07-08: M1 was published by no-mistakes as PR #2 and merged. Independent local
   verification reproduced the subagent evidence: ruff clean, mypy clean, 75 tests pass.
   Durable M1 landmines were promoted to AGENTS.md.
+- 2026-07-08: WAF clearance farming is isolated in an async Playwright adapter; curl-cffi
+  workers consume a proxy/user-agent/cookie handoff, and challenge puzzles are never
+  dragged or solved programmatically.

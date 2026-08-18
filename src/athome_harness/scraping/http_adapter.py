@@ -29,6 +29,7 @@ from athome_harness.scraping.base import (
     ProxyProvider,
     redact_url,
 )
+from athome_harness.scraping.challenge import detect_athome_challenge
 
 logger = logging.getLogger(__name__)
 
@@ -46,21 +47,6 @@ BROWSER_HEADERS: dict[str, str] = {
 # Substrings that mark a response body as a captcha challenge page.
 _CAPTCHA_MARKERS = ("recaptcha", "captcha", "verify you are human")
 
-# Substrings that mark a response body as an AtHome anti-bot challenge page,
-# even when the HTTP status is 200 (US-008, T09a). AtHome can answer with a
-# puzzle/authentication page instead of content; these precise markers are
-# detected before parsing or saving so a challenge page never becomes listing
-# data. A challenge is never solved or circumvented: the adapter only rotates
-# through the configured proxy path and degrades to BlockDetected when bounded
-# alternate requests are exhausted.
-_ATHOME_PUZZLE_MARKERS = (
-    "click to verify",
-    "認証にご協力ください",
-)
-_ATHOME_JAVASCRIPT_MARKERS = (
-    "to regain access, please make sure that cookies and javascript are enabled",
-)
-
 # Transient-failure retry policy. Not a config knob: the SPEC budgets table has
 # no HTTP backoff entry, so these stay as documented constants.
 _TRANSIENT_RETRIES = 3
@@ -69,20 +55,8 @@ _BACKOFF_MAX_S = 8.0
 
 
 def _detect_athome_challenge(body: str) -> str | None:
-    """Return the kind of AtHome anti-bot challenge in ``body``, or ``None``.
-
-    Case-insensitive exact marker match against the AtHome puzzle page
-    (``[ATHOME_CHALLENGE] kind=puzzle``) and the Chrome JavaScript/cookie
-    interstitial (``kind=javascript``). These challenge pages can arrive with
-    HTTP 200, so the status code is not consulted here; the caller decides
-    whether to emit the marker and how to classify the block.
-    """
-    lowered = body.lower()
-    if any(marker in lowered for marker in _ATHOME_PUZZLE_MARKERS):
-        return "puzzle"
-    if any(marker in lowered for marker in _ATHOME_JAVASCRIPT_MARKERS):
-        return "javascript"
-    return None
+    """Return the shared AtHome challenge classification for compatibility."""
+    return detect_athome_challenge(body)
 
 
 def _detect_signature(status_code: int, body: str) -> BlockSignature | None:

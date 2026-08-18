@@ -24,3 +24,28 @@ orchestration are pending.
 - [PLAN.md](PLAN.md) -- live project plan, updated after every feature
 - [docs/specs/001-athome-home-finder/](docs/specs/001-athome-home-finder/) -- feature 001 spec, implementation plan, and marker contract
 - [AGENTS.md](AGENTS.md) -- agent workflow and architecture invariants
+
+## Browser cookie handoff
+
+When the HTTP worker reports an AtHome WAF challenge, farm a short-lived browser
+session once and pass its handoff to curl-cffi workers:
+
+```bash
+pip install -r requirements.txt
+playwright install chromium
+```
+
+```python
+from athome_harness.scraping.playwright_cookie_fetcher import PlaywrightCookieFetcher
+from curl_cffi import requests
+
+handoff = await PlaywrightCookieFetcher(proxy_url=proxy_url).farm()
+response = requests.get(target_url, **handoff.to_curl_cffi_kwargs())
+```
+
+The farmer uses one headless Chromium instance, waits three seconds after render,
+and captures challenge HTML/screenshots under `debug/` when the `Click to verify`
+flow appears. It performs at most one visible verification click and never drags a
+puzzle piece. The handoff is bound to the same proxy and user agent; workers must
+refarm when curl-cffi is blocked again. `debug/` is ignored because it contains
+cookies and browser captures.
