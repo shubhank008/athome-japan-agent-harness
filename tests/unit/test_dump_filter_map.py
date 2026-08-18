@@ -14,6 +14,7 @@ import pytest
 from athome_harness.filters.map_schema import (
     SUPPORTED_SCHEMA_VERSION,
 )
+from athome_harness.scraping.base import BlockDetected
 from tools import dump_filter_map as tool
 
 FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
@@ -160,3 +161,39 @@ def test_empty_control_raises_broken() -> None:
     html = "<html><body><select name='PRICEFROM'></select></body></html>"
     with pytest.raises(tool.FilterMapExtractionError, match="reason=empty"):
         tool.extract_flow(html, "buy")
+
+
+# Inline representative AtHome challenge page bodies as captured in the M3
+# incident: a 200-status puzzle/authentication page, not listing content.
+CHALLENGE_PUZZLE_HTML = (
+    "<html><body><h1>Click to verify</h1>"
+    "<p>To regain access, please make sure that cookies and JavaScript are "
+    "enabled.</p></body></html>"
+)
+
+
+def test_extract_flow_rejects_challenge_html() -> None:
+    """Challenge HTML must fail extraction, so it can never become a map."""
+    for flow in ("rent", "buy"):
+        with pytest.raises(tool.FilterMapExtractionError, match="reason=selector"):
+            tool.extract_flow(CHALLENGE_PUZZLE_HTML, flow)
+
+
+def test_cmd_dump_block_detected_writes_no_file(tmp_path: Path, monkeypatch, caplog) -> None:
+    """A blocked fetch must exit nonzero and never write a challenge map."""
+    import argparse
+    import logging
+
+    def blocked_fetcher() -> tool.FetchFn:
+        def fetch(url: str) -> str:
+            raise BlockDetected("https://www.athome.co.jp/chintai/osaka/list/", "captcha")
+
+        return fetch
+
+    monkeypatch.setattr(tool, "default_fetcher", blocked_fetcher)
+    out = tmp_path / "map.json"
+    args = argparse.Namespace(output=str(out), check=False)
+    with caplog.at_level(logging.ERROR):
+        assert tool.cmd_dump(args) == 1
+    assert not out.exists()
+    assert any("[BLOCK_DETECTED]" in r.message for r in caplog.records)
