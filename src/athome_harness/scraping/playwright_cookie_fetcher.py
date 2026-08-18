@@ -26,6 +26,7 @@ except ImportError:
         """Apply the current playwright-stealth API under the legacy name."""
         await Stealth().apply_stealth_async(page)
 
+
 logger = logging.getLogger(__name__)
 
 DEFAULT_BROAD_SEARCH_URL: Final = "https://www.athome.co.jp/chintai/osaka/list/"
@@ -185,6 +186,4 @@ class PlaywrightCookieFetcher:
     def _reject(self, reason: str) -> None:
         """Raise a stable rejection marker without returning challenged content."""
         logger.warning("[PLAYWRIGHT_HANDOFF_REJECTED] reason=<%s>", reason)
-        raise PlaywrightCookieFetcherError(
-            f"[PLAYWRIGHT_HANDOFF_REJECTED] reason=<{reason}>"
-        )
+        raise PlaywrightCookieFetcherError(f"[PLAYWRIGHT_HANDOFF_REJECTED] reason=<{reason}>")

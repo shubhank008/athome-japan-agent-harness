@@ -9,7 +9,7 @@ implemented and verified. M0: `config.py` (strict env parser + `Budgets`), `mode
 (pydantic data models), `pyproject.toml` + exact-pinned `requirements.txt`. M1:
 `scraping/base.py` (`BaseScraper`, `BlockDetected`, `ProxyProvider`),
 `scraping/rate_limiter.py` (token-bucket with jitter), `scraping/http_adapter.py`
-(httpx + selectolax DOM adapter with block detection, proxy rotation, and AtHome
+(curl-cffi + selectolax DOM adapter with block detection, proxy rotation, and AtHome
 challenge detection), `scraping/playwright_adapter.py` (scaffold),
 `scraping/proxy/base.py` + `scraping/proxy/webshare.py` (proxy rotation policy). M2:
 `filters/map_schema.py` (versioned schema + validation with missing-flow rejection),
@@ -35,8 +35,9 @@ Conversational CLI that turns natural-language housing wishes into ranked rental
 purchase recommendations from athome.co.jp. Funnel: NL query -> SearchPlan -> AtHome
 filter encoding (versioned filter map) -> full harvest of filtered results -> LLM
 shortlist (top X) -> detail scrape -> top-Y report (markdown + JSON) -> persistent
-memory (seen/saved/rejected). Abstract-first: BaseScraper (HTTP adapter now, Playwright
-scaffold), BaseLLMProvider (OpenRouter first), BaseDataStore (SQLite first),
+memory (seen/saved/rejected). Abstract-first: BaseScraper (curl-cffi adapter now,
+Playwright scaffold), PlaywrightCookieFetcher (async browser farmer producing a
+typed CookieHandoff), BaseLLMProvider (OpenRouter first), BaseDataStore (SQLite first),
 BaseFloorPlanEvaluator (text default, vision stub). Webshare proxy rotation on block
 detection only. Weekly GitHub Action re-extracts the filter map and files an issue on
 DOM drift. Post-MVP: prefetch cache with freshness ordering and dead-listing

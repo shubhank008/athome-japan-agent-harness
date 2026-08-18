@@ -23,6 +23,8 @@ orchestration are pending.
 - [SPEC.md](SPEC.md) -- project-level technical spec (authoritative for filter map, data models, interfaces)
 - [PLAN.md](PLAN.md) -- live project plan, updated after every feature
 - [docs/specs/001-athome-home-finder/](docs/specs/001-athome-home-finder/) -- feature 001 spec, implementation plan, and marker contract
+- [docs/specs/002-playwright-cookie-fetcher/](docs/specs/002-playwright-cookie-fetcher/) -- feature 002 Playwright browser cookie farmer
+- [docs/specs/003-curl-cffi-http-integration/](docs/specs/003-curl-cffi-http-integration/) -- feature 003 curl-cffi HTTP adapter integration
 - [AGENTS.md](AGENTS.md) -- agent workflow and architecture invariants
 
 ## Browser cookie handoff

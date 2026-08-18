@@ -28,6 +28,10 @@ JAVASCRIPT_BODY = (
     "<html><body>To regain access, please make sure that "
     "cookies and JavaScript are enabled.</body></html>"
 )
+UPPER_JAVASCRIPT_BODY = (
+    "<HTML><BODY>To regain access, please make sure that "
+    "cookies and JavaScript are enabled.</BODY></HTML>"
+)
 
 
 @dataclass
@@ -138,7 +142,7 @@ def test_detect_signature(signature, status, body) -> None:
         ("puzzle", JAPANESE_PUZZLE_BODY),
         ("javascript", JAVASCRIPT_BODY),
         ("puzzle", "<HTML><BODY><H1>Click to verify</H1></BODY></HTML>"),
-        ("javascript", "<HTML><BODY>To regain access, please make sure that cookies and JavaScript are enabled.</BODY></HTML>"),
+        ("javascript", UPPER_JAVASCRIPT_BODY),
     ],
 )
 def test_detect_athome_challenge(kind, body) -> None:
@@ -239,7 +243,6 @@ def test_safari_ios_profile_reaches_curl_session() -> None:
     assert session.calls[0][1]["impersonate"] == "safari_ios"
 
 
-
 def test_redaction_in_marker_disallows_credentials_and_query() -> None:
     """Block markers never leak credentials or query strings."""
     adapter, _, _ = make_adapter([FakeResponse(status_code=403)])
@@ -277,9 +280,7 @@ def test_handoff_block_does_not_rotate_proxy(caplog) -> None:
     handoff = make_handoff()
     provider = StubProxy(["http://different.example:8080"])
     session = FakeSession([FakeResponse(status_code=403, text="denied")])
-    adapter = HttpDomAdapter(
-        Budgets(), handoff=handoff, proxy_provider=provider, client=session
-    )
+    adapter = HttpDomAdapter(Budgets(), handoff=handoff, proxy_provider=provider, client=session)
     with pytest.raises(BlockDetected) as excinfo:
         adapter.fetch_html(REDACTED)
     assert excinfo.value.signature == "403"

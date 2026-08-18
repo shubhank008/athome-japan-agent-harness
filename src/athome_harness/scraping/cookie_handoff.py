@@ -56,9 +56,7 @@ class CookieHandoff:
         if not self.headers:
             raise CookieHandoffError("Cookie handoff requires request headers")
         for cookie in self.cookies:
-            if not isinstance(cookie.get("name"), str) or not isinstance(
-                cookie.get("value"), str
-            ):
+            if not isinstance(cookie.get("name"), str) or not isinstance(cookie.get("value"), str):
                 raise CookieHandoffError("Every cookie requires string name and value")
         object.__setattr__(self, "headers", dict(self.headers))
         object.__setattr__(self, "cookies", tuple(dict(cookie) for cookie in self.cookies))
@@ -87,17 +85,12 @@ class CookieHandoff:
     @property
     def cookie_header(self) -> str:
         """Return all harvested cookies in HTTP ``Cookie`` header form."""
-        return "; ".join(
-            f"{cookie['name']}={cookie['value']}" for cookie in self.cookies
-        )
+        return "; ".join(f"{cookie['name']}={cookie['value']}" for cookie in self.cookies)
 
     @property
     def cookie_values(self) -> dict[str, str]:
         """Return cookies in the mapping form accepted by curl-cffi."""
-        return {
-            str(cookie["name"]): str(cookie["value"])
-            for cookie in self.cookies
-        }
+        return {str(cookie["name"]): str(cookie["value"]) for cookie in self.cookies}
 
     def to_curl_cffi_kwargs(self) -> dict[str, object]:
         """Return request keyword arguments bound to this browser session."""
@@ -152,9 +145,7 @@ class CookieHandoff:
                 headers={str(key): str(value) for key, value in payload["headers"].items()},
                 cookies=tuple(payload["cookies"]),
                 created_at=str(payload["created_at"]),
-                impersonate=cast(
-                    ImpersonateProfile, str(payload.get("impersonate", "chrome"))
-                ),
+                impersonate=cast(ImpersonateProfile, str(payload.get("impersonate", "chrome"))),
                 schema_version=int(payload["schema_version"]),
             )
         except (KeyError, TypeError, ValueError) as exc:

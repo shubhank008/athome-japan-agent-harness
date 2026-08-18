@@ -216,8 +216,10 @@ class HttpDomAdapter(BaseScraper):
         adapter raise :class:`BlockDetected`.
         """
         proxy_url: str | None = self._handoff.proxy_url if self._handoff else None
-        attempts = 0 if self._handoff is not None else (
-            self._budgets.proxy_retries if self._proxy_provider else 0
+        attempts = (
+            0
+            if self._handoff is not None
+            else (self._budgets.proxy_retries if self._proxy_provider else 0)
         )
 
         for attempt in range(attempts + 1):

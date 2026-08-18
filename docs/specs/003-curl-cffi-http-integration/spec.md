@@ -4,7 +4,7 @@ The main AtHome HTTP scraper uses curl-cffi browser impersonation for every requ
 
 ## Context
 
-The existing `HttpDomAdapter` uses httpx, while the project already supplies `curl-cffi` and a Playwright cookie handoff. This leaves the primary scraper unable to use the intended browser TLS fingerprint or browser-farmed clearance cookies. The integration must preserve the `BaseScraper`, block detection, proxy rotation, parser, and redacted logging contracts.
+The `HttpDomAdapter` now uses curl-cffi with browser impersonation profiles and can consume a Playwright `CookieHandoff` for exact session reuse.
 
 ## User Stories
 
@@ -12,28 +12,28 @@ The existing `HttpDomAdapter` uses httpx, while the project already supplies `cu
 **Description:** As a scraper worker, I want the main HTTP adapter to use curl-cffi with a browser profile so AtHome receives a browser-like TLS and HTTP fingerprint.
 
 **Acceptance Criteria:**
-- [ ] `HttpDomAdapter` uses curl-cffi for HTML and binary GET requests, never httpx.
-- [ ] Requests use the `chrome` curl-cffi impersonation profile by default.
-- [ ] The configured HTTP timeout is passed to every curl-cffi request.
-- [ ] Existing block detection, retry, DOM parsing, proxy rotation, and close behavior remain intact.
+- [x] `HttpDomAdapter` uses curl-cffi for HTML and binary GET requests, never httpx.
+- [x] Requests use the `chrome` curl-cffi impersonation profile by default.
+- [x] The configured HTTP timeout is passed to every curl-cffi request.
+- [x] Existing block detection, retry, DOM parsing, proxy rotation, and close behavior remain intact.
 
 ### US-002: Reuse a Playwright browser handoff
 **Description:** As a scraper worker, I want to pass a `CookieHandoff` to the HTTP adapter so detail requests reuse the exact browser session that farmed the clearance.
 
 **Acceptance Criteria:**
-- [ ] The adapter accepts an optional `CookieHandoff` and passes its exact user agent, request headers, cookies, proxy, and impersonation profile to curl-cffi.
-- [ ] A handoff-bound request never silently switches to another proxy after a block; it raises `BlockDetected` so the caller can refarm.
-- [ ] Without a handoff, existing direct-first proxy-provider rotation remains available.
-- [ ] No cookie values or proxy credentials appear in logs or exception messages.
+- [x] The adapter accepts an optional `CookieHandoff` and passes its exact user agent, request headers, cookies, proxy, and impersonation profile to curl-cffi.
+- [x] A handoff-bound request never silently switches to another proxy after a block; it raises `BlockDetected` so the caller can refarm.
+- [x] Without a handoff, existing direct-first proxy-provider rotation remains available.
+- [x] No cookie values or proxy credentials appear in logs or exception messages.
 
 ### US-003: Verify end-to-end handoff use
 **Description:** As an operator, I want a test that farms a browser handoff and uses the curl adapter to fetch multiple AtHome detail pages with a short timeout, so the integration is demonstrably wired together.
 
 **Acceptance Criteria:**
-- [ ] A live-marked integration test uses `PlaywrightCookieFetcher`, then the main `HttpDomAdapter`, and fetches 3 to 5 configured detail URLs with a 2-second request timeout.
-- [ ] Each successful response is parsed through the existing detail parser and is not an AtHome challenge page.
-- [ ] The live test is skipped by default and reports a clear setup/network failure rather than saving challenged HTML as a fixture.
-- [ ] Offline unit tests verify exact handoff request kwargs and the expired-handoff block behavior.
+- [x] A live-marked integration test uses `PlaywrightCookieFetcher`, then the main `HttpDomAdapter`, and fetches 3 to 5 configured detail URLs with a 2-second request timeout.
+- [x] Each successful response is parsed through the existing detail parser and is not an AtHome challenge page.
+- [x] The live test is skipped by default and reports a clear setup/network failure rather than saving challenged HTML as a fixture.
+- [x] Offline unit tests verify exact handoff request kwargs and the expired-handoff block behavior.
 
 ## Functional Requirements
 

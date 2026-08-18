@@ -52,7 +52,8 @@ of the manual effort, without missing listings buried in pagination.
 
 ### In scope (this milestone)
 - Conversational CLI (terminal) for rental search, all prefectures, Osaka as the focus.
-- Abstract-first layers: `BaseScraper` (HTTP+DOM adapter now, Playwright scaffold),
+- Abstract-first layers: `BaseScraper` (curl-cffi adapter now, Playwright scaffold),
+  `PlaywrightCookieFetcher` (async browser farmer for session handoff),
   `BaseLLMProvider` (OpenRouter first), `BaseDataStore` (SQLite first),
   `BaseFloorPlanEvaluator` (text default, vision stub).
 - Versioned filter map + a weekly GitHub Action that re-extracts it and files an issue
