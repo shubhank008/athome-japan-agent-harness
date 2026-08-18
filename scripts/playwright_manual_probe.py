@@ -23,6 +23,7 @@ except ImportError:
         """Apply the current playwright-stealth API under the legacy name."""
         await Stealth().apply_stealth_async(page)  # type: ignore[arg-type]
 
+
 DEFAULT_URL = "https://www.athome.co.jp/chintai/osaka/list/"
 
 

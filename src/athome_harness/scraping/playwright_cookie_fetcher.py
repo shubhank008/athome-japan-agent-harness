@@ -247,8 +247,7 @@ class PlaywrightCookieFetcher:
             box = await target.bounding_box()
             frame_url = redact_url(frame.url)
             logger.warning(
-                "[PLAYWRIGHT_VERIFY_TARGET] found=true frame=<%d> kind=<%s> "
-                "visible=true box=<%s>",
+                "[PLAYWRIGHT_VERIFY_TARGET] found=true frame=<%d> kind=<%s> visible=true box=<%s>",
                 self._frame_index(page, frame),
                 target_kind,
                 box,

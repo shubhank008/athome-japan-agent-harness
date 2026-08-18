@@ -25,6 +25,7 @@ orchestration are pending.
 - [docs/specs/001-athome-home-finder/](docs/specs/001-athome-home-finder/) -- feature 001 spec, implementation plan, and marker contract
 - [docs/specs/002-playwright-cookie-fetcher/](docs/specs/002-playwright-cookie-fetcher/) -- feature 002 Playwright browser cookie farmer
 - [docs/specs/003-curl-cffi-http-integration/](docs/specs/003-curl-cffi-http-integration/) -- feature 003 curl-cffi HTTP adapter integration
+- [docs/specs/004-playwright-challenge-diagnostics/](docs/specs/004-playwright-challenge-diagnostics/) -- feature 004 Playwright challenge diagnostics and headed probe
 - [AGENTS.md](AGENTS.md) -- agent workflow and architecture invariants
 
 ## Browser cookie handoff

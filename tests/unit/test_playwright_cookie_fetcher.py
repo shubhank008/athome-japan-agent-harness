@@ -70,7 +70,6 @@ class FakeLocator:
             self.page.current_html = GOOD_HTML
 
 
-
 class EmptyLocator:
     """Locator substitute representing no semantic control match."""
 
