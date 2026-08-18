@@ -31,7 +31,7 @@ FULL_URL = "https://user:secret@www.athome.co.jp/list/?PAGENO=2&x=1"
 
 # Inline representative AtHome challenge bodies, exactly as captured in the M3
 # incident: AtHome answers HTTP 200 with a puzzle/auth page.
-PUZZLE_BODY = '<html><body><h1>Click to verify</h1><p>For security...</p></body></html>'
+PUZZLE_BODY = "<html><body><h1>Click to verify</h1><p>For security...</p></body></html>"
 JAPANESE_PUZZLE_BODY = "<html><body><h1>認証にご協力ください</h1></body></html>"
 JAVASCRIPT_BODY = (
     "<html><body>To regain access, please make sure that "

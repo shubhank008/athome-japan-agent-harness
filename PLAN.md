@@ -4,18 +4,21 @@ Live project plan. Updated after every feature or update, per AGENTS.md.
 
 ## Current state
 
-M0 (project skeleton + hygiene), M1 (scraper core), and M2 (filter map) implemented and verified.
-M0: `config.py` (strict env parser + `Budgets`), `models.py` (pydantic data models),
-`pyproject.toml` + exact-pinned `requirements.txt`. M1: `scraping/base.py`
-(`BaseScraper`, `BlockDetected`, `ProxyProvider`), `scraping/rate_limiter.py`
-(token-bucket with jitter), `scraping/http_adapter.py` (httpx + selectolax DOM
-adapter with block detection and proxy rotation), `scraping/playwright_adapter.py`
-(scaffold), `scraping/proxy/base.py` + `scraping/proxy/webshare.py` (proxy rotation
-policy). M2: `filters/map_schema.py` (versioned schema + validation), `filters/encoder.py`
-(SearchPlan -> POST params), `tools/dump_filter_map.py` (extraction tool),
-`.github/workflows/filter-map.yml` (weekly refresh), checked-in
-`filters/data/filter_map.v1.json`. 75 unit tests green; ruff and mypy clean. No LLM,
-store, or orchestration yet.
+M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), and M3 (parsing)
+implemented and verified. M0: `config.py` (strict env parser + `Budgets`), `models.py`
+(pydantic data models), `pyproject.toml` + exact-pinned `requirements.txt`. M1:
+`scraping/base.py` (`BaseScraper`, `BlockDetected`, `ProxyProvider`),
+`scraping/rate_limiter.py` (token-bucket with jitter), `scraping/http_adapter.py`
+(httpx + selectolax DOM adapter with block detection, proxy rotation, and AtHome
+challenge detection), `scraping/playwright_adapter.py` (scaffold),
+`scraping/proxy/base.py` + `scraping/proxy/webshare.py` (proxy rotation policy). M2:
+`filters/map_schema.py` (versioned schema + validation with missing-flow rejection),
+`filters/encoder.py` (SearchPlan -> POST params), `tools/dump_filter_map.py`
+(extraction tool), `.github/workflows/filter-map.yml` (weekly refresh), checked-in
+`filters/data/filter_map.v1.json`. M3: `scraping/list_parser.py` (results HTML ->
+`ListingSummary` list), `scraping/detail_parser.py` (detail HTML -> `ListingDetail`),
+live-captured fixtures in `tests/fixtures/`. 165 unit tests green; ruff and mypy clean.
+No LLM, store, or orchestration yet.
 
 ## Active feature
 
@@ -43,7 +46,7 @@ revalidation, vision A/B benchmarks.
 | M0 Skeleton | T01-T04 | done (2026-07-08, `feat/001-m0-skeleton`, verified) |
 | M1 Scraper core | T05-T09 | done (2026-07-08, `feat/001-m1-scraper`, PR #2 merged, independently verified) |
 | M2 Filter map | T10-T13 | done (2026-08-17, `feat/001-m2-filter-map`) |
-| M3 Parsing | T14-T16 | todo |
+| M3 Parsing | T14-T16 | done (2026-08-18, `feat/playwright-cookie-fetcher`) |
 | M4 LLM layer | T17-T21 | todo |
 | M5 Store | T22-T23 | todo |
 | M6 Orchestration + CLI | T24-T26 | todo |

@@ -194,9 +194,7 @@ def _extract_photos(tree: HTMLParser) -> list[str]:
         img = item.css_first("img")
         if img is None:
             continue
-        src = _absolute_url(
-            img.attributes.get("src") or img.attributes.get("data-original")
-        )
+        src = _absolute_url(img.attributes.get("src") or img.attributes.get("data-original"))
         if src:
             urls.append(src)
     return urls
@@ -211,9 +209,7 @@ def _extract_floor_plan_image(tree: HTMLParser) -> str | None:
         img = item.css_first("img")
         if img is None:
             continue
-        return _absolute_url(
-            img.attributes.get("src") or img.attributes.get("data-original")
-        )
+        return _absolute_url(img.attributes.get("src") or img.attributes.get("data-original"))
     return None
 
 
@@ -239,11 +235,7 @@ def _extract_usp(tree: HTMLParser) -> tuple[str, list[str]]:
     point_dd = tree.css_first(_POINT_DD)
     if point_dd is not None:
         point_text = point_dd.text(separator="", strip=True)
-    icons = [
-        alt
-        for img in tree.css(_POINT_ICONS)
-        if (alt := img.attributes.get("alt"))
-    ]
+    icons = [alt for img in tree.css(_POINT_ICONS) if (alt := img.attributes.get("alt"))]
     return (point_text, icons)
 
 
