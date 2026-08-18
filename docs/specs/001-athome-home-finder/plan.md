@@ -102,6 +102,10 @@ PLAN.md                     # repo-level live plan, updated after every feature
 - [x] T09 `scraping/proxy/base.py` + `proxy/webshare.py`: endpoint list from env,
   rotation policy (try direct first, rotate on block, budget 3). Unit tests with fake
   transport; no live proxy calls in CI.
+- [ ] T09a AtHome challenge handling: detect HTTP 200 puzzle/authentication pages,
+  emit `[ATHOME_CHALLENGE]`, prevent challenge HTML from reaching parsers or fixture
+  files, and use bounded alternate-request handling without solving the challenge.
+  Unit tests must cover the exact `Click to verify` and JavaScript/cookie markers.
 
 ### M2: Filter map
 

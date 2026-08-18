@@ -133,3 +133,5 @@ place.
 * Numeric label parsers must check specific unit words such as `million` and `thousand` before generic suffix patterns such as `m`; otherwise `5million` is misread as 5.
 * Negative log-marker tests must assert universal absence, for example `not any(marker in record for record in records)`, not merely that one record lacks the marker.
 * Validators for snapshots with multiple supported flows must reject a missing entire flow, not only malformed fields within flows that happen to be present.
+* AtHome can return an HTTP 200 puzzle/authentication page instead of content. Treat `Click to verify`, `To regain access, please make sure that cookies and JavaScript are enabled`, and the Japanese authentication heading as challenge markers before parsing or saving HTML; use bounded alternate-request handling and never attempt to solve or circumvent the puzzle.
+* A live capture must validate that it contains expected page content before becoming a fixture. Never save an AtHome challenge page as a parser fixture, and record the challenge marker and redacted request context when capture is blocked.

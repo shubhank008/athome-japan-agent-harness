@@ -27,6 +27,7 @@ All values are examples; tests match on marker name and required keys, not exact
 ## Proxy and degradation markers (appear only when triggered)
 
 ```
+[ATHOME_CHALLENGE] url=<redacted> kind=<puzzle|javascript>
 [BLOCK_DETECTED] url=<redacted> signature=<403|429|captcha>
 [PROXY_ROTATE] attempt=<n> of=<n>                  # attempt <= 3 (spec budget)
 [PROXY_RECOVERED] via=proxy
