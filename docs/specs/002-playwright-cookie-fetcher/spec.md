@@ -10,20 +10,20 @@ and proxy identity locally so fast curl-cffi workers can reuse that session.
 
 AtHome can return an HTTP 200 Incapsula/WAF challenge instead of listing HTML.
 The existing HTTP adapter detects the challenge but cannot render the JavaScript
-needed to obtain a valid browser session. This feature adds a bounded Playwright
+needed to obtain a valid browser session. This feature adds a bounded Patchright
 farmer without moving browser dependencies into business logic or attempting to
 automate puzzle-piece dragging.
 
 ## User Stories
 
 ### US-001: Farm a browser session
-**Description:** As a scraper worker, I want a Playwright browser to render the
+**Description:** As a scraper worker, I want a Patchright browser to render the
 AtHome broad search page so that I can hand a valid browser session to curl-cffi.
 
 **Acceptance Criteria:**
-- [x] The farmer uses one headless Chromium instance, applies Playwright stealth,
-      supports direct or explicitly configured proxy routing, and visits the configured
-      AtHome broad search URL.
+- [x] The farmer uses a persistent Patchright Chrome context with the stealth
+      compatibility hook, supports direct or explicitly configured proxy routing,
+      and visits the configured AtHome broad search URL.
 - [x] The farmer waits 3 seconds after navigation before validating the rendered page.
 - [x] A successful handoff contains non-empty rendered HTML, cookies, the exact
       `navigator.userAgent`, request headers, and the proxy identity used.
@@ -61,7 +61,7 @@ that many curl-cffi requests can reuse the same browser session until it expires
 
 - FR-1: Browser lifecycle must be async, single-instance per farm, and closed in a
   `finally` path after the handoff is captured.
-- FR-2: Playwright and stealth imports must remain inside the concrete adapter module;
+- FR-2: Patchright and stealth imports must remain inside the concrete adapter module;
   business-facing code consumes the typed handoff only.
 - FR-3: Challenge detection must reuse the existing AtHome marker semantics and must
   reject empty or undersized rendered documents before persistence.

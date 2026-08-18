@@ -18,7 +18,7 @@ challenge detection), `scraping/playwright_adapter.py` (scaffold),
 `filters/data/filter_map.v1.json`. M3: `scraping/list_parser.py` (results HTML ->
 `ListingSummary` list), `scraping/detail_parser.py` (detail HTML -> `ListingDetail`),
 live-captured fixtures in `tests/fixtures/`. 165 unit tests green; ruff and mypy clean.
-Feature 002 adds the Playwright cookie farmer and typed curl-cffi handoff;
+Feature 002 adds the Patchright cookie farmer and typed curl-cffi handoff;
 full tests, ruff, and mypy are green. No LLM, store, or orchestration yet.
 
 ## Active feature
@@ -28,6 +28,7 @@ full tests, ruff, and mypy are green. No LLM, store, or orchestration yet.
 | 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0, M1, M2 done; M3-M8 pending |
 | 002 Playwright Cookie Fetcher | `docs/specs/002-playwright-cookie-fetcher/` | done and verified on `feat/playwright-cookie-fetcher` |
 | 003 curl-cffi HTTP Integration | `docs/specs/003-curl-cffi-http-integration/` | implementation and offline gates done; live AtHome challenge remains unresolved |
+| 004 Playwright Challenge Diagnostics | `docs/specs/004-playwright-challenge-diagnostics/` | done; diagnostics, headed probe, and offline gates verified |
 
 ## Feature 001 summary
 
@@ -87,11 +88,15 @@ revalidation, vision A/B benchmarks.
 - 2026-07-08: M1 was published by no-mistakes as PR #2 and merged. Independent local
   verification reproduced the subagent evidence: ruff clean, mypy clean, 75 tests pass.
   Durable M1 landmines were promoted to AGENTS.md.
-- 2026-07-08: WAF clearance farming is isolated in an async Playwright adapter; curl-cffi
+- 2026-07-08: WAF clearance farming is isolated in an async Patchright adapter; curl-cffi
   workers consume a proxy/user-agent/cookie handoff, and challenge puzzles are never
   dragged or solved programmatically.
 - 2026-07-08: Cookie handoffs persist the curl-cffi impersonation profile (`chrome` by default,
   with `safari_ios` supported), so workers reuse the exact browser identity. The live
-  Playwright verification reached AtHome but remained on the security challenge after
+  Patchright verification reached AtHome but remained on the security challenge after
   one permitted Click to Verify attempt; before/after captures were retained only under
   ignored `debug/` paths.
+- 2026-07-08: Challenge diagnostics use browser trace and WebM recording plus redacted
+  JSONL lifecycle events. Automated verification is limited to one frame-aware semantic
+  press-hold click; puzzle sliders are not dragged or solved programmatically. A separate
+  headed probe supports operator observation and manual interaction.

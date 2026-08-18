@@ -7,7 +7,7 @@ query strings.
 ## Happy-path markers
 
 ```
-[PLAYWRIGHT_FARM_START] url=<redacted> proxy=<direct|sanitized-host>
+[PATCHRIGHT_FARM_START] url=<redacted> proxy=<direct|sanitized-host>
 [PLAYWRIGHT_RENDERED] html_chars=<n> blocked=<true|false>
 [PLAYWRIGHT_HANDOFF_SAVED] proxy=<direct|sanitized-host> cookies=<n>
 ```

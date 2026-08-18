@@ -1,9 +1,9 @@
-"""Tests for the Playwright-to-curl-cffi cookie handoff."""
+"""Tests for the Patchright-to-curl-cffi cookie handoff."""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -39,7 +39,7 @@ class FakeLocator:
 
     @property
     def first(self) -> FakeLocator:
-        """Match Playwright's first locator property."""
+        """Match Patchright's first locator property."""
         return self
 
     async def count(self) -> int:
@@ -50,21 +50,83 @@ class FakeLocator:
         """Report that the verification control is visible."""
         return True
 
-    async def click(self) -> None:
+    async def wait_for(self, *, state: str, timeout: int) -> None:
+        """Accept the visibility wait used by the real click path."""
+        assert state == "visible"
+        assert timeout == 5000
+
+    async def bounding_box(self) -> None:
+        """Force the deterministic fallback click path."""
+        return None
+
+    async def hover(self) -> None:
+        """Accept the humanized hover step."""
+        return None
+
+    async def click(self, *, delay: int) -> None:
         """Advance the page from challenge to rendered content."""
         self.page.clicks += 1
         if self.page.advance_on_click:
             self.page.current_html = GOOD_HTML
 
 
-class FakePage:
-    """Small Playwright page substitute exercising the real farmer logic."""
+class EmptyLocator:
+    """Locator substitute representing no semantic control match."""
 
-    def __init__(self, initial_html: str, *, advance_on_click: bool = True) -> None:
+    @property
+    def first(self) -> EmptyLocator:
+        """Match Patchright's first locator property."""
+        return self
+
+    async def count(self) -> int:
+        """Report no matching controls."""
+        return 0
+
+
+class FakeFrame:
+    """Child frame exposing a semantic verification button."""
+
+    def __init__(self, page: FakePage) -> None:
+        self.page = page
+        self.url = "https://www.athome.co.jp/security-frame"
+
+    def get_by_role(self, role: str, *, name: Any) -> FakeLocator | EmptyLocator:
+        """Return a semantic button only in the child frame."""
+        assert role in {"button", "link"}
+        assert name.search("Click to verify")
+        return FakeLocator(self.page) if role == "button" else EmptyLocator()
+
+    def get_by_text(self, pattern: Any) -> EmptyLocator:
+        """Avoid selecting the less-preferred text fallback in this frame."""
+        assert pattern.search("Click to verify")
+        return EmptyLocator()
+
+
+class FakePage:
+    """Small Patchright page substitute exercising the real farmer logic."""
+
+    def __init__(
+        self,
+        initial_html: str,
+        *,
+        advance_on_click: bool = True,
+        child_role: bool = False,
+    ) -> None:
         self.current_html = initial_html
         self.advance_on_click = advance_on_click
+        self.child_role = child_role
         self.clicks = 0
+        self.url = "https://www.athome.co.jp/chintai/osaka/list/"
+        self.video = None
         self._request_handler: Any = None
+        self._child_frame = FakeFrame(self) if child_role else None
+
+    @property
+    def frames(self) -> list[object]:
+        """Expose the fake main frame and optional stable child frame."""
+        if self._child_frame is not None:
+            return [self, self._child_frame]
+        return [self]
 
     async def goto(self, url: str, *, wait_until: str) -> None:
         """Emit the main navigation request before page rendering."""
@@ -87,14 +149,42 @@ class FakePage:
         assert event == "request"
         self._request_handler = handler
 
-    def get_by_text(self, pattern: Any) -> FakeLocator:
-        """Return the fake verification control."""
+    def get_by_role(self, role: str, *, name: Any) -> FakeLocator | EmptyLocator:
+        """Return no semantic control so the text fallback is exercised."""
+        assert role in {"button", "link"}
+        assert name.search("Click to verify")
+        return EmptyLocator()
+
+    def get_by_text(self, pattern: Any) -> FakeLocator | EmptyLocator:
+        """Return the fake control unless a child semantic role is configured."""
         assert pattern.search("Click to verify")
-        return FakeLocator(self)
+        return EmptyLocator() if self.child_role else FakeLocator(self)
 
     async def screenshot(self, *, path: str) -> None:
         """Write a deterministic screenshot placeholder."""
         Path(path).write_bytes(b"fake-png")
+
+
+class FakeTracing:
+    """Tracing substitute recording lifecycle calls."""
+
+    def __init__(self) -> None:
+        self.started = False
+        self.stopped_path: str | None = None
+        self.raise_on_stop = False
+
+    async def start(self, **options: object) -> None:
+        """Record tracing startup options."""
+        assert options["screenshots"] is True
+        assert options["snapshots"] is True
+        self.started = True
+
+    async def stop(self, *, path: str) -> None:
+        """Write a deterministic trace placeholder."""
+        self.stopped_path = path
+        if self.raise_on_stop:
+            raise RuntimeError("trace stop failed")
+        Path(path).write_bytes(b"fake-trace")
 
 
 class FakeContext:
@@ -103,6 +193,8 @@ class FakeContext:
     def __init__(self, page: FakePage) -> None:
         self.page = page
         self.closed = False
+        self.raise_on_close = False
+        self.tracing = FakeTracing()
 
     async def new_page(self) -> FakePage:
         """Return the configured page."""
@@ -115,70 +207,69 @@ class FakeContext:
     async def close(self) -> None:
         """Record context shutdown."""
         self.closed = True
-
-
-class FakeBrowser:
-    """Browser substitute recording context and shutdown behavior."""
-
-    def __init__(self, page: FakePage) -> None:
-        self.context = FakeContext(page)
-        self.closed = False
-
-    async def new_context(self, *, locale: str) -> FakeContext:
-        """Create the Japanese-locale context requested by the farmer."""
-        assert locale == "ja-JP"
-        return self.context
-
-    async def close(self) -> None:
-        """Record browser shutdown."""
-        self.closed = True
+        if self.raise_on_close:
+            raise RuntimeError("context close failed")
 
 
 class FakeChromium:
-    """Chromium launcher capturing the browser launch options."""
+    """Persistent Chrome launcher capturing Patchright context options."""
 
-    def __init__(self, browser: FakeBrowser) -> None:
-        self.browser = browser
+    def __init__(self, context: FakeContext) -> None:
+        self.context = context
+        self.user_data_dir: str | None = None
         self.options: dict[str, object] | None = None
 
-    async def launch(self, **options: object) -> FakeBrowser:
-        """Return the fake browser and retain launch settings."""
+    async def launch_persistent_context(
+        self,
+        *,
+        user_data_dir: str,
+        **options: object,
+    ) -> FakeContext:
+        """Return the fake context and retain persistent Chrome settings."""
+        self.user_data_dir = user_data_dir
         self.options = options
-        return self.browser
+        assert options["channel"] == "chrome"
+        assert options["headless"] is True
+        assert options["no_viewport"] is True
+        assert options["locale"] == "ja-JP"
+        assert options["proxy"] is None or options["proxy"]
+        assert options["record_video_dir"]
+        assert options["record_video_size"] == {"width": 1280, "height": 720}
+        return self.context
 
 
 class FakePlaywright:
-    """Async Playwright context manager used by the tests."""
+    """Async Patchright context manager used by the tests."""
 
-    def __init__(self, browser: FakeBrowser) -> None:
-        self.chromium = FakeChromium(browser)
+    def __init__(self, context: FakeContext) -> None:
+        self.chromium = FakeChromium(context)
 
     async def __aenter__(self) -> FakePlaywright:
-        """Enter the fake Playwright runtime."""
+        """Enter the fake Patchright runtime."""
         return self
 
     async def __aexit__(self, *_: object) -> None:
-        """Exit the fake Playwright runtime."""
+        """Exit the fake Patchright runtime."""
         return None
 
 
 @pytest.fixture
 def patch_playwright(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
-    """Patch browser startup and stealth while retaining real farmer behavior."""
+    """Patch Patchright startup while retaining real farmer behavior."""
     state: dict[str, object] = {}
 
     def install(page: FakePage) -> None:
-        browser = FakeBrowser(page)
-        runtime = FakePlaywright(browser)
+        context = FakeContext(page)
+        runtime = FakePlaywright(context)
         monkeypatch.setattr(
             "athome_harness.scraping.playwright_cookie_fetcher.async_playwright",
             lambda: runtime,
         )
+        state.update(context=context, chromium=runtime.chromium)
         monkeypatch.setattr(
             "athome_harness.scraping.playwright_cookie_fetcher._legacy_stealth_async",
             lambda _: _completed(),
         )
-        state.update(browser=browser, chromium=runtime.chromium)
 
     state["install"] = install
     return state
@@ -220,7 +311,12 @@ async def test_farm_persists_handoff_for_curl_workers(
     reloaded = CookieHandoff.load(handoff_path)
     assert reloaded.to_curl_cffi_kwargs() == handoff.to_curl_cffi_kwargs()
     assert (tmp_path / "cookies.txt").read_text() == "reese84=clearance\n"
-    assert patch_playwright["browser"].closed  # type: ignore[union-attr]
+    assert (tmp_path / "playwright_events.jsonl").exists()
+    assert (tmp_path / "playwright_challenge_trace.zip").read_bytes() == b"fake-trace"
+    context = cast(FakeContext, patch_playwright["context"])
+    assert context.closed
+    chromium = cast(FakeChromium, patch_playwright["chromium"])
+    assert chromium.user_data_dir
 
 
 @pytest.mark.asyncio
@@ -246,6 +342,32 @@ async def test_farm_captures_and_clicks_basic_challenge(
     assert (tmp_path / "playwright_after.html").read_text() == GOOD_HTML
     assert (tmp_path / "playwright_before.png").read_bytes() == b"fake-png"
     assert (tmp_path / "playwright_after.png").read_bytes() == b"fake-png"
+    events = (tmp_path / "playwright_events.jsonl").read_text().splitlines()
+    assert any('"event": "challenge_before"' in event for event in events)
+    assert any('"event": "verification_result"' in event for event in events)
+    assert (tmp_path / "playwright_challenge_trace.zip").read_bytes() == b"fake-trace"
+
+
+@pytest.mark.asyncio
+async def test_farm_prefers_semantic_control_in_child_frame(
+    tmp_path: Path,
+    patch_playwright: dict[str, object],
+) -> None:
+    """A semantic button in a child frame is selected before text fallback."""
+    page = FakePage(PUZZLE_HTML, child_role=True)
+    install = patch_playwright["install"]
+    assert callable(install)
+    install(page)
+    fetcher = PlaywrightCookieFetcher(debug_dir=tmp_path, wait_seconds=0)
+
+    await fetcher.farm()
+
+    events = (tmp_path / "playwright_events.jsonl").read_text().splitlines()
+    assert any('"frame_index": 1' in event for event in events)
+    assert any('"target_kind": "button"' in event for event in events)
+
+    assert any('"event": "verification_result"' in event for event in events)
+    assert (tmp_path / "playwright_challenge_trace.zip").read_bytes() == b"fake-trace"
 
 
 @pytest.mark.asyncio
@@ -265,3 +387,31 @@ async def test_farm_rejects_challenge_that_remains_after_click(
 
     assert not (tmp_path / "cookie_handoff_direct.json").exists()
     assert (tmp_path / "playwright_after.html").exists()
+    assert (tmp_path / "playwright_challenge_trace.zip").read_bytes() == b"fake-trace"
+
+
+@pytest.mark.asyncio
+async def test_cleanup_failures_do_not_mask_render_error(
+    tmp_path: Path,
+    patch_playwright: dict[str, object],
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """Tracing and context cleanup errors are logged without replacing the cause."""
+    page = FakePage("<html></html>")
+    install = patch_playwright["install"]
+    assert callable(install)
+    install(page)
+    context = cast(FakeContext, patch_playwright["context"])
+    context.tracing.raise_on_stop = True
+    context.raise_on_close = True
+    fetcher = PlaywrightCookieFetcher(debug_dir=tmp_path, wait_seconds=0)
+
+    with (
+        caplog.at_level("ERROR"),
+        pytest.raises(PlaywrightCookieFetcherError, match="reason=<render>"),
+    ):
+        await fetcher.farm()
+
+    assert context.closed
+    assert "[PATCHRIGHT_TRACE_STOP_FAILED]" in caplog.text
+    assert "[PATCHRIGHT_CONTEXT_CLOSE_FAILED]" in caplog.text

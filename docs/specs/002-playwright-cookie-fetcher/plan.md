@@ -4,7 +4,7 @@
 
 - `src/athome_harness/scraping/cookie_handoff.py`: typed, serializable browser-to-curl
   handoff and sanitized proxy identity helpers.
-- `src/athome_harness/scraping/playwright_cookie_fetcher.py`: concrete async Playwright
+- `src/athome_harness/scraping/playwright_cookie_fetcher.py`: concrete async Patchright
   farmer, stealth application, challenge capture, verification click, and browser cleanup.
 - `src/athome_harness/scraping/challenge.py`: shared AtHome challenge markers and detector.
 - `src/athome_harness/scraping/http_adapter.py`: consume the shared detector while keeping
@@ -12,7 +12,7 @@
 - `requirements.txt`, `README.md`: exact dependencies and browser installation instructions.
 - `.gitignore`: preserve the existing debug-artifact ignore rule.
 - `tests/unit/test_http_adapter.py`: handoff binding, curl-cffi kwargs, and challenge detection.
-- `tests/unit/test_playwright_cookie_fetcher.py`: fake Playwright state-machine tests and handoff persistence.
+- `tests/unit/test_playwright_cookie_fetcher.py`: fake Patchright state-machine tests and handoff persistence.
 - `docs/specs/002-playwright-cookie-fetcher/*`: this spec, plan, and marker contract.
 - `PLAN.md`: record feature status and decisions.
 
@@ -43,7 +43,7 @@
 
 - Fake-browser tests assert before/after HTML and screenshot paths are requested on
   challenge handling.
-- Tests assert `[PLAYWRIGHT_FARM_START]`, `[PLAYWRIGHT_CHALLENGE]`,
+- Tests assert `[PATCHRIGHT_FARM_START]`, `[PLAYWRIGHT_CHALLENGE]`,
   `[PLAYWRIGHT_VERIFY]`, and `[PLAYWRIGHT_HANDOFF_SAVED]` markers, plus absence of
   credential-bearing output.
 - A live browser smoke test is optional and marked `live` because browser binaries and

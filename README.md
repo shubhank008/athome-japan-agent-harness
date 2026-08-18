@@ -25,6 +25,8 @@ orchestration are pending.
 - [docs/specs/001-athome-home-finder/](docs/specs/001-athome-home-finder/) -- feature 001 spec, implementation plan, and marker contract
 - [docs/specs/002-playwright-cookie-fetcher/](docs/specs/002-playwright-cookie-fetcher/) -- feature 002 Playwright browser cookie farmer
 - [docs/specs/003-curl-cffi-http-integration/](docs/specs/003-curl-cffi-http-integration/) -- feature 003 curl-cffi HTTP adapter integration
+- [docs/specs/004-playwright-challenge-diagnostics/](docs/specs/004-playwright-challenge-diagnostics/) -- feature 004 browser challenge diagnostics and headed probe
+- [docs/specs/005-patchright-runtime/](docs/specs/005-patchright-runtime/) -- feature 005 Patchright browser runtime migration
 - [AGENTS.md](AGENTS.md) -- agent workflow and architecture invariants
 
 ## Browser cookie handoff
@@ -34,7 +36,8 @@ session once and pass its handoff to curl-cffi workers:
 
 ```bash
 pip install -r requirements.txt
-playwright install chromium
+# Patchright uses the locally installed Chrome channel.
+# Install Google Chrome separately if it is not already available.
 ```
 
 ```python
@@ -62,9 +65,28 @@ live integration check only when AtHome access is authorized:
 ATHOME_LIVE_TEST=1 pytest -m live tests/live/test_playwright_curl_live.py
 ```
 
-The farmer uses one headless Chromium instance, waits three seconds after render,
-and captures challenge HTML/screenshots under `debug/` when the `Click to verify`
-flow appears. It performs at most one visible verification click and never drags a
-puzzle piece. The handoff is bound to the same proxy and user agent; workers must
-refarm when curl-cffi is blocked again. `debug/` is ignored because it contains
-cookies and browser captures.
+The farmer uses one headless Patchright persistent context with the installed Chrome
+channel and the existing stealth compatibility hook, waits three seconds after render,
+and captures challenge HTML/screenshots
+under `debug/` when the `Click to verify` flow appears. It performs at most one
+visible press-hold verification click and never drags a puzzle piece. Diagnostics
+also write a browser trace, WebM video, and redacted JSONL event log to `debug/`,
+including evidence when the challenge remains blocked. The handoff is bound to the
+same proxy and user agent; workers must refarm when curl-cffi is blocked again.
+`debug/` is ignored because it contains cookies and browser captures.
+
+For an operator-driven headed observation, run this locally on the machine whose
+IP and browser window you want to inspect. The command pauses after the initial
+three-second render; interact manually in the browser, then press Enter in the
+terminal to capture the after state:
+
+```bash
+PYTHONPATH=src python scripts/playwright_manual_probe.py  # Patchright + Chrome
+# Optional: --proxy http://user:password@host:port --url https://www.athome.co.jp/chintai/osaka/list/
+```
+
+The probe writes `playwright_before.html/.png`, `playwright_after.html/.png`,
+`playwright_challenge.webm`, `playwright_challenge_trace.zip`, and
+`playwright_events.jsonl` under `debug/`. The script name and artifact names remain
+backward-compatible even though the runtime is Patchright. Do not commit or share
+these artifacts: they can contain session cookies and private page data.

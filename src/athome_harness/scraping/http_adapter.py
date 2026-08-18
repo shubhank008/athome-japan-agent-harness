@@ -5,7 +5,7 @@ curl-cffi with a browser impersonation profile. It presents browser-like headers
 retries transient failures with exponential backoff, detects IP blocks
 (403/429/captcha markers) and HTTP 200 AtHome puzzle/authentication pages via
 precise body markers and, when an optional :class:`ProxyProvider` is configured,
-rotates to a proxy on block and recovers. A Playwright :class:`CookieHandoff` is
+rotates to a proxy on block and recovers. A Patchright :class:`CookieHandoff` is
 pinned to its original proxy and raises a block for the caller to refarm.
 
 This is one of only two modules (the other is ``playwright_adapter.py``) allowed
