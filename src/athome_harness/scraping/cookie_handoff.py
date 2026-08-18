@@ -6,10 +6,12 @@ import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final
+from typing import Final, Literal, cast
 from urllib.parse import urlsplit
 
 HANDOFF_SCHEMA_VERSION: Final = 1
+ImpersonateProfile = Literal["chrome", "safari_ios"]
+SUPPORTED_IMPERSONATE_PROFILES: Final = frozenset({"chrome", "safari_ios"})
 
 
 class CookieHandoffError(ValueError):
@@ -36,6 +38,7 @@ class CookieHandoff:
     headers: dict[str, str]
     cookies: tuple[dict[str, object], ...]
     created_at: str
+    impersonate: ImpersonateProfile = "chrome"
     schema_version: int = HANDOFF_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -43,6 +46,10 @@ class CookieHandoff:
         if self.schema_version != HANDOFF_SCHEMA_VERSION:
             raise CookieHandoffError(
                 f"Unsupported cookie handoff schema version {self.schema_version}"
+            )
+        if self.impersonate not in SUPPORTED_IMPERSONATE_PROFILES:
+            raise CookieHandoffError(
+                f"Unsupported curl-cffi impersonation profile {self.impersonate}"
             )
         if not self.user_agent.strip():
             raise CookieHandoffError("Cookie handoff requires a user agent")
@@ -64,6 +71,7 @@ class CookieHandoff:
         user_agent: str,
         headers: dict[str, str],
         cookies: list[dict[str, object]],
+        impersonate: ImpersonateProfile = "chrome",
     ) -> CookieHandoff:
         """Build a validated handoff from Playwright context data."""
         return cls(
@@ -73,6 +81,7 @@ class CookieHandoff:
             headers=headers,
             cookies=tuple(cookies),
             created_at=datetime.now(UTC).isoformat(),
+            impersonate=impersonate,
         )
 
     @property
@@ -100,7 +109,7 @@ class CookieHandoff:
             "headers": headers,
             "cookies": self.cookie_values,
             "default_headers": False,
-            "impersonate": "chrome",
+            "impersonate": self.impersonate,
         }
         if self.proxy_url:
             result["proxy"] = self.proxy_url
@@ -116,6 +125,7 @@ class CookieHandoff:
             "headers": self.headers,
             "cookies": list(self.cookies),
             "created_at": self.created_at,
+            "impersonate": self.impersonate,
         }
 
     def save(self, path: Path, cookies_path: Path) -> None:
@@ -142,6 +152,9 @@ class CookieHandoff:
                 headers={str(key): str(value) for key, value in payload["headers"].items()},
                 cookies=tuple(payload["cookies"]),
                 created_at=str(payload["created_at"]),
+                impersonate=cast(
+                    ImpersonateProfile, str(payload.get("impersonate", "chrome"))
+                ),
                 schema_version=int(payload["schema_version"]),
             )
         except (KeyError, TypeError, ValueError) as exc:

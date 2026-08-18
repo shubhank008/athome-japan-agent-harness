@@ -4,7 +4,6 @@ Live project plan. Updated after every feature or update, per AGENTS.md.
 
 ## Current state
 
-<<<<<<< HEAD
 M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), and M3 (parsing)
 implemented and verified. M0: `config.py` (strict env parser + `Budgets`), `models.py`
 (pydantic data models), `pyproject.toml` + exact-pinned `requirements.txt`. M1:
@@ -27,8 +26,8 @@ full tests, ruff, and mypy are green. No LLM, store, or orchestration yet.
 | Feature | Spec | Status |
 |---------|------|--------|
 | 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0, M1, M2 done; M3-M8 pending |
-
 | 002 Playwright Cookie Fetcher | `docs/specs/002-playwright-cookie-fetcher/` | done and verified on `feat/playwright-cookie-fetcher` |
+| 003 curl-cffi HTTP Integration | `docs/specs/003-curl-cffi-http-integration/` | implementation and offline gates done; live AtHome challenge remains unresolved |
 
 ## Feature 001 summary
 
@@ -90,3 +89,8 @@ revalidation, vision A/B benchmarks.
 - 2026-07-08: WAF clearance farming is isolated in an async Playwright adapter; curl-cffi
   workers consume a proxy/user-agent/cookie handoff, and challenge puzzles are never
   dragged or solved programmatically.
+- 2026-07-08: Cookie handoffs persist the curl-cffi impersonation profile (`chrome` by default,
+  with `safari_ios` supported), so workers reuse the exact browser identity. The live
+  Playwright verification reached AtHome but remained on the security challenge after
+  one permitted Click to Verify attempt; before/after captures were retained only under
+  ignored `debug/` paths.

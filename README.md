@@ -41,6 +41,23 @@ from curl_cffi import requests
 
 handoff = await PlaywrightCookieFetcher(proxy_url=proxy_url).farm()
 response = requests.get(target_url, **handoff.to_curl_cffi_kwargs())
+
+# Or bind the handoff to the scraper used by the workers.
+from athome_harness.config import Budgets
+from athome_harness.scraping.http_adapter import HttpDomAdapter
+
+scraper = HttpDomAdapter(Budgets(), handoff=handoff)
+html = scraper.fetch_html(target_url)
+scraper.close()
+```
+
+The default curl-cffi profile is `chrome`; `safari_ios` is also supported for
+non-browser sessions through `HttpDomAdapter(..., impersonate="safari_ios")`.
+A handoff always uses the profile recorded when it was farmed. Run the bounded
+live integration check only when AtHome access is authorized:
+
+```bash
+ATHOME_LIVE_TEST=1 pytest -m live tests/live/test_playwright_curl_live.py
 ```
 
 The farmer uses one headless Chromium instance, waits three seconds after render,
