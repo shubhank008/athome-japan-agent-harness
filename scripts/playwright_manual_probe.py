@@ -24,6 +24,8 @@ import random
 import aiohttp
 import re
 import json
+import subprocess
+import time
 
 from patchright.async_api import async_playwright
 
@@ -90,6 +92,18 @@ def _clearDebug(folder_path: str) -> None:
     os.makedirs(folder_path)
     print(_getTime() + " - Cleared existing debug data")
 
+def get_installed_chrome_version() -> str:
+    """Extracts the full version string from the local Chrome binary."""
+    try:
+        output = subprocess.check_output(["google-chrome", "--version"]).decode("utf-8")
+        print(f"{_getTime()} - Try to get chrome version {output}")
+        match = re.search(r"Google Chrome (\d+\.\d+\.\d+\.\d+)", output)
+        if match:
+            return match.group(1)
+    except Exception:
+        pass
+    # Fallback to a modern version if detection fails
+    return "151.0.0.0"
 
 async def _human_move_and_click(page: Any, x: float, y: float) -> None:
     """Move the mouse to coordinates with a randomized curve and click."""
@@ -203,6 +217,7 @@ async def _solve_geetest_capsolver(api_key: str, site_url: str, gt: str, challen
     print(f"{_getTime()} - Requesting CapSolver token for Geetest (gt: {gt[:5]}...)")
     endpoint = "https://api.capsolver.com/createTask"
     
+    # https://docs.capsolver.com/en/guide/captcha/Geetest/
     payload = {
         "clientKey": api_key,
         "task": {
@@ -218,6 +233,7 @@ async def _solve_geetest_capsolver(api_key: str, site_url: str, gt: str, challen
             data = await resp.json()
             if data.get("errorId", 0) != 0:
                 print(f"{_getTime()} - CapSolver createTask error: {data.get('errorDescription')}")
+                print(f"{_getTime()} - CapSolver errorRes: {data}")
                 return None
             task_id = data.get("taskId")
 
@@ -232,8 +248,41 @@ async def _solve_geetest_capsolver(api_key: str, site_url: str, gt: str, challen
                     return res_data["solution"]  # Returns dict with challenge, validate, seccode
                 if res_data.get("status") == "failed":
                     print(f"{_getTime()} - CapSolver failed to solve challenge.")
+                    print(f"{_getTime()} - CapSolver Response: {res_data}")
                     return None
     return None
+
+
+async def save_session_state(context, user_agent, chrome_version, proxy_url=None, filepath="session_state.json"):
+    raw_cookies = await context.cookies(urls=["https://www.athome.co.jp"])
+    
+    # Flatten cookies into key-value pairs for curl_cffi
+    cookie_dict = {c["name"]: c["value"] for c in raw_cookies}
+    
+    #major_version = chrome_version.split(".")[0]
+    major_version = chrome_version
+    
+    state = {
+        "target_domain": "athome.co.jp",
+        "last_updated": int(time.time()),
+        "proxy": proxy_url,
+        "user_agent": user_agent,
+        "chrome_major_version": major_version,
+        "impersonate_profile": "chrome124",
+        "headers": {
+            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "accept-language": "ja,en-US;q=0.9,en;q=0.8",
+            "sec-ch-ua": f'"Google Chrome";v="{major_version}", "Chromium";v="{major_version}", "Not?A_Brand";v="24"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Linux"'
+        },
+        "cookies": cookie_dict
+    }
+    
+    with open(filepath, "w", encoding="utf-8") as f:
+        json.dump(state, f, indent=2, ensure_ascii=False)
+        print(f"{_getTime()} - Session State Saved: {filepath}")
+
 
 async def _run(args: argparse.Namespace) -> None:
     """Launch the headed browser and wait for the operator's manual actions."""
@@ -242,23 +291,26 @@ async def _run(args: argparse.Namespace) -> None:
     print(_getTime() + " - Prepare browser")
     async with async_playwright() as patchright:
         with tempfile.TemporaryDirectory(prefix="athome-patchright-manual-") as user_data_dir:
+            chrome_ver = get_installed_chrome_version() or "151.0.0.0"
             launch_options: dict[str, object] = {
                 "user_data_dir": user_data_dir,
                 "channel": "chrome",
                 "headless": True,
                 #"no_viewport": True,
-                "viewport": {"width": 1920, "height": 1080},
+                "viewport": {"width": 1280, "height": 720},
                 "locale": "ja-JP",
                 "timezone_id": "Asia/Tokyo",
                 "record_video_dir": str(args.debug_dir),
                 "record_video_size": {"width": 1280, "height": 720},
                 "args": [
-                    "--window-size=1920,1080",
+                    "--window-size=1280,720",
                     "--start-maximized",
                     "--disable-blink-features=AutomationControlled",
                     "--lang=ja-JP",
+                    f"--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36",
                 ],
             }
+            print(_getTime() + " - Using LaunchOptions: " + json.dumps(launch_options, indent=4))
             if args.proxy:
                 launch_options["proxy"] = {"server": args.proxy}
             context = await patchright.chromium.launch_persistent_context(
@@ -302,7 +354,7 @@ async def _run(args: argparse.Namespace) -> None:
                     elif args.solve_mode == "capsolver":
                         if not args.capsolver_key:
                             print(f"{_getTime()} - Error: CapSolver API key not provided.")
-                        else if challenge_detected == "puzzle":
+                        elif challenge_detected == "puzzle":
                             # 1. Extract Geetest keys AND Incapsula's binding data string from the raw HTML
                             gt_match = re.search(r'gt:\s*["\']([^"\']+)["\']', before_html)
                             challenge_match = re.search(r'challenge:\s*["\']([^"\']+)["\']', before_html)
@@ -354,12 +406,20 @@ async def _run(args: argparse.Namespace) -> None:
                     "Browser is ready for manual observation. You may inspect and interact "
                     "with the page, then press Enter here to finish."
                 )
-                await asyncio.to_thread(input)
+                #await asyncio.to_thread(input)
                 print(_getTime() + " - Prepare afterCapture")
                 after_html = await _capture(page, args.debug_dir, "after")
                 print(_getTime() + " - Capture done")
                 challenge_detected = detect_athome_challenge(after_html)
                 print(f"{_getTime()} - Challenge detection status: {challenge_detected}")
+                if challenge_detected is None:
+                    # Save request headers
+                    #playwright_cookies = await page.context.cookies()
+                    # Convert Playwright cookie format to a standard dictionary
+                    #cffi_cookies = {cookie['name']: cookie['value'] for cookie in playwright_cookies}
+                    # Grab the User-Agent you used in Playwright
+                    user_agent = await page.evaluate("navigator.userAgent")
+                    await save_session_state(page.context, user_agent, chrome_ver, args.proxy, filepath=str(args.debug_dir / "session_state.json"))
                 _event(
                     args.debug_dir,
                     "manual_after",
