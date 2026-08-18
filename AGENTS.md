@@ -29,6 +29,17 @@
 - Plan ahead using a PLAN.md and keep it updated after every feature or update.
 - **When something surprises you, write it down here.** A landmine that costs
   an hour and is not recorded costs that hour again.
+- **Three-strike rule:** For the same terminal command, test target, or compilation
+  block, three consecutive failures end that attempt. A fourth variation is forbidden
+  without first changing the strategy.
+- **Mandatory pivot:** After the third consecutive failure, stop the current approach,
+  preserve the failure output, inspect `git status` and `git diff`, restore only files
+  changed by the failed attempt, explain the failure, and choose a materially different
+  programmatic strategy. Never use a blanket `git checkout` or `git restore` that could
+  erase pre-existing user work.
+- **No dependency rabbit holes:** Do not repeatedly patch or work around a broken
+  sub-dependency. After confirming the dependency is the source of failure, prefer a
+  simpler native or already-supported project path and record the dependency limitation.
 
 
 ## Where code lives
