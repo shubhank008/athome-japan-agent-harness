@@ -64,7 +64,24 @@ ATHOME_LIVE_TEST=1 pytest -m live tests/live/test_playwright_curl_live.py
 
 The farmer uses one headless Chromium instance, waits three seconds after render,
 and captures challenge HTML/screenshots under `debug/` when the `Click to verify`
-flow appears. It performs at most one visible verification click and never drags a
-puzzle piece. The handoff is bound to the same proxy and user agent; workers must
-refarm when curl-cffi is blocked again. `debug/` is ignored because it contains
-cookies and browser captures.
+flow appears. It performs at most one visible press-hold verification click and
+never drags a puzzle piece. Diagnostics also write a Playwright trace, WebM video,
+and redacted JSONL event log to `debug/`, including evidence when the challenge
+remains blocked. The handoff is bound to the same proxy and user agent; workers
+must refarm when curl-cffi is blocked again. `debug/` is ignored because it
+contains cookies and browser captures.
+
+For an operator-driven headed observation, run this locally on the machine whose
+IP and browser window you want to inspect. The command pauses after the initial
+three-second render; interact manually in the browser, then press Enter in the
+terminal to capture the after state:
+
+```bash
+PYTHONPATH=src python scripts/playwright_manual_probe.py
+# Optional: --proxy http://user:password@host:port --url https://www.athome.co.jp/chintai/osaka/list/
+```
+
+The probe writes `playwright_before.html/.png`, `playwright_after.html/.png`,
+`playwright_challenge.webm`, `playwright_challenge_trace.zip`, and
+`playwright_events.jsonl` under `debug/`. Do not commit or share these artifacts:
+they can contain session cookies and private page data.

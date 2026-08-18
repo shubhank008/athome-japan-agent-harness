@@ -28,6 +28,7 @@ full tests, ruff, and mypy are green. No LLM, store, or orchestration yet.
 | 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0, M1, M2 done; M3-M8 pending |
 | 002 Playwright Cookie Fetcher | `docs/specs/002-playwright-cookie-fetcher/` | done and verified on `feat/playwright-cookie-fetcher` |
 | 003 curl-cffi HTTP Integration | `docs/specs/003-curl-cffi-http-integration/` | implementation and offline gates done; live AtHome challenge remains unresolved |
+| 004 Playwright Challenge Diagnostics | `docs/specs/004-playwright-challenge-diagnostics/` | done; diagnostics, headed probe, and offline gates verified |
 
 ## Feature 001 summary
 
@@ -95,3 +96,7 @@ revalidation, vision A/B benchmarks.
   Playwright verification reached AtHome but remained on the security challenge after
   one permitted Click to Verify attempt; before/after captures were retained only under
   ignored `debug/` paths.
+- 2026-07-08: Challenge diagnostics use Playwright trace and WebM recording plus redacted
+  JSONL lifecycle events. Automated verification is limited to one frame-aware semantic
+  press-hold click; puzzle sliders are not dragged or solved programmatically. A separate
+  headed probe supports operator observation and manual interaction.

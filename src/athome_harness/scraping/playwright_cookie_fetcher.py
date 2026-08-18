@@ -3,13 +3,24 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Final, cast
+from typing import Any, Final, cast
 
-from playwright.async_api import Browser, Page, ProxySettings, Request, async_playwright
+from playwright.async_api import (
+    Browser,
+    Frame,
+    Locator,
+    Page,
+    ProxySettings,
+    Request,
+    Video,
+    async_playwright,
+)
 
 from athome_harness.scraping.base import redact_url
 from athome_harness.scraping.challenge import detect_athome_challenge
@@ -32,8 +43,12 @@ logger = logging.getLogger(__name__)
 DEFAULT_BROAD_SEARCH_URL: Final = "https://www.athome.co.jp/chintai/osaka/list/"
 DEFAULT_DEBUG_DIR: Final = Path("debug")
 DEFAULT_WAIT_SECONDS: Final = 3.0
+DEFAULT_CLICK_HOLD_SECONDS: Final = 2.5
 MIN_RENDERED_HTML_LENGTH: Final = 200
-_CLICK_TEXT = re.compile(r"click\s+to\s+verify", re.IGNORECASE)
+_CLICK_TEXT = re.compile(r"click(?:\s+here)?\s+to\s+verify", re.IGNORECASE)
+_DIAGNOSTIC_VIDEO_NAME: Final = "playwright_challenge.webm"
+_DIAGNOSTIC_TRACE_NAME: Final = "playwright_challenge_trace.zip"
+_DIAGNOSTIC_EVENTS_NAME: Final = "playwright_events.jsonl"
 
 
 class PlaywrightCookieFetcherError(RuntimeError):
@@ -53,12 +68,16 @@ class PlaywrightCookieFetcher:
         wait_seconds: float = DEFAULT_WAIT_SECONDS,
         min_html_length: int = MIN_RENDERED_HTML_LENGTH,
         sleep_fn: Callable[[float], Awaitable[None]] | None = None,
+        diagnostics: bool = True,
+        click_hold_seconds: float = DEFAULT_CLICK_HOLD_SECONDS,
     ) -> None:
         """Configure one browser farm without starting a browser yet."""
         if wait_seconds < 0:
             raise ValueError("wait_seconds must not be negative")
         if min_html_length < 1:
             raise ValueError("min_html_length must be positive")
+        if click_hold_seconds < 0:
+            raise ValueError("click_hold_seconds must not be negative")
         self._url = url
         self._proxy_url = proxy_url
         self._debug_dir = debug_dir
@@ -68,6 +87,11 @@ class PlaywrightCookieFetcher:
         self._wait_seconds = wait_seconds
         self._min_html_length = min_html_length
         self._sleep = sleep_fn or asyncio.sleep
+        self._diagnostics = diagnostics
+        self._click_hold_seconds = click_hold_seconds
+        self._events_path = debug_dir / _DIAGNOSTIC_EVENTS_NAME
+        self._trace_path = debug_dir / _DIAGNOSTIC_TRACE_NAME
+        self._video_path = debug_dir / _DIAGNOSTIC_VIDEO_NAME
 
     async def farm(self) -> CookieHandoff:
         """Render AtHome, optionally verify once, and persist the handoff."""
@@ -88,9 +112,25 @@ class PlaywrightCookieFetcher:
 
     async def _farm_in_browser(self, browser: Browser) -> CookieHandoff:
         """Run the page workflow inside a browser that the caller owns."""
-        context = await browser.new_context(locale="ja-JP")
+        context_options: dict[str, Any] = {"locale": "ja-JP"}
+        if self._diagnostics:
+            self._debug_dir.mkdir(parents=True, exist_ok=True)
+            context_options["record_video_dir"] = str(self._debug_dir)
+            context_options["record_video_size"] = {"width": 1280, "height": 720}
+        context = await browser.new_context(**context_options)
+        trace_started = False
+        page_video: Video | None = None
         try:
+            if self._diagnostics:
+                await context.tracing.start(
+                    screenshots=True,
+                    snapshots=True,
+                    sources=False,
+                )
+                trace_started = True
+                self._event("diagnostics_start", artifacts=self._artifact_names())
             page = await context.new_page()
+            page_video = page.video
             await _legacy_stealth_async(page)
             request_headers: dict[str, str] = {}
 
@@ -109,11 +149,35 @@ class PlaywrightCookieFetcher:
             challenge_kind = detect_athome_challenge(html)
             if challenge_kind is not None:
                 logger.warning("[PLAYWRIGHT_CHALLENGE] kind=<%s>", challenge_kind)
+                self._event(
+                    "challenge_before",
+                    challenge_kind=challenge_kind,
+                    html_chars=len(html),
+                    url=redact_url(page.url),
+                )
                 await self._save_debug_capture(page, "before", html)
                 clicked = await self._click_verification(page)
                 logger.warning("[PLAYWRIGHT_VERIFY] clicked=<%s>", str(clicked).lower())
                 await self._sleep(self._wait_seconds)
                 html = await page.content()
+                after_kind = detect_athome_challenge(html)
+                accepted = after_kind is None
+                logger.warning(
+                    "[PLAYWRIGHT_VERIFY_RESULT] attempted=<%s> accepted=<%s> "
+                    "challenge_kind=<%s> html_chars=<%d>",
+                    str(clicked).lower(),
+                    str(accepted).lower(),
+                    after_kind or "none",
+                    len(html),
+                )
+                self._event(
+                    "verification_result",
+                    attempted=clicked,
+                    accepted=accepted,
+                    challenge_kind=after_kind,
+                    html_chars=len(html),
+                    url=redact_url(page.url),
+                )
                 await self._save_debug_capture(page, "after", html)
                 await self._validate_render(html, request_headers, blocked_allowed=False)
 
@@ -136,7 +200,18 @@ class PlaywrightCookieFetcher:
             )
             return handoff
         finally:
+            if trace_started:
+                await context.tracing.stop(path=str(self._trace_path))
             await context.close()
+            if page_video is not None:
+                await self._finalize_video(page_video)
+            if self._diagnostics:
+                logger.warning(
+                    "[PLAYWRIGHT_DIAGNOSTICS_SAVED] events=<%s> trace=<%s> video=<%s>",
+                    self._events_path,
+                    self._trace_path,
+                    self._video_path,
+                )
 
     async def _validate_render(
         self,
@@ -161,12 +236,111 @@ class PlaywrightCookieFetcher:
             self._reject("render")
 
     async def _click_verification(self, page: Page) -> bool:
-        """Click a visible verification control, never a puzzle-piece target."""
-        locator = page.get_by_text(_CLICK_TEXT).first
-        if await locator.count() == 0 or not await locator.is_visible():
+        """Perform one observable click attempt without solving a puzzle."""
+        target, frame, target_kind = await self._find_verification_target(page)
+        if target is None or frame is None:
+            logger.warning("[PLAYWRIGHT_VERIFY_TARGET] found=false")
+            self._event("verification_target", found=False)
             return False
-        await locator.click()
-        return True
+        try:
+            await target.wait_for(state="visible", timeout=5000)
+            box = await target.bounding_box()
+            frame_url = redact_url(frame.url)
+            logger.warning(
+                "[PLAYWRIGHT_VERIFY_TARGET] found=true frame=<%d> kind=<%s> "
+                "visible=true box=<%s>",
+                self._frame_index(page, frame),
+                target_kind,
+                box,
+            )
+            self._event(
+                "verification_target",
+                found=True,
+                frame_index=self._frame_index(page, frame),
+                frame_url=frame_url,
+                target_kind=target_kind,
+                visible=True,
+                bounding_box=box,
+            )
+            await target.hover()
+            await self._sleep(0.5)
+            started = datetime.now(UTC)
+            logger.warning("[PLAYWRIGHT_VERIFY_POINTER] action=<click_start>")
+            self._event("verification_pointer", action="click_start", mode="press_hold")
+            mouse = getattr(page, "mouse", None)
+            if box is not None and mouse is not None:
+                await mouse.move(box["x"] + box["width"] / 3, box["y"] + box["height"] / 3)
+                await mouse.down()
+                await self._sleep(self._click_hold_seconds)
+                await mouse.up()
+            else:
+                await target.click(delay=250)
+            ended = datetime.now(UTC)
+            logger.warning("[PLAYWRIGHT_VERIFY_POINTER] action=<click_end>")
+            self._event(
+                "verification_pointer",
+                action="click_end",
+                duration_ms=(ended - started).total_seconds() * 1000,
+            )
+            return True
+        except Exception as error:
+            logger.warning("[PLAYWRIGHT_VERIFY] interaction_error=<%s>", type(error).__name__)
+            self._event("verification_error", error_type=type(error).__name__)
+            return False
+
+    async def _find_verification_target(
+        self,
+        page: Page,
+    ) -> tuple[Locator | None, Frame | None, str | None]:
+        """Find a visible semantic control in the main page or child frames."""
+        for frame in page.frames:
+            get_by_role = getattr(frame, "get_by_role", None)
+            if get_by_role is not None:
+                for role in ("button", "link"):
+                    locator = get_by_role(role, name=_CLICK_TEXT).first
+                    if await locator.count() > 0:
+                        return locator, frame, role
+            locator = frame.get_by_text(_CLICK_TEXT).first
+            if await locator.count() > 0:
+                return locator, frame, "text"
+        return None, None, None
+
+    @staticmethod
+    def _frame_index(page: Page, frame: Frame) -> int:
+        """Return a stable frame index for diagnostic logs."""
+        return next(
+            (index for index, candidate in enumerate(page.frames) if candidate == frame),
+            -1,
+        )
+
+    def _artifact_names(self) -> dict[str, str]:
+        """Return local diagnostic artifact paths without sensitive values."""
+        return {
+            "events": str(self._events_path),
+            "trace": str(self._trace_path),
+            "video": str(self._video_path),
+        }
+
+    def _event(self, name: str, **fields: object) -> None:
+        """Append one redacted structured diagnostic event to the local JSONL log."""
+        if not self._diagnostics:
+            return
+        self._debug_dir.mkdir(parents=True, exist_ok=True)
+        payload: dict[str, object] = {
+            "event": name,
+            "timestamp": datetime.now(UTC).isoformat(),
+        }
+        payload.update(fields)
+        line = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
+        with self._events_path.open("a", encoding="utf-8") as events_file:
+            events_file.write(line + "\n")
+        logger.warning("[PLAYWRIGHT_DIAGNOSTIC_EVENT] event=<%s>", name)
+
+    async def _finalize_video(self, video: Video) -> None:
+        """Move Playwright's generated video to the stable diagnostic filename."""
+        generated_path = Path(await video.path())
+        if generated_path != self._video_path and generated_path.exists():
+            generated_path.replace(self._video_path)
 
     async def _save_debug_capture(self, page: Page, stage: str, html: str) -> None:
         """Save raw HTML and a screenshot for one challenge stage."""
