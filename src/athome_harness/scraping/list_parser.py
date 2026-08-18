@@ -325,11 +325,22 @@ def _extract_facilities(unit: Node, block: BuildingBlock) -> tuple[list[str], li
     return (usp_tags, probable_negatives)
 
 
+def _absolute_url(url: str | None) -> str | None:
+    """Return ``url`` as an absolute URL, prepending the base for ``/`` paths."""
+    if not url:
+        return None
+    if url.startswith("http://") or url.startswith("https://"):
+        return url
+    if url.startswith("/"):
+        return f"{_BASE_URL}{url}"
+    return None
+
+
 def _extract_photos(unit: Node) -> list[str]:
     """Return absolute photo URLs from the unit's image elements."""
     urls: list[str] = []
     for img in unit.css("img"):
-        src = img.attributes.get("src") or img.attributes.get("data-original")
-        if src and src.startswith(_BASE_URL):
+        src = _absolute_url(img.attributes.get("src") or img.attributes.get("data-original"))
+        if src:
             urls.append(src)
     return urls
