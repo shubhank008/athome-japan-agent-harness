@@ -122,6 +122,8 @@ def make_handoff() -> CookieHandoff:
         ("captcha", 200, PUZZLE_BODY),
         ("captcha", 200, JAPANESE_PUZZLE_BODY),
         ("captcha", 200, JAVASCRIPT_BODY),
+        ("captcha", 403, PUZZLE_BODY),
+        ("captcha", 403, JAVASCRIPT_BODY),
     ],
 )
 def test_detect_signature(signature, status, body) -> None:
@@ -135,6 +137,8 @@ def test_detect_signature(signature, status, body) -> None:
         ("puzzle", PUZZLE_BODY),
         ("puzzle", JAPANESE_PUZZLE_BODY),
         ("javascript", JAVASCRIPT_BODY),
+        ("puzzle", "<HTML><BODY><H1>Click to verify</H1></BODY></HTML>"),
+        ("javascript", "<HTML><BODY>To regain access, please make sure that cookies and JavaScript are enabled.</BODY></HTML>"),
     ],
 )
 def test_detect_athome_challenge(kind, body) -> None:

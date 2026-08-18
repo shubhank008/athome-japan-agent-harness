@@ -11,8 +11,8 @@
   the existing private compatibility function.
 - `requirements.txt`, `README.md`: exact dependencies and browser installation instructions.
 - `.gitignore`: preserve the existing debug-artifact ignore rule.
-- `tests/unit/test_cookie_handoff.py`: persistence, redaction, and curl-cffi kwargs.
-- `tests/unit/test_playwright_cookie_fetcher.py`: fake Playwright state-machine tests.
+- `tests/unit/test_http_adapter.py`: handoff binding, curl-cffi kwargs, and challenge detection.
+- `tests/unit/test_playwright_cookie_fetcher.py`: fake Playwright state-machine tests and handoff persistence.
 - `docs/specs/002-playwright-cookie-fetcher/*`: this spec, plan, and marker contract.
 - `PLAN.md`: record feature status and decisions.
 
