@@ -71,7 +71,7 @@ class CookieHandoff:
         cookies: list[dict[str, object]],
         impersonate: ImpersonateProfile = "chrome",
     ) -> CookieHandoff:
-        """Build a validated handoff from Playwright context data."""
+        """Build a validated handoff from Patchright context data."""
         return cls(
             proxy_identity=proxy_identity(proxy_url),
             proxy_url=proxy_url,

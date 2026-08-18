@@ -16,7 +16,7 @@
 1. Write the marker contract and diagnostic artifact policy.
 2. Add injectable diagnostic configuration and redacted JSON-lines logging.
 3. Add iframe-aware target discovery and robust bounded click attempt without puzzle dragging.
-4. Add Playwright video and trace lifecycle, including cleanup on failures.
+4. Add browser video and trace lifecycle, including cleanup on failures.
 5. Add the local headed manual probe and deterministic unit tests.
 6. Update README and project plan.
 7. Run pytest, ruff, mypy, and inspect generated artifacts and diff.
@@ -26,8 +26,8 @@
 - Do not automate puzzle-piece dragging, CAPTCHA solving, WAF cryptanalysis, or anti-bot bypass.
 - Preserve the existing challenge detector and fail-closed handoff behavior.
 - Do not log cookie values, proxy credentials, or full query-bearing URLs.
-- Keep Playwright imports inside the concrete adapter and manual probe.
-- Keep production requirements exact-pinned and avoid new dependencies where Playwright already provides the capability.
+- Keep Patchright imports inside the concrete adapter and manual probe.
+- Keep production requirements exact-pinned and avoid new dependencies where the browser runtime already provides the capability.
 - Use `PYTHONPATH=src` for verification commands outside pytest.
 - Keep debug artifacts ignored and never commit captures.
 - A failed diagnostic farm must not overwrite a last successful handoff.

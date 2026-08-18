@@ -1,4 +1,4 @@
-"""Tests for the Playwright-to-curl-cffi cookie handoff."""
+"""Tests for the Patchright-to-curl-cffi cookie handoff."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ class FakeLocator:
 
     @property
     def first(self) -> FakeLocator:
-        """Match Playwright's first locator property."""
+        """Match Patchright's first locator property."""
         return self
 
     async def count(self) -> int:
@@ -75,7 +75,7 @@ class EmptyLocator:
 
     @property
     def first(self) -> EmptyLocator:
-        """Match Playwright's first locator property."""
+        """Match Patchright's first locator property."""
         return self
 
     async def count(self) -> int:
@@ -103,7 +103,7 @@ class FakeFrame:
 
 
 class FakePage:
-    """Small Playwright page substitute exercising the real farmer logic."""
+    """Small Patchright page substitute exercising the real farmer logic."""
 
     def __init__(
         self,
@@ -245,11 +245,11 @@ class FakePlaywright:
         self.chromium = FakeChromium(context)
 
     async def __aenter__(self) -> FakePlaywright:
-        """Enter the fake Playwright runtime."""
+        """Enter the fake Patchright runtime."""
         return self
 
     async def __aexit__(self, *_: object) -> None:
-        """Exit the fake Playwright runtime."""
+        """Exit the fake Patchright runtime."""
         return None
 
 
@@ -406,8 +406,9 @@ async def test_cleanup_failures_do_not_mask_render_error(
     context.raise_on_close = True
     fetcher = PlaywrightCookieFetcher(debug_dir=tmp_path, wait_seconds=0)
 
-    with caplog.at_level("ERROR"), pytest.raises(
-        PlaywrightCookieFetcherError, match="reason=<render>"
+    with (
+        caplog.at_level("ERROR"),
+        pytest.raises(PlaywrightCookieFetcherError, match="reason=<render>"),
     ):
         await fetcher.farm()
 

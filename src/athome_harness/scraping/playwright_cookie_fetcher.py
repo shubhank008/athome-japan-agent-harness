@@ -53,7 +53,7 @@ _DIAGNOSTIC_EVENTS_NAME: Final = "playwright_events.jsonl"
 
 
 class PlaywrightCookieFetcherError(RuntimeError):
-    """Raised when Playwright cannot produce a usable browser handoff."""
+    """Raised when Patchright cannot produce a usable browser handoff."""
 
 
 class PlaywrightCookieFetcher:
@@ -356,7 +356,7 @@ class PlaywrightCookieFetcher:
         logger.warning("[PLAYWRIGHT_DIAGNOSTIC_EVENT] event=<%s>", name)
 
     async def _finalize_video(self, video: Video) -> None:
-        """Move Playwright's generated video to the stable diagnostic filename."""
+        """Move Patchright's generated video to the stable diagnostic filename."""
         generated_path = Path(await video.path())
         if generated_path != self._video_path and generated_path.exists():
             generated_path.replace(self._video_path)
@@ -371,7 +371,7 @@ class PlaywrightCookieFetcher:
         await page.screenshot(path=str(self._debug_dir / f"playwright_{stage}.png"))
 
     def _playwright_proxy(self) -> ProxySettings | None:
-        """Translate the configured proxy URL to Playwright launch settings."""
+        """Translate the configured proxy URL to Patchright launch settings."""
         if self._proxy_url is None:
             return None
         return cast(ProxySettings, {"server": self._proxy_url})

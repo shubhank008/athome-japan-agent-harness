@@ -59,7 +59,7 @@ class BlockDetected(Exception):
 
 
 class BaseScraper(ABC):
-    """Abstract scraper contract implemented by HTTP DOM and Playwright backends.
+    """Abstract scraper contract implemented by HTTP DOM and Patchright backends.
 
     ``fetch_html`` returns the raw HTML of a page as text; ``fetch_binary``
     returns arbitrary bytes (e.g. images or file downloads). Adapters add their

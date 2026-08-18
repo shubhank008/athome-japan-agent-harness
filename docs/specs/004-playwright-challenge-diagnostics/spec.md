@@ -1,10 +1,10 @@
 # Spec: Playwright Challenge Diagnostics
 
-An operator can inspect exactly what the Playwright farmer sees and does around an AtHome verification challenge, including a short browser video, trace, screenshots, raw HTML, and redacted event log. An opt-in headed probe lets the operator manually observe and interact with the page from a local browser session, while the scraper never automates puzzle solving or WAF bypass behavior.
+An operator can inspect exactly what the Patchright farmer sees and does around an AtHome verification challenge, including a short browser video, trace, screenshots, raw HTML, and redacted event log. An opt-in headed probe lets the operator manually observe and interact with the page from a local browser session, while the scraper never automates puzzle solving or WAF bypass behavior.
 
 ## Context
 
-The existing farmer records before/after HTML and screenshots, but its `clicked=true` marker only means that Playwright accepted a click command. It does not identify the selected frame/control, show the pointer action, or prove that the challenge accepted the interaction. AtHome's captured challenge page may require a puzzle interaction after the initial verification control. Better evidence is needed before changing behavior further.
+The existing farmer records before/after HTML and screenshots, but its `clicked=true` marker only means that Patchright accepted a click command. It does not identify the selected frame/control, show the pointer action, or prove that the challenge accepted the interaction. AtHome's captured challenge page may require a puzzle interaction after the initial verification control. Better evidence is needed before changing behavior further.
 
 ## User Stories
 
@@ -13,7 +13,7 @@ The existing farmer records before/after HTML and screenshots, but its `clicked=
 
 **Acceptance Criteria:**
 - [x] The farmer records a WebM video for a challenge session when diagnostics are enabled.
-- [x] The farmer records a Playwright trace with screenshots and DOM snapshots when diagnostics are enabled.
+- [x] The farmer records a browser trace with screenshots and DOM snapshots when diagnostics are enabled.
 - [x] The farmer records pre-click and post-click HTML/screenshots and a JSON-lines event log without cookie values or proxy credentials.
 - [x] The event log identifies the selected frame, target kind, visibility, bounding box, click timing, and post-click challenge result.
 
@@ -31,7 +31,7 @@ The existing farmer records before/after HTML and screenshots, but its `clicked=
 **Description:** As an operator, I want an opt-in headed probe that pauses for my manual inspection and interaction so that I can report what the real browser displays from my own network.
 
 **Acceptance Criteria:**
-- [x] A documented command launches a headed Playwright session against the configured URL.
+- [x] A documented command launches a headed Patchright session against the configured URL.
 - [x] The probe records the same safe diagnostics before and after the manual observation window.
 - [x] The probe does not automate slider movement or submit a solved challenge.
 - [x] The probe explains that it must run on the operator's machine to use the operator's public IP and browser window.

@@ -1,4 +1,4 @@
-"""Run a headed, operator-driven Playwright challenge observation session."""
+"""Run a headed, operator-driven Patchright challenge observation session."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--url", default=DEFAULT_URL)
     parser.add_argument("--debug-dir", type=Path, default=Path("debug"))
-    parser.add_argument("--proxy", default=None, help="Optional Playwright proxy server URL")
+    parser.add_argument("--proxy", default=None, help="Optional Patchright proxy server URL")
     parser.add_argument("--wait-seconds", type=float, default=3.0)
     return parser
 
