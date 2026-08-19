@@ -106,3 +106,12 @@ revalidation, vision A/B benchmarks.
   persists only the handoff and session_state. Automated verification is limited to one
   frame-aware semantic press-hold click; puzzle sliders are not dragged or solved
   programmatically.
+- 2026-07-08: Page-settling mechanics (tracker-blocking route interception, the
+  challenge/listing selector race, settled-content retry, CapSolver solvers) moved to
+  `src/athome_harness/scraping/playwright_shared.py` so the probe and the fetcher drive
+  identical mechanics; DEBUG-mode route logging hooks in via `set_route_logger`.
+  `build_launch_options()` in session_state.py pins one Chrome launch fingerprint
+  (viewport, ja-JP locale, Asia/Tokyo tz, UA) for both entry points. Production
+  composition is `SessionRefarmer` (HttpDom -> block -> PlaywrightCookieFetcher ->
+  session_state.json -> rebound HttpDom); direct adapter use is reserved for unit tests
+  and the operator probe.
