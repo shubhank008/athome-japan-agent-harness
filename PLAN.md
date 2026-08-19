@@ -43,9 +43,10 @@ filter encoding (versioned filter map) -> full harvest of filtered results -> LL
 shortlist (top X) -> detail scrape -> top-Y report (markdown + JSON) -> persistent
 memory (seen/saved/rejected). Abstract-first: BaseScraper (curl-cffi adapter now,
 Playwright scaffold), PlaywrightCookieFetcher (async browser farmer producing a
-typed CookieHandoff), BaseLLMProvider (OpenRouter first), BaseDataStore (SQLite first),
-BaseFloorPlanEvaluator (text default, vision stub). Webshare proxy rotation on block
-detection only. Weekly GitHub Action re-extracts the filter map and files an issue on
+typed CookieHandoff), SessionRefarmer (production fallback loop orchestrating
+HttpDom -> block -> browser farm -> rebound HttpDom), BaseLLMProvider (OpenRouter
+first), BaseDataStore (SQLite first), BaseFloorPlanEvaluator (text default, vision
+stub). Webshare proxy rotation on block detection only. Weekly GitHub Action re-extracts the filter map and files an issue on
 DOM drift. Post-MVP: prefetch cache with freshness ordering and dead-listing
 revalidation, vision A/B benchmarks.
 

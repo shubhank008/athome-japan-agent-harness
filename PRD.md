@@ -54,6 +54,7 @@ of the manual effort, without missing listings buried in pagination.
 - Conversational CLI (terminal) for rental search, all prefectures, Osaka as the focus.
 - Abstract-first layers: `BaseScraper` (curl-cffi adapter now, Playwright scaffold),
   `PlaywrightCookieFetcher` (async browser farmer for session handoff),
+  `SessionRefarmer` (production fallback loop: HttpDom -> block -> browser farm -> rebound),
   `BaseLLMProvider` (OpenRouter first), `BaseDataStore` (SQLite first),
   `BaseFloorPlanEvaluator` (text default, vision stub).
 - Versioned filter map + a weekly GitHub Action that re-extracts it and files an issue
