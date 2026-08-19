@@ -174,10 +174,16 @@ PLAN.md                     # repo-level live plan, updated after every feature
 
 ### M7: Maintenance surfaces
 
-- [ ] T27 US-008 integration test: simulated block -> proxy rotation markers appear in
-  order, direct-first proven.
-- [ ] T28 Docs: README quickstart (env, install, first search), architecture section
-  linking spec/plan/contract; PLAN.md at repo root created and updated.
+- [x] T27 US-008 integration test: simulated block -> proxy rotation markers appear in
+  order, direct-first proven. `tests/e2e/test_proxy_fallback.py` drives the real
+  `SessionRefarmer` + `HttpDomAdapter` boundary with a fake curl session and fake
+  async farmer; asserts `[BLOCK_DETECTED] -> [REHANDOFF_TRIGGERED] ->
+  [REHANDOFF_FARMED] -> [CURL_HANDOFF_BOUND]` order, the bounded single-farm
+  behavior, forbidden-failure-pattern absence, and transport cleanup. Refarm
+  orchestration markers were added to `contracts/log-markers.md` first.
+- [x] T28 Docs: README quickstart (env, install, first search, safe live-test
+  expectations) and an architecture section linking PRD/SPEC/feature spec/plan/
+  marker contract/agent guidance; PLAN.md at repo root and this plan updated.
 
 ### M8: Post-MVP (spec'd, scheduled later)
 
