@@ -88,7 +88,7 @@ def build_production_fetch(
     from athome_harness.scraping.session_refarmer import SessionRefarmer
 
     if settings is None:
-        settings = _load_settings()
+        settings = load_settings()
     budgets = budgets or settings.budgets
 
     provider = settings.scraper_provider.strip().lower()
@@ -114,7 +114,7 @@ def build_production_fetch(
     return fetch
 
 
-def _load_settings() -> Settings:
+def load_settings() -> Settings:
     """Build runtime ``Settings`` from the environment.
 
     ``openrouter_api_key`` is typed as required, so pass it explicitly; the

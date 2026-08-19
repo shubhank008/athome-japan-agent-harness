@@ -169,36 +169,45 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         usage = self._extract_usage(body)
         return content, usage
 
-    @staticmethod
-    def _parse_body(response: ChatResponse) -> dict[str, object]:
+    def _parse_body(self, response: ChatResponse) -> dict[str, object]:
         """Parse the response body into a dict, raising on malformed JSON."""
         try:
             raw = response.json()
         except Exception as exc:
-            raise LLMProviderError("response body could not be parsed as JSON") from exc
+            raise LLMProviderError(
+                f"{self.provider_name} returned a response body that could not be parsed as JSON"
+            ) from exc
         if not isinstance(raw, dict):
-            raise LLMProviderError("response body is not a JSON object")
+            raise LLMProviderError(
+                f"{self.provider_name} returned a response body that is not a JSON object"
+            )
         return raw
 
-    @staticmethod
-    def _extract_content(body: dict[str, object]) -> str:
+    def _extract_content(self, body: dict[str, object]) -> str:
         """Extract the assistant message content from the completion body."""
         choices = body.get("choices")
         if not isinstance(choices, list) or not choices:
-            raise LLMProviderError("response missing assistant content")
+            raise LLMProviderError(
+                f"{self.provider_name} returned a response missing assistant content"
+            )
         first = choices[0]
         if not isinstance(first, dict):
-            raise LLMProviderError("response missing assistant content")
+            raise LLMProviderError(
+                f"{self.provider_name} returned a response missing assistant content"
+            )
         message = first.get("message")
         if not isinstance(message, dict):
-            raise LLMProviderError("response missing assistant content")
+            raise LLMProviderError(
+                f"{self.provider_name} returned a response missing assistant content"
+            )
         content = message.get("content")
         if not isinstance(content, str):
-            raise LLMProviderError("response missing assistant content")
+            raise LLMProviderError(
+                f"{self.provider_name} returned a response missing assistant content"
+            )
         return content
 
-    @staticmethod
-    def _extract_usage(body: dict[str, object]) -> LLMUsage:
+    def _extract_usage(self, body: dict[str, object]) -> LLMUsage:
         """Read prompt/completion token counts from the usage block."""
         usage = body.get("usage")
         if not isinstance(usage, dict):
@@ -209,4 +218,6 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 completion_tokens=int(usage.get("completion_tokens", 0) or 0),
             )
         except (TypeError, ValueError) as exc:
-            raise LLMProviderError("response contained invalid token usage") from exc
+            raise LLMProviderError(
+                f"{self.provider_name} returned a response with invalid token usage"
+            ) from exc
