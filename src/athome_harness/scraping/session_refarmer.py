@@ -97,6 +97,9 @@ class SessionRefarmer:
                         len(handoff.cookies),
                     )
                     rebound = self._build_adapter(handoff)
+                    close_prev = getattr(active, "close", None)
+                    if close_prev is not None:
+                        close_prev()
                     active = rebound
                     try:
                         return self._call(rebound, url, kind)
