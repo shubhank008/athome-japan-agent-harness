@@ -4,7 +4,10 @@ This module holds the shared, curl-cffi-friendly session representation used by
 both the operator ``scripts/playwright_manual_probe.py`` and the production
 :class:`~athome_harness.scraping.playwright_cookie_fetcher.PlaywrightCookieFetcher`,
 so the two browser paths produce the same ``session_state.json`` shape without
-duplicating header, cookie, or Chrome-version logic.
+duplicating header, cookie, or Chrome-version logic. It also owns the shared
+browser launch options (:func:`build_launch_options`) so both entry points
+present the identical Chrome fingerprint (viewport, locale, timezone, UA) that
+AtHome expects; a lean fetcher that skips these gets flagged by the WAF.
 
 A :class:`SessionState` is a plain, serializable snapshot of the cookies, user
 agent, and request headers a patched browser established for AtHome. It converts
@@ -44,6 +47,49 @@ DEFAULT_SEC_CH_UA_PLATFORM: Final = '"Linux"'
 
 _CHROME_VERSION_RE = re.compile(r"Google Chrome ([\d.]+)")
 _CHROME_BINARY_NAMES = ("google-chrome", "google-chrome-stable", "chromium", "chromium-browser")
+
+# Shared persistent-Chrome launch geometry. A 1280x720 window matches the
+# viewport so headless rendering keeps a real-screen shape.
+LAUNCH_VIEWPORT: Final = {"width": 1280, "height": 720}
+LAUNCH_LOCALE: Final = "ja-JP"
+LAUNCH_TIMEZONE_ID: Final = "Asia/Tokyo"
+
+
+def build_launch_options(
+    *,
+    user_data_dir: str,
+    chrome_version: str,
+    proxy_url: str | None = None,
+) -> dict[str, object]:
+    """Return the common Patchright ``launch_persistent_context`` options.
+
+    Both the operator probe and the production cookie fetcher must launch
+    Chrome with this exact fingerprint (viewport, Japanese locale, Tokyo
+    timezone, real-Chrome user agent, automation flags disabled). Deviating
+    from it is what gets the fetcher flagged by the AtHome WAF. Callers add
+    their own extras on top (proxy is merged here, DEBUG video in the probe).
+    """
+    options: dict[str, object] = {
+        "user_data_dir": user_data_dir,
+        "channel": "chrome",
+        "headless": True,
+        "viewport": dict(LAUNCH_VIEWPORT),
+        "locale": LAUNCH_LOCALE,
+        "timezone_id": LAUNCH_TIMEZONE_ID,
+        "args": [
+            "--window-size=1280,720",
+            "--start-maximized",
+            "--disable-blink-features=AutomationControlled",
+            "--lang=ja-JP",
+            (
+                "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                f"(KHTML, like Gecko) Chrome/{chrome_version} Safari/537.36"
+            ),
+        ],
+    }
+    if proxy_url:
+        options["proxy"] = {"server": proxy_url}
+    return options
 
 
 def chrome_major(chrome_version: str) -> str:

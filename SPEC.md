@@ -124,7 +124,9 @@ The mapping of (flow, field) -> [{code, label}] is extracted from rendered HTML 
 - `BaseScraper`: fetch_html / fetch_binary; raises `BlockDetected` (signature: 403/429/
   captcha). Adapters: `HttpDomAdapter` (curl-cffi + selectolax), `PlaywrightAdapter`
   (scaffold). `PlaywrightCookieFetcher` (async Playwright browser farmer) produces a
-  `CookieHandoff` consumed by `HttpDomAdapter`. No third-party HTTP import outside adapters.
+  `CookieHandoff` consumed by `HttpDomAdapter`. `SessionRefarmer` orchestrates the
+  production fallback loop (HttpDom -> block -> PlaywrightCookieFetcher -> handoff ->
+  HttpDom rebound). No third-party HTTP import outside adapters.
 - `BaseLLMProvider`: complete_json(schema) with token accounting. OpenRouter impl;
   general model `deepseek/deepseek-v4-flash-0731`, vision `google/gemma-4-31b-it`.
 - `BaseDataStore`: upsert_listing, record_search, record_recommendation, save, reject,

@@ -32,8 +32,10 @@ orchestration are pending.
 
 ## Browser cookie handoff
 
-When the HTTP worker reports an AtHome WAF challenge, farm a short-lived browser
-session once and pass its handoff to curl-cffi workers:
+When the HTTP worker reports an AtHome WAF challenge, use `SessionRefarmer` to
+orchestrate the automatic retry loop. It tries the cheap curl-cffi path first;
+on block, it farms a fresh browser session via `PlaywrightCookieFetcher`, persists
+the handoff, and retries the request:
 
 ```bash
 pip install -r requirements.txt
@@ -42,19 +44,19 @@ pip install -r requirements.txt
 ```
 
 ```python
+from athome_harness.scraping import SessionRefarmer, HttpDomAdapter
 from athome_harness.scraping.playwright_cookie_fetcher import PlaywrightCookieFetcher
-from curl_cffi import requests
-
-handoff = await PlaywrightCookieFetcher(proxy_url=proxy_url).farm()
-response = requests.get(target_url, **handoff.to_curl_cffi_kwargs())
-
-# Or bind the handoff to the scraper used by the workers.
 from athome_harness.config import Budgets
-from athome_harness.scraping.http_adapter import HttpDomAdapter
 
-scraper = HttpDomAdapter(Budgets(), handoff=handoff)
-html = scraper.fetch_html(target_url)
-scraper.close()
+async def fetch_with_refarm(url: str, proxy_url: str | None = None) -> str:
+    def build_adapter(handoff):
+        return HttpDomAdapter(Budgets(), handoff=handoff)
+
+    async def farm():
+        return await PlaywrightCookieFetcher(proxy_url=proxy_url).farm()
+
+    refarmer = SessionRefarmer(build_adapter=build_adapter, farm=farm)
+    return await refarmer.fetch_html(url)
 ```
 
 The default curl-cffi profile is `chrome`; `safari_ios` is also supported for
