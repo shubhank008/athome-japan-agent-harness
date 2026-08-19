@@ -65,9 +65,9 @@ that the agent translates it into AtHome filters and searches for me.
 - [ ] A CLI conversational loop accepts a free-text housing query.
 - [ ] The agent outputs a concrete `SearchPlan` (rental vs purchase, prefecture, cities,
       hard filter params, soft preference list) and shows it for confirmation before scraping.
-- [ ] Hard filters from the plan are encoded using the versioned filter map; unknown or
+- [x] Hard filters from the plan are encoded using the versioned filter map; unknown or
       unmappable constraints are routed to soft preferences, never silently dropped.
-- [ ] Ambiguous queries trigger a clarifying question instead of a guess.
+- [x] Ambiguous queries trigger a clarifying question instead of a guess.
 
 ### US-002: Broad result harvesting
 **Description:** As a home seeker, I want the agent to page through all filtered results
@@ -76,10 +76,10 @@ so that good listings deep in pagination are not missed.
 **Acceptance Criteria:**
 - [ ] Given a filter set returning N pages, the harvester fetches all N pages (30
       listings/page, VERIFIED) within the configured rate limit.
-- [ ] Each listing on a results page is parsed into the listing model (heading block +
+- [x] Each listing on a results page is parsed into the listing model (heading block +
       per-unit sub-heading blocks, multiple units per building supported).
 - [ ] Progress, page count, and running listing count print to the CLI.
-- [ ] A polite failure (HTTP 403/429/captcha) pauses, optionally rotates proxy, retries
+- [x] A polite failure (HTTP 403/429/captcha) pauses, optionally rotates proxy, retries
       with backoff, and aborts gracefully after the retry budget with a partial-results summary.
 
 ### US-003: LLM shortlisting
@@ -87,9 +87,9 @@ so that good listings deep in pagination are not missed.
 broad harvest so detail scraping stays cheap.
 
 **Acceptance Criteria:**
-- [ ] The full harvest is scored against the query's soft preferences in token-bounded
+- [x] The full harvest is scored against the query's soft preferences in token-bounded
       batches; scoring is deterministic given the same inputs (temperature 0).
-- [ ] Output is an ordered shortlist of size X (default 20, DESIGN-FRESH, configurable)
+- [x] Output is an ordered shortlist of size X (default 20, DESIGN-FRESH, configurable)
       with a one-line rationale per pick.
 - [ ] If the user asks, the top-X list with basic fields is shown before detail scraping.
 
@@ -98,13 +98,13 @@ broad harvest so detail scraping stays cheap.
 Y presented with reasons so I can act without opening dozens of tabs.
 
 **Acceptance Criteria:**
-- [ ] Each shortlisted listing's detail page is scraped into the full detail model: all
+- [x] Each shortlisted listing's detail page is scraped into the full detail model: all
       text fields, photo URLs, floor-plan image URL, USP feature tags, and Probable
       Negatives from disabled-feature DOM markers (USER).
-- [ ] The recommender produces top Y (default 5, DESIGN-FRESH, configurable) with
+- [x] The recommender produces top Y (default 5, DESIGN-FRESH, configurable) with
       per-property reasons mapped to the original query constraints.
-- [ ] Output is a markdown report AND structured JSON, both containing direct AtHome URLs (USER).
-- [ ] Every recommendation cites which hard filters and soft preferences it satisfies
+- [x] Output is a markdown report AND structured JSON, both containing direct AtHome URLs (USER).
+- [x] Every recommendation cites which hard filters and soft preferences it satisfies
       and which it violates, if any.
 
 

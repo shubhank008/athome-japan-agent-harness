@@ -30,7 +30,7 @@ src/athome_harness/
                             #   Recommendation, FilterMap, RunReport
   llm/
     base.py                 # BaseLLMProvider
-    openrouter.py           # OpenRouter impl (httpx)
+    openrouter.py           # OpenRouter impl (curl-cffi)
     query_parser.py         # NL query -> SearchPlan (hard filters + soft prefs)
     shortlister.py          # harvest -> top X (batched scoring)
     recommender.py          # details -> top Y report (md + json)
@@ -39,7 +39,7 @@ src/athome_harness/
     encoder.py              # SearchPlan -> AtHome POST params via filter map
   scraping/
     base.py                 # BaseScraper, BlockDetected, ProxyProvider iface
-    http_adapter.py         # httpx + selectolax DOM adapter
+    http_adapter.py         # curl-cffi + selectolax DOM adapter
     playwright_adapter.py   # scaffold only, conforms to BaseScraper
     rate_limiter.py         # global polite limiter + jitter
     list_parser.py          # results HTML -> ListingSummary (multi-unit support)
@@ -138,17 +138,17 @@ PLAN.md                     # repo-level live plan, updated after every feature
 
 ### M4: LLM layer
 
-- [ ] T17 `llm/base.py`: `BaseLLMProvider` (complete_json with schema validation,
+- [x] T17 `llm/base.py`: `BaseLLMProvider` (complete_json with schema validation,
   token accounting). Contract test with fake provider.
-- [ ] T18 `llm/openrouter.py`: OpenRouter impl via httpx, model configurable, temp 0,
-  JSON-mode with repair-and-retry-once. Unit tests with mocked transport.
-- [ ] T19 `llm/query_parser.py`: NL -> SearchPlan; loads filter map summary into prompt;
+- [x] T18 `llm/openrouter.py`: OpenRouter impl via curl-cffi, model configurable, temp 0,
+  JSON-mode with repair-and-retry-once. Unit tests with injectable transport.
+- [x] T19 `llm/query_parser.py`: NL -> SearchPlan; loads filter map summary into prompt;
   ambiguity triggers `ClarificationNeeded`. Unit tests with canned LLM responses (no
   network), incl. rent-vs-buy intent split.
-- [ ] T20 `llm/shortlister.py`: batched scoring of ListingSummary batches against soft
+- [x] T20 `llm/shortlister.py`: batched scoring of ListingSummary batches against soft
   prefs, ordered top-X with rationales. Token budget enforced. Unit tests with fake
   provider; determinism test (same input -> same output).
-- [ ] T21 `llm/recommender.py`: details -> top-Y reasons + violated constraints;
+- [x] T21 `llm/recommender.py`: details -> top-Y reasons + violated constraints;
   renders markdown + JSON report. Golden-file tests.
 
 ### M5: Store

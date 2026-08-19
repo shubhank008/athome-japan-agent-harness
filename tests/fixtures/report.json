@@ -1,0 +1,96 @@
+{
+  "recommendations": [
+    {
+      "listing": {
+        "address": "Osaka-shi, Kita-ku",
+        "age": 3.0,
+        "area_m2": 30.0,
+        "athome_key": "a",
+        "building_type": null,
+        "description": "Bright corner unit.",
+        "facility_features": [],
+        "floor_plan": "1DK",
+        "floor_plan_image_url": null,
+        "floors": null,
+        "internal_id": "a",
+        "photo_urls": [],
+        "price": {
+          "deposit": 100000,
+          "deposit_raw": "1ヶ月",
+          "key_money": 0,
+          "key_money_raw": "なし",
+          "management_fee": 5000,
+          "rent": 100000
+        },
+        "probable_negatives": [
+          "pet consultation"
+        ],
+        "station": "Umeda",
+        "title": "Corner 1DK",
+        "url": "https://www.athome.co.jp/chintai/a/",
+        "usp_tags": [
+          "system kitchen"
+        ],
+        "walk_minutes": 5.0
+      },
+      "listing_id": "a",
+      "probable_negatives": [
+        "pet consultation"
+      ],
+      "rank": 1,
+      "reasons": [
+        "5 min to Umeda"
+      ],
+      "satisfied_constraints": [
+        "near station"
+      ],
+      "violated_constraints": []
+    },
+    {
+      "listing": {
+        "address": "Osaka-shi, Kita-ku",
+        "age": 3.0,
+        "area_m2": 30.0,
+        "athome_key": "b",
+        "building_type": null,
+        "description": "Bright corner unit.",
+        "facility_features": [],
+        "floor_plan": "1DK",
+        "floor_plan_image_url": null,
+        "floors": null,
+        "internal_id": "b",
+        "photo_urls": [],
+        "price": {
+          "deposit": 100000,
+          "deposit_raw": "1ヶ月",
+          "key_money": 0,
+          "key_money_raw": "なし",
+          "management_fee": 5000,
+          "rent": 100000
+        },
+        "probable_negatives": [
+          "pet consultation"
+        ],
+        "station": "Umeda",
+        "title": "Quiet 1K",
+        "url": "https://www.athome.co.jp/chintai/b/",
+        "usp_tags": [
+          "system kitchen"
+        ],
+        "walk_minutes": 5.0
+      },
+      "listing_id": "b",
+      "probable_negatives": [
+        "pet consultation"
+      ],
+      "rank": 2,
+      "reasons": [
+        "quiet"
+      ],
+      "satisfied_constraints": [],
+      "violated_constraints": [
+        "pet friendly"
+      ]
+    }
+  ]
+}
