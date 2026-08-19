@@ -12,6 +12,7 @@ from athome_harness.llm.base import (
     LLMProviderError,
     LLMUsage,
 )
+from athome_harness.llm.opencodego import OpenCodeGoProvider
 from athome_harness.llm.openrouter import OpenRouterProvider
 from athome_harness.llm.query_parser import ClarificationNeeded, QueryParser
 from athome_harness.llm.recommender import (
@@ -28,6 +29,7 @@ __all__ = [
     "LLMJSONInvalidError",
     "LLMProviderError",
     "LLMUsage",
+    "OpenCodeGoProvider",
     "OpenRouterProvider",
     "QueryParser",
     "RecommendationOutput",
