@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import re
 import tempfile
@@ -11,6 +12,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, cast
 
+import aiohttp
 from patchright.async_api import (
     BrowserContext,
     Frame,
@@ -29,18 +31,6 @@ from athome_harness.scraping.session_state import (
     get_installed_chrome_version,
 )
 
-try:
-    from playwright_stealth import (
-        stealth_async as _legacy_stealth_async,
-    )
-except ImportError:
-    from playwright_stealth import Stealth  # type: ignore[import-untyped]
-
-    async def _legacy_stealth_async(page: Page) -> None:
-        """Apply the current playwright-stealth API under the legacy name."""
-        await Stealth().apply_stealth_async(page)
-
-
 logger = logging.getLogger(__name__)
 
 DEFAULT_BROAD_SEARCH_URL: Final = "https://www.athome.co.jp/chintai/osaka/list/"
@@ -49,6 +39,85 @@ DEFAULT_WAIT_SECONDS: Final = 3.0
 DEFAULT_CLICK_HOLD_SECONDS: Final = 2.5
 MIN_RENDERED_HTML_LENGTH: Final = 200
 _CLICK_TEXT = re.compile(r"click(?:\s+here)?\s+to\s+verify", re.IGNORECASE)
+
+
+async def _solve_turnstile_capsolver(api_key: str, site_url: str, site_key: str) -> str | None:
+    """Solve Cloudflare Turnstile using CapSolver API."""
+    logger.warning("[CAPSOLVER_TURNSTILE] url=<%s> site_key=<%s>", site_url, site_key)
+    endpoint = "https://api.capsolver.com/createTask"
+
+    payload = {
+        "clientKey": api_key,
+        "task": {
+            "type": "AntiTurnstileTaskProxyLess",
+            "websiteURL": site_url,
+            "websiteKey": site_key,
+        },
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(endpoint, json=payload) as resp:
+            data = await resp.json()
+            if data.get("errorId", 0) != 0:
+                logger.warning("[CAPSOLVER_TURNSTILE] error=<%s>", data.get("errorDescription"))
+                return None
+            task_id = data.get("taskId")
+
+        result_url = "https://api.capsolver.com/getTaskResult"
+        for _ in range(30):
+            await asyncio.sleep(2)
+            async with session.post(
+                result_url, json={"clientKey": api_key, "taskId": task_id}
+            ) as res_resp:
+                res_data = await res_resp.json()
+                if res_data.get("status") == "ready":
+                    logger.warning("[CAPSOLVER_TURNSTILE] solved")
+                    return str(res_data["solution"]["token"])
+                if res_data.get("status") == "failed":
+                    logger.warning("[CAPSOLVER_TURNSTILE] failed")
+                    return None
+    return None
+
+
+async def _solve_geetest_capsolver(
+    api_key: str, site_url: str, gt: str, challenge: str
+) -> dict[str, Any] | None:
+    """Solve Geetest V3 using CapSolver API."""
+    logger.warning("[CAPSOLVER_GEETEST] url=<%s> gt=<%s>", site_url, gt[:5])
+    endpoint = "https://api.capsolver.com/createTask"
+
+    payload = {
+        "clientKey": api_key,
+        "task": {
+            "type": "GeeTestTaskProxyLess",
+            "websiteURL": site_url,
+            "gt": gt,
+            "challenge": challenge,
+        },
+    }
+
+    async with aiohttp.ClientSession() as session:
+        async with session.post(endpoint, json=payload) as resp:
+            data = await resp.json()
+            if data.get("errorId", 0) != 0:
+                logger.warning("[CAPSOLVER_GEETEST] error=<%s>", data.get("errorDescription"))
+                return None
+            task_id = data.get("taskId")
+
+        result_url = "https://api.capsolver.com/getTaskResult"
+        for _ in range(30):
+            await asyncio.sleep(2)
+            async with session.post(
+                result_url, json={"clientKey": api_key, "taskId": task_id}
+            ) as res_resp:
+                res_data = await res_resp.json()
+                if res_data.get("status") == "ready":
+                    logger.warning("[CAPSOLVER_GEETEST] solved")
+                    return dict(res_data["solution"])
+                if res_data.get("status") == "failed":
+                    logger.warning("[CAPSOLVER_GEETEST] failed")
+                    return None
+    return None
 
 
 class PlaywrightCookieFetcherError(RuntimeError):
@@ -76,6 +145,7 @@ class PlaywrightCookieFetcher:
         min_html_length: int = MIN_RENDERED_HTML_LENGTH,
         sleep_fn: Callable[[float], Awaitable[None]] | None = None,
         click_hold_seconds: float = DEFAULT_CLICK_HOLD_SECONDS,
+        capsolver_key: str | None = None,
     ) -> None:
         """Configure one browser farm without starting a browser yet.
 
@@ -101,6 +171,7 @@ class PlaywrightCookieFetcher:
         self._min_html_length = min_html_length
         self._sleep = sleep_fn or asyncio.sleep
         self._click_hold_seconds = click_hold_seconds
+        self._capsolver_key = capsolver_key
 
     async def farm(self) -> CookieHandoff:
         """Render AtHome, optionally verify once, and persist the handoff."""
@@ -137,7 +208,6 @@ class PlaywrightCookieFetcher:
                     request_headers.update(dict(request.headers))
 
             page.on("request", remember_request_headers)
-            await _legacy_stealth_async(page)
             await page.goto(self._url, wait_until="domcontentloaded")
             await self._sleep(self._wait_seconds)
             html = await page.content()
@@ -147,16 +217,18 @@ class PlaywrightCookieFetcher:
             challenge_kind = detect_athome_challenge(html)
             if challenge_kind is not None:
                 logger.warning("[PLAYWRIGHT_CHALLENGE] kind=<%s>", challenge_kind)
-                clicked = await self._click_verification(page)
-                logger.warning("[PLAYWRIGHT_VERIFY] clicked=<%s>", str(clicked).lower())
+                solved = await self._try_capsolver_solve(page, html, challenge_kind)
+                if not solved:
+                    clicked = await self._click_verification(page)
+                    logger.warning("[PLAYWRIGHT_VERIFY] clicked=<%s>", str(clicked).lower())
                 await self._sleep(self._wait_seconds)
                 html = await page.content()
                 after_kind = detect_athome_challenge(html)
                 accepted = after_kind is None
                 logger.warning(
-                    "[PLAYWRIGHT_VERIFY_RESULT] attempted=<%s> accepted=<%s> "
+                    "[PLAYWRIGHT_VERIFY_RESULT] solved=%s accepted=<%s> "
                     "challenge_kind=<%s> html_chars=<%d>",
-                    str(clicked).lower(),
+                    str(solved).lower(),
                     str(accepted).lower(),
                     after_kind or "none",
                     len(html),
@@ -281,6 +353,67 @@ class PlaywrightCookieFetcher:
         except Exception as error:
             logger.warning("[PLAYWRIGHT_VERIFY] interaction_error=<%s>", type(error).__name__)
             return False
+
+    async def _try_capsolver_solve(
+        self, page: Page, html: str, challenge_kind: str
+    ) -> bool:
+        """Attempt to solve a WAF challenge via CapSolver. Returns True on success."""
+        if not self._capsolver_key:
+            return False
+
+        if challenge_kind == "puzzle":
+            gt_match = re.search(r'gt:\s*["\']([^"\']+)["\']', html)
+            challenge_match = re.search(r'challenge:\s*["\']([^"\']+)["\']', html)
+            data_match = re.search(r'data:\s*["\'](3:[^"\']+)["\']', html)
+
+            if gt_match and challenge_match and data_match:
+                gt = gt_match.group(1)
+                challenge = challenge_match.group(1)
+                incapsula_data = data_match.group(1)
+
+                logger.warning("[CAPSOLVER_GEETEST] extracting params from puzzle")
+                solution = await _solve_geetest_capsolver(
+                    self._capsolver_key, page.url, gt, challenge
+                )
+
+                if solution:
+                    payload = {
+                        "geetest_challenge": solution.get("challenge"),
+                        "geetest_validate": solution.get("validate"),
+                        "geetest_seccode": solution.get("seccode"),
+                        "data": incapsula_data,
+                    }
+                    logger.warning("[CAPSOLVER_GEETEST] injecting solution")
+                    await page.evaluate(f"solvedCaptcha({json.dumps(payload)})")
+                    await self._sleep(5.0)
+                    return True
+            else:
+                logger.warning("[CAPSOLVER_GEETEST] failed to extract params from HTML")
+        else:
+            site_key = await page.evaluate(
+                "() => document.querySelector('[data-sitekey]')"
+                "?.getAttribute('data-sitekey') || ''"
+            )
+            if site_key:
+                token = await _solve_turnstile_capsolver(
+                    self._capsolver_key, page.url, site_key
+                )
+                if token:
+                    await page.evaluate(
+                        """
+                        (token) => {
+                            const input =
+                                document.querySelector('input[name="cf-turnstile-response"]')
+                                || document.createElement('input');
+                            input.value = token;
+                            document.forms[0]?.submit();
+                        }
+                        """,
+                        token,
+                    )
+                    await self._sleep(5.0)
+                    return True
+        return False
 
     async def _find_verification_target(
         self,

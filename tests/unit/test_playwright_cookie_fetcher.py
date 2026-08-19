@@ -247,18 +247,9 @@ def patch_playwright(monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
             lambda: runtime,
         )
         state.update(context=context, chromium=runtime.chromium)
-        monkeypatch.setattr(
-            "athome_harness.scraping.playwright_cookie_fetcher._legacy_stealth_async",
-            lambda _: _completed(),
-        )
 
     state["install"] = install
     return state
-
-
-async def _completed() -> None:
-    """Provide an awaitable no-op for the stealth hook."""
-    return None
 
 
 def context_video_was_requested(patch_playwright: dict[str, object]) -> bool:
