@@ -386,6 +386,7 @@ class StoreContractSuite:
             assert store.get_cache_meta("fetched_at") == "2026-07-08T00:00:00Z"
             store.set_cache_meta("ttl_hours", 48)
             assert store.get_cache_meta("ttl_hours") == 48
+            assert isinstance(store.get_cache_meta("ttl_hours"), int)
 
     def test_cache_meta_overwrite(self) -> None:
         """set_cache_meta overwrites a prior value for the same key."""

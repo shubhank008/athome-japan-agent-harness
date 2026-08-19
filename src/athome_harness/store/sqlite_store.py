@@ -153,9 +153,22 @@ def _serialize_cache_value(value: str | int | float) -> str:
 
 
 def _deserialize_cache_value(payload: str) -> str | int | float:
-    """Rebuild a cache_meta value from its tagged JSON payload."""
+    """Rebuild a cache_meta value from its tagged JSON payload.
+
+    The type tag written by :func:`_serialize_cache_value` is used to restore
+    the declared Python type so that ``int`` values survive the JSON round-trip
+    even if the storage column is ``TEXT``.
+    """
     raw = json.loads(payload)
-    return cast("str | int | float", raw["v"])
+    tag = raw.get("t")
+    value = raw["v"]
+    if tag == "int":
+        return int(value)
+    if tag == "float":
+        return float(value)
+    if tag == "str":
+        return str(value)
+    return cast("str | int | float", value)
 
 
 class SqliteStore(BaseDataStore):
@@ -206,11 +219,26 @@ class SqliteStore(BaseDataStore):
         ).fetchone()
         if existing is not None:
             canonical = str(existing["internal_id"])
-            conn.execute(
-                "UPDATE listings SET athome_key = ?, url = ?, payload = ?, updated_at = ? "
-                "WHERE internal_id = ?",
-                (listing.athome_key, listing.url, _serialize_listing(listing), now, canonical),
-            )
+            try:
+                conn.execute(
+                    "UPDATE listings SET athome_key = ?, url = ?, payload = ?, updated_at = ? "
+                    "WHERE internal_id = ?",
+                    (listing.athome_key, listing.url, _serialize_listing(listing), now, canonical),
+                )
+            except sqlite3.IntegrityError:
+                # The new athome_key belongs to a different row; merge into that
+                # row so the conflicting key's internal ID stays canonical.
+                conflicting = conn.execute(
+                    "SELECT internal_id FROM listings WHERE athome_key = ?",
+                    (listing.athome_key,),
+                ).fetchone()
+                if conflicting is not None:
+                    canonical = str(conflicting["internal_id"])
+                conn.execute(
+                    "UPDATE listings SET url = ?, payload = ?, updated_at = ? "
+                    "WHERE internal_id = ?",
+                    (listing.url, _serialize_listing(listing), now, canonical),
+                )
             conn.commit()
             return canonical
         conn.execute(
