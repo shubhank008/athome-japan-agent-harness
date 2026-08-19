@@ -138,6 +138,10 @@ class HttpDomAdapter(BaseScraper):
     A plain successful GET is subject to exponential-backoff retries for
     connection failures only; those are silent at the marker level because the
     marker contract only names block and rotation events.
+
+    When ``debug=True`` the adapter captures the last raw curl-cffi response
+    object, accessible via the :attr:`raw_response` property. This is intended
+    for operator probe scripts; production adapters leave it disabled.
     """
 
     def __init__(
@@ -149,8 +153,13 @@ class HttpDomAdapter(BaseScraper):
         impersonate: ImpersonateProfile = "chrome",
         client: CurlSession | None = None,
         sleep_fn: Callable[[float], None] | None = None,
+        debug: bool = False,
     ) -> None:
-        """Configure a curl-cffi adapter, optionally bound to a browser handoff."""
+        """Configure a curl-cffi adapter, optionally bound to a browser handoff.
+
+        When *debug* is ``True`` the adapter captures each raw curl-cffi
+        response in :attr:`raw_response` for operator inspection.
+        """
         self._budgets = budgets
         self._proxy_provider = None if handoff is not None else proxy_provider
         self._handoff = handoff
@@ -159,6 +168,8 @@ class HttpDomAdapter(BaseScraper):
         initial_proxy = handoff.proxy_url if handoff is not None else None
         self._client_owned = client is None
         self._client: CurlSession = client or self._build_client(initial_proxy)
+        self._debug = debug or False
+        self._raw_response: CurlResponse | None = None
         if handoff is not None:
             logger.warning(
                 "[CURL_HANDOFF_BOUND] proxy=<%s> cookies=<%d> impersonate=<%s>",
@@ -224,12 +235,15 @@ class HttpDomAdapter(BaseScraper):
 
         for attempt in range(attempts + 1):
             response = self._http_get(url, proxy_url)
+            if self._debug:
+                self._raw_response = response
             challenge_kind = _detect_athome_challenge(response.text)
             if challenge_kind is not None:
                 logger.warning(
-                    "[ATHOME_CHALLENGE] url=<%s> kind=<%s>",
+                    "[ATHOME_CHALLENGE] url=<%s> kind=<%s> htmlLength=<%s>",
                     redact_url(url),
                     challenge_kind,
+                    len(response.text),
                 )
             signature = _detect_signature(response.status_code, response.text)
             if signature is not None:
@@ -276,6 +290,11 @@ class HttpDomAdapter(BaseScraper):
                     raise
                 self._sleep(min(_BACKOFF_MAX_S, _BACKOFF_BASE_S * (2**attempt)))
         raise AssertionError("unreachable")
+
+    @property
+    def raw_response(self) -> CurlResponse | None:
+        """Last raw curl-cffi response captured when debug mode is enabled."""
+        return self._raw_response
 
     def close(self) -> None:
         """Release the underlying curl-cffi transport."""

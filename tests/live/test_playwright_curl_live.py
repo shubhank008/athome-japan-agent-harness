@@ -6,6 +6,7 @@ in production (shared launch options, challenge handling, handoff and
 handoff to prove the session is accepted). The HttpDom-fallback
 orchestration and multi-page curl workers have their own live test in
 ``test_session_refarm_live.py``.
+RUN: `ATHOME_LIVE_TEST=1 pytest -sm live tests/live/test_playwright_curl_live.py`
 """
 
 from __future__ import annotations
@@ -26,9 +27,9 @@ logger = logging.getLogger(__name__)
 pytestmark = pytest.mark.live
 BROAD_SEARCH_URL = "https://www.athome.co.jp/chintai/osaka/list/"
 MIN_EXPECTED_HTML = 200
-# AtHome's broad search regularly answers in ~5s; 15s keeps the live test
+# AtHome's broad search regularly answers in ~5s; 30s keeps the live test
 # bounded while tolerating that latency (production default is 30s).
-LIVE_TIMEOUT_S = 15.0
+LIVE_TIMEOUT_S = 30.0
 
 
 @pytest.mark.asyncio

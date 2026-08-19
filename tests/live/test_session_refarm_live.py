@@ -5,6 +5,7 @@ Scope: this file mimics how production code must fetch AtHome pages, driving
 (``HttpDom -> block -> PlaywrightCookie -> handoff -> HttpDom``). Playwright
 browser behavior itself is covered separately in
 ``test_playwright_curl_live.py``.
+RUN: `ATHOME_LIVE_TEST=1 pytest -sm live tests/live/test_session_refarm_live.py`
 """
 
 from __future__ import annotations
@@ -119,7 +120,10 @@ class _BlockOnceAdapter(HttpDomAdapter):
 
     def __init__(self, budgets: Budgets, *, handoff: CookieHandoff | None) -> None:
         super().__init__(budgets, handoff=handoff)
-        self.blocked_once = False
+        if handoff is None:
+            self.blocked_once = False
+        else:
+            self.blocked_once = True
 
     def fetch_html(self, url: str) -> str:
         if not self.blocked_once:
@@ -137,6 +141,7 @@ async def test_refarmer_fetches_detail_pages_through_farmed_session(tmp_path: Pa
     refarmer = _build_refarmer(tmp_path)
     broad_html = await refarmer.fetch_html(BROAD_SEARCH_URL)
     detail_urls = _absolute_urls(_DETAIL_LINK.findall(broad_html))[:3]
+
     if len(detail_urls) < 3:
         pytest.fail("AtHome broad search did not expose three detail links")
 
