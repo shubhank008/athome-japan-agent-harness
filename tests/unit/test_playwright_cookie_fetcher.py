@@ -15,6 +15,7 @@ from athome_harness.scraping.playwright_cookie_fetcher import (
     PlaywrightCookieFetcherError,
 )
 from athome_harness.scraping.playwright_shared import (
+    COMBINED_TARGET,
     intercept_route,
     read_settled_content,
     wait_for_page_signal,
@@ -176,7 +177,7 @@ class FakePage:
 
     async def wait_for_selector(self, selector: str, *, state: str, timeout: float) -> Any | None:
         """Return the preconfigured signal element (None by default)."""
-        assert selector.startswith("#captcha-box")
+        assert selector == COMBINED_TARGET
         assert state == "attached"
         return self.signal_element
 
@@ -609,6 +610,10 @@ class _NoSleep:
     calls: list[float] = []
 
     @classmethod
+    def reset(cls) -> None:
+        cls.calls.clear()
+
+    @classmethod
     async def sleep(cls, seconds: float) -> None:
         cls.calls.append(seconds)
 
@@ -616,6 +621,7 @@ class _NoSleep:
 @pytest.mark.asyncio
 async def test_read_settled_content_returns_html_when_navigation_settles() -> None:
     """A racing navigation is retried and the settled HTML is returned."""
+    _NoSleep.reset()
     page = _NavigatingPage(GOOD_HTML, failures=2)
     html = await read_settled_content(page, sleep_fn=_NoSleep.sleep)
     assert html == GOOD_HTML
@@ -625,6 +631,7 @@ async def test_read_settled_content_returns_html_when_navigation_settles() -> No
 @pytest.mark.asyncio
 async def test_read_settled_content_raises_after_exhausting_attempts() -> None:
     """Persistent navigation failures re-raise the last error."""
+    _NoSleep.reset()
     page = _NavigatingPage(GOOD_HTML, failures=99)
     with pytest.raises(RuntimeError):
         await read_settled_content(page, sleep_fn=_NoSleep.sleep, attempts=3, retry_delay_seconds=0)
