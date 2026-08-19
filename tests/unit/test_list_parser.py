@@ -9,6 +9,7 @@ exists only to prove missing-optional-field handling (FR-8).
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -101,6 +102,27 @@ def test_captured_building_type_excludes_floor_and_date() -> None:
         assert not any(ch.isdigit() for ch in kind)
 
 
+def test_captured_building_age_is_not_silently_dropped() -> None:
+    """The third hint's ``2026年8月`` construction date yields a real age value.
+
+    The first captured building renders ``賃貸アパート 3階建 2026年8月``; the observed
+    date must be converted into a non-None age (regression: FR-9 and the DOM
+    access map require that an observed age is never silently defaulted to None).
+    The fixed ref_date makes the value deterministic.
+    """
+    summaries = parse_list_page(_load_list(), ref_date=date(2026, 8, 1))
+    first = summaries[0]
+    # Built 2026年8月, so at a 2026-08-01 ref_date the age is ~0 years (new build).
+    assert first.age == pytest.approx(0.0)
+    # The observed construction date is never silently dropped: every one of the
+    # 460 units (sharing 30 building blocks, all with a construction date) has a
+    # real age value.
+    assert all(s.age is not None for s in summaries)
+    # The captured 2002+ build and a 1991 build yield distinct, non-zero ages.
+    older = max(s.age for s in summaries)
+    assert older > 30.0
+
+
 def test_captured_month_based_key_money_preserves_raw_term() -> None:
     """A ``1ヶ月`` key-money term is recorded as 0 yen but kept as raw text.
 
@@ -152,6 +174,8 @@ def test_detached_house_without_room_number_still_parses(caplog: pytest.LogCaptu
     assert len(summaries) == 1
     unit = summaries[0]
     assert unit.floors is None
+    # The hint has no construction date, so the age stays None (never invented).
+    assert unit.age is None
     assert unit.athome_key == "999900001"
     assert unit.price.rent == 125_000
     assert unit.price.deposit == 50_000

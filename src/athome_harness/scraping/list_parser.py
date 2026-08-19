@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import date
 
 from selectolax.parser import HTMLParser, Node
 
@@ -58,7 +59,28 @@ _RE_STATION = re.compile(r"「([^」]+)」駅")
 # Building-hint tokens that terminate the property-type label: a floor count
 # (``2階建``), a construction date (``2026年6月``), or a parenthesised age note.
 _RE_FLOOR_COUNT = re.compile(r"^[0-9]+階建")
-_RE_BUILD_DATE = re.compile(r"^[0-9]{4}年[0-9]{1,2}月")
+# Build-date form ``YYYY年M月`` inside the third hint (matched before the floor
+# count so a construction year is never mistaken for the building-type label).
+_RE_BUILD_DATE = re.compile(r"([0-9]{4})年([0-9]{1,2})月")
+_DAYS_PER_YEAR = 365.25
+
+
+def _build_age(building_info: str, ref_date: date) -> float | None:
+    """Return building age in years from the third hint's construction date.
+
+    ``building_info`` renders like ``賃貸アパート 3階建 2026年8月``; the ``YYYY年M月``
+    construction date is converted to fractional years since ``ref_date``
+    (clamped below at zero). Returns ``None`` (with a warning) when no
+    construction date is exposed, matching the detail-parser contract that an
+    observed age is never silently dropped.
+    """
+    match = _RE_BUILD_DATE.search(building_info)
+    if not match:
+        logger.warning("list_parser: no construction date in building hint %r", building_info)
+        return None
+    build_year, build_month = int(match.group(1)), int(match.group(2))
+    build_start = date(build_year, build_month, 1)
+    return max(0.0, (ref_date - build_start).days / _DAYS_PER_YEAR)
 
 
 @dataclass
@@ -70,11 +92,17 @@ class BuildingBlock:
     station: str | None
     walk_minutes: float | None
     building_type: str | None
+    age: float | None
     units: list[Node] = field(default_factory=list)
 
 
-def parse_list_page(html: str) -> list[ListingSummary]:
+def parse_list_page(html: str, ref_date: date | None = None) -> list[ListingSummary]:
     """Parse an AtHome results page into one :class:`ListingSummary` per unit.
+
+    ``ref_date`` is the frame used to convert a ``YYYY年M月`` construction date
+    (from the third building hint) into an age in years; it defaults to today.
+    Tests pass a fixed date so the age is deterministic; production callers rely
+    on the default.
 
     Raises nothing for missing optional fields: missing cells are logged as
     parse warnings and the affected unit is still emitted. Only structurally
@@ -83,7 +111,7 @@ def parse_list_page(html: str) -> list[ListingSummary]:
     tree = HTMLParser(html)
     summaries: list[ListingSummary] = []
     for building in tree.css(_BUILDING):
-        block = _parse_building_heading(building)
+        block = _parse_building_heading(building, ref_date or date.today())
         if not block.units:
             logger.warning("list_parser: building %r has no unit sub-blocks", block.title)
             continue
@@ -94,7 +122,7 @@ def parse_list_page(html: str) -> list[ListingSummary]:
     return summaries
 
 
-def _parse_building_heading(building: Node) -> BuildingBlock:
+def _parse_building_heading(building: Node, ref_date: date) -> BuildingBlock:
     """Extract the shared building identity and the unit sub-block nodes."""
     title_node = building.css_first(_TITLE)
     title = title_node.text(strip=True) if title_node else ""
@@ -107,6 +135,7 @@ def _parse_building_heading(building: Node) -> BuildingBlock:
     station = _extract_station(transport)
     walk = _extract_walk_minutes(transport)
     building_type = _extract_building_type(building_info)
+    age = _build_age(building_info, ref_date)
 
     return BuildingBlock(
         title=title,
@@ -114,6 +143,7 @@ def _parse_building_heading(building: Node) -> BuildingBlock:
         station=station,
         walk_minutes=walk,
         building_type=building_type,
+        age=age,
         units=building.css(_DETAILBOX),
     )
 
@@ -178,7 +208,7 @@ def _parse_unit(unit: Node, block: BuildingBlock) -> ListingSummary | None:
         walk_minutes=block.walk_minutes,
         building_type=block.building_type,
         floors=floors,
-        age=None,
+        age=block.age,
         price=price,
         floor_plan=floor_plan,
         area_m2=area,
