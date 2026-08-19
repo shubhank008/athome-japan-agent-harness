@@ -14,6 +14,11 @@ from athome_harness.scraping.playwright_cookie_fetcher import (
     PlaywrightCookieFetcher,
     PlaywrightCookieFetcherError,
 )
+from athome_harness.scraping.playwright_shared import (
+    intercept_route,
+    read_settled_content,
+    wait_for_page_signal,
+)
 from athome_harness.scraping.session_state import SessionState
 
 GOOD_HTML = "<html><body>" + ("AtHome listing content " * 20) + "</body></html>"
@@ -126,6 +131,8 @@ class FakePage:
         self.url = "https://www.athome.co.jp/chintai/osaka/list/"
         self.video = None
         self._request_handler: Any = None
+        self._route_handler: Any = None
+        self.signal_element: Any = None
         self._child_frame = FakeFrame(self) if child_role else None
         self._evaluate_overrides = evaluate_overrides or {}
         self._evaluated_expressions: list[str] = []
@@ -161,6 +168,17 @@ class FakePage:
         """Register the navigation request listener."""
         assert event == "request"
         self._request_handler = handler
+
+    async def route(self, pattern: str, handler: Any) -> None:
+        """Register the shared tracker-blocking route handler."""
+        assert pattern == "**/*"
+        self._route_handler = handler
+
+    async def wait_for_selector(self, selector: str, *, state: str, timeout: float) -> Any | None:
+        """Return the preconfigured signal element (None by default)."""
+        assert selector.startswith("#captcha-box")
+        assert state == "attached"
+        return self.signal_element
 
     def get_by_role(self, role: str, *, name: Any) -> FakeLocator | EmptyLocator:
         """Return no semantic control so the text fallback is exercised."""
@@ -218,12 +236,19 @@ class FakeChromium:
         """Return the fake context and retain persistent Chrome settings."""
         self.user_data_dir = user_data_dir
         self.options = options
+        # Production farms share the manual probe's launch profile (viewport,
+        # locale, timezone, window size, and the real Chrome UA).
         assert options["channel"] == "chrome"
         assert options["headless"] is True
-        assert options["no_viewport"] is True
+        assert options["viewport"] == {"width": 1280, "height": 720}
         assert options["locale"] == "ja-JP"
-        assert options["proxy"] is None or options["proxy"]
-        # The lean production farmer never requests video recording.
+        assert options["timezone_id"] == "Asia/Tokyo"
+        args = [str(arg) for arg in cast(list[object], options.get("args", []))]
+        assert "--window-size=1280,720" in args
+        assert any("--user-agent=" in arg for arg in args)
+        assert "proxy" not in options or options["proxy"]
+        # The lean production farmer never requests video recording; that
+        # overhead is DEBUG-mode-only in the operator probe.
         assert "record_video_dir" not in options
         return self.context
 
@@ -458,7 +483,7 @@ async def test_try_geetest_capsolver_injects_solution_on_success() -> None:
     solution = {"challenge": "ch", "validate": "val", "seccode": "sec"}
 
     with patch(
-        "athome_harness.scraping.playwright_cookie_fetcher._solve_geetest_capsolver",
+        "athome_harness.scraping.playwright_cookie_fetcher.solve_geetest_capsolver",
         new_callable=AsyncMock,
         return_value=solution,
     ) as mock_solve:
@@ -482,7 +507,7 @@ async def test_try_geetest_capsolver_returns_false_on_api_failure() -> None:
     fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
 
     with patch(
-        "athome_harness.scraping.playwright_cookie_fetcher._solve_geetest_capsolver",
+        "athome_harness.scraping.playwright_cookie_fetcher.solve_geetest_capsolver",
         new_callable=AsyncMock,
         return_value=None,
     ):
@@ -513,7 +538,7 @@ async def test_try_turnstile_capsolver_injects_token_on_success() -> None:
     fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
 
     with patch(
-        "athome_harness.scraping.playwright_cookie_fetcher._solve_turnstile_capsolver",
+        "athome_harness.scraping.playwright_cookie_fetcher.solve_turnstile_capsolver",
         new_callable=AsyncMock,
         return_value="turnstile-token-123",
     ) as mock_solve:
@@ -538,7 +563,7 @@ async def test_try_turnstile_capsolver_returns_false_on_api_failure() -> None:
     fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
 
     with patch(
-        "athome_harness.scraping.playwright_cookie_fetcher._solve_turnstile_capsolver",
+        "athome_harness.scraping.playwright_cookie_fetcher.solve_turnstile_capsolver",
         new_callable=AsyncMock,
         return_value=None,
     ):
@@ -554,10 +579,125 @@ async def test_capsolver_exception_falls_back_to_click() -> None:
     fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key", min_html_length=20)
 
     with patch(
-        "athome_harness.scraping.playwright_cookie_fetcher._solve_geetest_capsolver",
+        "athome_harness.scraping.playwright_cookie_fetcher.solve_geetest_capsolver",
         new_callable=AsyncMock,
         side_effect=RuntimeError("API timeout"),
     ):
         result = await fetcher._try_capsolver_solve(page, GEETEST_HTML, "puzzle")
 
     assert result is False
+
+
+class _NavigatingPage:
+    """Page whose content read fails a set number of times before settling."""
+
+    def __init__(self, html: str, failures: int) -> None:
+        self._html = html
+        self._failures = failures
+        self.calls = 0
+
+    async def content(self) -> str:
+        self.calls += 1
+        if self.calls <= self._failures:
+            raise RuntimeError("Unable to retrieve content because the page is navigating")
+        return self._html
+
+
+class _NoSleep:
+    """Instant sleep substitute for deterministic retry tests."""
+
+    calls: list[float] = []
+
+    @classmethod
+    async def sleep(cls, seconds: float) -> None:
+        cls.calls.append(seconds)
+
+
+@pytest.mark.asyncio
+async def test_read_settled_content_returns_html_when_navigation_settles() -> None:
+    """A racing navigation is retried and the settled HTML is returned."""
+    page = _NavigatingPage(GOOD_HTML, failures=2)
+    html = await read_settled_content(page, sleep_fn=_NoSleep.sleep)
+    assert html == GOOD_HTML
+    assert page.calls == 3
+
+
+@pytest.mark.asyncio
+async def test_read_settled_content_raises_after_exhausting_attempts() -> None:
+    """Persistent navigation failures re-raise the last error."""
+    page = _NavigatingPage(GOOD_HTML, failures=99)
+    with pytest.raises(RuntimeError):
+        await read_settled_content(page, sleep_fn=_NoSleep.sleep, attempts=3, retry_delay_seconds=0)
+    assert page.calls == 3
+
+
+@pytest.mark.asyncio
+async def test_read_settled_content_rejects_zero_attempts() -> None:
+    """attempts below one is a programmer error and must fail fast."""
+    with pytest.raises(ValueError):
+        await read_settled_content(cast(Any, None), attempts=0)
+
+
+class _FakeRoute:
+    """Route substitute recording abort/continue decisions."""
+
+    def __init__(self, url: str) -> None:
+        self.request = type("Request", (), {"url": url})()
+        self.action: str | None = None
+
+    async def abort(self) -> None:
+        self.action = "abort"
+
+    async def continue_(self) -> None:
+        self.action = "continue"
+
+
+@pytest.mark.asyncio
+async def test_intercept_route_aborts_tracker_domains() -> None:
+    """Known tracker/ad URLs are aborted, core assets continue."""
+    tracker = _FakeRoute("https://www.googletagmanager.com/gtm.js?id=GTM-1")
+    await intercept_route(cast(Any, tracker))
+    assert tracker.action == "abort"
+
+    core = _FakeRoute("https://www.athome.co.jp/chintai/osaka/list/")
+    await intercept_route(cast(Any, core))
+    assert core.action == "continue"
+
+
+@pytest.mark.asyncio
+async def test_intercept_route_fails_safe_when_continue_raises() -> None:
+    """A failing interceptor never propagates to break the pipeline."""
+
+    class _ExplodingRoute(_FakeRoute):
+        async def continue_(self) -> None:
+            if self.action is None:
+                raise RuntimeError("route handler exploded")
+            self.action = "continue"
+
+    route = _ExplodingRoute("https://www.athome.co.jp/list/")
+    await intercept_route(cast(Any, route))
+    assert route.action is None
+
+
+@pytest.mark.asyncio
+async def test_wait_for_page_signal_returns_winning_element() -> None:
+    """The selector race resolves to the attached terminal element."""
+
+    class _SignalPage:
+        async def wait_for_selector(self, selector: str, *, state: str, timeout: float) -> object:
+            return object()
+
+    element = await wait_for_page_signal(cast(Any, _SignalPage()))
+    assert element is not None
+
+
+@pytest.mark.asyncio
+async def test_wait_for_page_signal_returns_none_on_timeout() -> None:
+    """A selector timeout is logged and downgraded to None, not raised."""
+
+    class _TimeoutPage:
+        async def wait_for_selector(self, selector: str, *, state: str, timeout: float) -> object:
+            raise TimeoutError("selector timeout")
+
+    element = await wait_for_page_signal(cast(Any, _TimeoutPage()))
+    assert element is None

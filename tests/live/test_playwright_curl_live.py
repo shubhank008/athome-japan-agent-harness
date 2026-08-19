@@ -1,99 +1,63 @@
-"""Opt-in live Playwright-to-curl-cffi handoff validation."""
+"""Opt-in live Playwright browser-session farming validation.
+
+Scope: this file exercises the Patchright layer only, exactly as it behaves
+in production (shared launch options, challenge handling, handoff and
+``session_state.json`` persistence, then one curl-cffi replay of that
+handoff to prove the session is accepted). The HttpDom-fallback
+orchestration and multi-page curl workers have their own live test in
+``test_session_refarm_live.py``.
+"""
 
 from __future__ import annotations
 
 import logging
 import os
-import re
-from collections.abc import Iterable
 from pathlib import Path
-from tempfile import TemporaryDirectory
 
 import pytest
 
 from athome_harness.config import Budgets
 from athome_harness.scraping.challenge import detect_athome_challenge
-from athome_harness.scraping.detail_parser import parse_detail_page
 from athome_harness.scraping.http_adapter import HttpDomAdapter
 from athome_harness.scraping.playwright_cookie_fetcher import PlaywrightCookieFetcher
-from athome_harness.scraping.session_refarmer import SessionRefarmer
 from athome_harness.scraping.session_state import SessionState
 
 logger = logging.getLogger(__name__)
 pytestmark = pytest.mark.live
 BROAD_SEARCH_URL = "https://www.athome.co.jp/chintai/osaka/list/"
-_DETAIL_LINK = re.compile(r'href=["\']([^"\']*/chintai/[^"\']+)["\']', re.IGNORECASE)
-
-
-def _absolute_urls(hrefs: Iterable[str]) -> list[str]:
-    """Normalize unique detail links without following external origins."""
-    urls: list[str] = []
-    for href in hrefs:
-        if href.startswith("/"):
-            href = f"https://www.athome.co.jp{href}"
-        if href.startswith("https://www.athome.co.jp/") and href not in urls:
-            urls.append(href)
-    return urls
+MIN_EXPECTED_HTML = 200
+# AtHome's broad search regularly answers in ~5s; 15s keeps the live test
+# bounded while tolerating that latency (production default is 30s).
+LIVE_TIMEOUT_S = 15.0
 
 
 @pytest.mark.asyncio
-async def test_playwright_handoff_fetches_four_live_pages() -> None:
-    """Farm one browser session and reuse it for four curl-cffi pages."""
+async def test_playwright_handoff_persists_and_replays(tmp_path: Path) -> None:
+    """Farm one browser session, persist its state, and replay it once via curl."""
     if os.getenv("ATHOME_LIVE_TEST") != "1":
         pytest.skip("set ATHOME_LIVE_TEST=1 to access AtHome")
 
-    handoff = await PlaywrightCookieFetcher(url=BROAD_SEARCH_URL).farm()
-    adapter = HttpDomAdapter(Budgets(http_timeout_s=2.0), handoff=handoff)
+    fetcher = PlaywrightCookieFetcher(url=BROAD_SEARCH_URL, debug_dir=tmp_path)
+    handoff = await fetcher.farm()
+
+    # The shared session_state.json handoff artifact must exist and match the
+    # handoff the browser just produced, so curl-cffi workers can load it later.
+    session = SessionState.load(tmp_path / "session_state.json")
+    assert session.cookies
+    assert session.user_agent == handoff.user_agent
+    assert session.to_cookie_handoff().cookie_values == handoff.cookie_values
+
+    # One curl-cffi replay proves the farmed session is accepted by AtHome.
+    adapter = HttpDomAdapter(Budgets(http_timeout_s=LIVE_TIMEOUT_S), handoff=handoff)
     try:
         broad_html = adapter.fetch_html(BROAD_SEARCH_URL)
-        detail_urls = _absolute_urls(_DETAIL_LINK.findall(broad_html))[:3]
-        if len(detail_urls) < 3:
-            pytest.fail("AtHome broad search did not expose three detail links")
-        details = [parse_detail_page(adapter.fetch_html(url)) for url in detail_urls]
     finally:
         adapter.close()
 
-    assert len(details) == 3
-    assert all(detail.internal_id for detail in details)
-    logger.warning("[CURL_PLAYWRIGHT_INTEGRATION] pages=<3> timeout=<2>")
-
-
-@pytest.mark.asyncio
-async def test_refarmer_recovery_fetches_after_challenge() -> None:
-    """HttpDom block is recovered by farming and rebinding a browser session."""
-    if os.getenv("ATHOME_LIVE_TEST") != "1":
-        pytest.skip("set ATHOME_LIVE_TEST=1 to access AtHome")
-
-    budgets = Budgets(http_timeout_s=2.0)
-    with TemporaryDirectory() as debug:
-        debug_dir = Path(debug)
-
-        def build_adapter(handoff: object) -> HttpDomAdapter:
-            return HttpDomAdapter(budgets, handoff=handoff)
-
-        async def farm() -> object:
-            return await PlaywrightCookieFetcher(
-                url=BROAD_SEARCH_URL,
-                debug_dir=debug_dir,
-                wait_seconds=0,
-            ).farm()
-
-        refarmer = SessionRefarmer(
-            build_adapter=build_adapter,
-            farm=farm,
-        )
-        html = await refarmer.fetch_html(BROAD_SEARCH_URL)
-
-    assert isinstance(html, str)
-    assert detect_athome_challenge(html) is None
-    assert len(html) > 200
-
-    session_path = debug_dir / "session_state.json"
-    assert session_path.exists()
-    session = SessionState.load(session_path)
-    assert session.cookies
+    assert detect_athome_challenge(broad_html) is None
+    assert len(broad_html) > MIN_EXPECTED_HTML
     logger.warning(
-        "[REHANDOFF_LIVE_RECOVERED] cookies=<%d> chrome_major=<%s>",
+        "[CURL_PLAYWRIGHT_INTEGRATION] cookies=<%d> chrome_major=<%s> timeout=<15>",
         len(session.cookies),
         session.chrome_major_version,
     )
