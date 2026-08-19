@@ -143,9 +143,7 @@ def test_direct_first_then_farm_rebind_succeeds(
     ]
     present = [m for m in order if any(msg.startswith(m) for msg in messages)]
     assert present == order, f"missing or unexpected refarm markers: {present}"
-    positions = [
-        next(i for i, msg in enumerate(messages) if msg.startswith(m)) for m in order
-    ]
+    positions = [next(i for i, msg in enumerate(messages) if msg.startswith(m)) for m in order]
     assert positions == sorted(positions), "refarm markers out of order"
 
     # The block was resolved, so a still-blocked marker must never appear.

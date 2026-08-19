@@ -143,24 +143,16 @@ Authoritative references (keep these in sync with code changes):
 
 - [PRD.md](PRD.md) - project-level product requirements (authoritative for product intent)
 - [SPEC.md](SPEC.md) - project-level technical spec (authoritative for filter map, data models, interfaces)
+- [PLAN.md](PLAN.md) - live repository-level plan
 - [Feature 001 spec](docs/specs/001-athome-home-finder/spec.md) - task-scoped product/user-story spec
 - [Feature 001 plan](docs/specs/001-athome-home-finder/plan.md) - milestone/task tracking and invariants
 - [Marker contract](docs/specs/001-athome-home-finder/contracts/log-markers.md) - exact log markers and forbidden failure patterns
 - [AGENTS.md](AGENTS.md) - agent workflow and architecture invariants
-- [PLAN.md](PLAN.md) - live repository-level plan
-
-## Documentation
-
-- [PRD.md](PRD.md) -- project-level product requirements (authoritative for product intent)
-- [SPEC.md](SPEC.md) -- project-level technical spec (authoritative for filter map, data models, interfaces)
-- [PLAN.md](PLAN.md) -- live project plan, updated after every feature
-- [docs/specs/001-athome-home-finder/](docs/specs/001-athome-home-finder/) -- feature 001 spec, implementation plan, and marker contract
-- [docs/specs/002-playwright-cookie-fetcher/](docs/specs/002-playwright-cookie-fetcher/) -- feature 002 Playwright browser cookie farmer
-- [docs/specs/003-curl-cffi-http-integration/](docs/specs/003-curl-cffi-http-integration/) -- feature 003 curl-cffi HTTP adapter integration
-- [docs/specs/004-playwright-challenge-diagnostics/](docs/specs/004-playwright-challenge-diagnostics/) -- feature 004 browser challenge diagnostics and headed probe
-- [docs/specs/005-patchright-runtime/](docs/specs/005-patchright-runtime/) -- feature 005 Patchright browser runtime migration
-- [docs/specs/006-lean-cookie-fetcher/](docs/specs/006-lean-cookie-fetcher/) -- feature 006 lean production cookie fetcher (diagnostics moved to probe-only)
-- [AGENTS.md](AGENTS.md) -- agent workflow and architecture invariants
+- [Feature 002](docs/specs/002-playwright-cookie-fetcher/) - Playwright browser cookie farmer
+- [Feature 003](docs/specs/003-curl-cffi-http-integration/) - curl-cffi HTTP adapter integration
+- [Feature 004](docs/specs/004-playwright-challenge-diagnostics/) - browser challenge diagnostics and headed probe
+- [Feature 005](docs/specs/005-patchright-runtime/) - Patchright browser runtime migration
+- [Feature 006](docs/specs/006-lean-cookie-fetcher/) - lean production cookie fetcher (diagnostics moved to probe-only)
 
 ## Browser cookie handoff
 
