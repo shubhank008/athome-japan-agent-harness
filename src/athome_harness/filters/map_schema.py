@@ -80,8 +80,8 @@ def _condition(
     monotonic: bool = False,
 ) -> FieldCondition:
     """Build a :class:`FieldCondition`, compiling a raw regex if given."""
-    regex = pattern if isinstance(pattern, re.Pattern) else (
-        re.compile(pattern) if pattern else None
+    regex = (
+        pattern if isinstance(pattern, re.Pattern) else (re.compile(pattern) if pattern else None)
     )
     return FieldCondition(
         cardinality=cardinality,
@@ -109,7 +109,10 @@ CONDITIONS: dict[str, dict[str, FieldCondition]] = {
         "SORT": _condition("single", "select", None, "SORT"),
         "TATEMONONUM": _condition("single", "select", None, "TATEMONONUM"),
         "PRICE": _condition(
-            "range", "select", None, "PRICE",
+            "range",
+            "select",
+            None,
+            "PRICE",
             pair=("PRICEFROM", "PRICETO"),
             aliases=("PRICE_RANGE", "rent price"),
         ),
@@ -135,7 +138,10 @@ CONDITIONS: dict[str, dict[str, FieldCondition]] = {
         "SORT": _condition("single", "select", None, "SORT"),
         "itemus": _condition("single", "select", None, "itemus"),
         "PRICE": _condition(
-            "range", "select", None, "PRICE",
+            "range",
+            "select",
+            None,
+            "PRICE",
             pair=("PRICEFROM", "PRICETO"),
             aliases=("PRICE_RANGE", "buy price"),
         ),
@@ -150,13 +156,20 @@ CONDITIONS: dict[str, dict[str, FieldCondition]] = {
 REQUIRED_FILTERS: dict[str, frozenset[str]] = {
     "rent": frozenset(
         {
-            "PRICEFROM", "PRICETO", "MADORI", "MENSEKI", "EKITOHO", "CHIKUNENSU",
-            "KEIYAKU", "SHUMOKU", "TATEKOUZOU", "SYUHENKANKYO", "KODAWARI",
+            "PRICEFROM",
+            "PRICETO",
+            "MADORI",
+            "MENSEKI",
+            "EKITOHO",
+            "CHIKUNENSU",
+            "KEIYAKU",
+            "SHUMOKU",
+            "TATEKOUZOU",
+            "SYUHENKANKYO",
+            "KODAWARI",
         }
     ),
-    "buy": frozenset(
-        {"PRICEFROM", "PRICETO", "MADORI", "MENSEKI", "EKITOHO", "CHIKUNENSU"}
-    ),
+    "buy": frozenset({"PRICEFROM", "PRICETO", "MADORI", "MENSEKI", "EKITOHO", "CHIKUNENSU"}),
 }
 
 
