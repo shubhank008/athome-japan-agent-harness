@@ -85,6 +85,39 @@ def test_captured_unit_has_detail_url_and_photo() -> None:
     assert len(first.photo_urls) >= 1
 
 
+def test_captured_building_type_excludes_floor_and_date() -> None:
+    """The building type holds only the property type, not floor/construction data.
+
+    The third building hint renders like ``賃貸アパート 2階建 2026年6月``; only the
+    leading type label must be kept (DOM access map, T15).
+    """
+    summaries = parse_list_page(_load_list())
+    types = {s.building_type for s in summaries}
+    # Both captured property kinds survive as bare type labels.
+    assert "賃貸アパート" in types
+    assert "賃貸マンション" in types
+    for kind in types:
+        assert "階建" not in kind
+        assert not any(ch.isdigit() for ch in kind)
+
+
+def test_captured_month_based_key_money_preserves_raw_term() -> None:
+    """A ``1ヶ月`` key-money term is recorded as 0 yen but kept as raw text.
+
+    Without the raw term, an 85-unit month-based capture would be
+    indistinguishable from ``なし``/zero. The raw field must disambiguate.
+    """
+    summaries = parse_list_page(_load_list())
+    month_units = [
+        s for s in summaries if s.price.key_money_raw == "1ヶ月"
+    ]
+    assert month_units
+    for unit in month_units:
+        assert unit.price.key_money == 0
+        # Distinguishable from a genuinely absent/なし key money.
+        assert unit.price.key_money_raw == "1ヶ月"
+
+
 # Synthetic edge cases. This DOM is hand-built (not from a live capture) purely
 # to exercise the missing-optional-field path: a detached house has no room
 # number, and rent/key-money cells are present while the management-fee span and
@@ -135,3 +168,45 @@ def test_detached_house_missing_optional_cells_are_empty(caplog: pytest.LogCaptu
     assert len(summaries) == 1
     assert summaries[0].usp_tags == []
     assert summaries[0].probable_negatives == []
+
+
+# Synthetic month-based deposit/key-money case: a unit whose deposit is a month
+# term (``2ヶ月``) and key money is ``なし``. Not from a live capture; hand-built to
+# prove the raw-term preservation path for both deposit and key money (T17).
+SYNTHETIC_MONTH_HTML = """
+<html><body>
+<div class="p-property--building">
+  <h2 class="p-property__title--building">テスト月額 SY-002</h2>
+  <dl class="p-property__information-hint">
+    <dd>大阪市北区テスト町2-3-4</dd>
+    <dd>地下鉄御堂筋線 「梅田」駅 徒歩5分</dd>
+    <dd>賃貸マンション 5階建 2024年3月</dd>
+  </dl>
+  <div class="p-property__room--detail js-bukken">
+    <div class="p-property__room--detailbox" data-bukken-no="999900002">
+      <div class="p-property__floor">１Ｋ</div>
+      <p class="p-property__information-price">
+        <b class="p-property__information-rent">8.5</b>万円</p>
+      <li class="p-property__room-keymoney"><p>2ヶ月</p><span>なし</span></li>
+      <li class="p-property__room-floorplan"><span>20.00m²</span></li>
+    </div>
+  </div>
+</div>
+</body></html>
+"""
+
+
+def test_synthetic_month_based_deposit_preserves_raw_term(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """A month-based deposit stays 0 yen but keeps its raw ``2ヶ月`` term."""
+    with caplog.at_level("WARNING", logger="athome_harness.scraping.list_parser"):
+        summaries = parse_list_page(SYNTHETIC_MONTH_HTML)
+    assert len(summaries) == 1
+    unit = summaries[0]
+    assert unit.price.deposit == 0  # month term not convertible to yen here
+    assert unit.price.deposit_raw == "2ヶ月"
+    assert unit.price.key_money == 0
+    assert unit.price.key_money_raw == "なし"
+    # The month term and なし are not interchangeable.
+    assert unit.price.deposit_raw != unit.price.key_money_raw
