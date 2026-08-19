@@ -18,6 +18,21 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 DEFAULT_GENERAL_MODEL = "deepseek/deepseek-v4-flash-0731"
 DEFAULT_VISION_MODEL = "google/gemma-4-31b-it"
 
+# OpencodeGo model default in the opencode-go/<model-id> format OpenCode expects
+# (see https://opencode.ai/docs/go/#endpoints).
+DEFAULT_OPENCODEGO_MODEL = "opencode-go/deepseek-v4-flash"
+
+# OpencodeGo OpenAI-compatible chat completions endpoint (docs/go#endpoints).
+DEFAULT_OPENCODEGO_URL = "https://opencode.ai/zen/go/v1/chat/completions"
+
+# Provider identifiers accepted by the ATHOME_LLM_PROVIDER / ATHOME_STORE_PROVIDER /
+# ATHOME_SCRAPER_PROVIDER selectors. Kept as constants so the factory and docs
+# share one source of truth.
+LLM_PROVIDER_OPENROUTER = "openrouter"
+LLM_PROVIDER_OPENCODEGO = "opencodego"
+STORE_PROVIDER_SQLITE = "sqlite"
+SCRAPER_PROVIDER_HTTP = "http"
+
 # Environment key prefix that the strict unknown-key guard enforces.
 _ATHOME_PREFIX = "ATHOME_"
 
@@ -78,6 +93,55 @@ class Settings(BaseSettings):
     )
     webshare_proxy_pass: str | None = Field(
         default=None, description="Webshare proxy password (optional)."
+    )
+
+    # -- Provider selection -------------------------------------------------
+    #
+    # These select which Interface-Adapter implementation is built by the
+    # provider factory (``athome_harness.providers``). Values are validated at
+    # factory time so Settings itself stays permissive.
+
+    # Which LLM transport to build: "openrouter" or "opencodego".
+    llm_provider: str = Field(
+        default=LLM_PROVIDER_OPENROUTER,
+        validation_alias="ATHOME_LLM_PROVIDER",
+        description="LLM provider adapter: openrouter or opencodego.",
+    )
+    # Which persistence backend to build; currently only "sqlite".
+    store_provider: str = Field(
+        default=STORE_PROVIDER_SQLITE,
+        validation_alias="ATHOME_STORE_PROVIDER",
+        description="Data store backend: sqlite.",
+    )
+    # Which scraper adapter the production fetch path builds; currently "http".
+    scraper_provider: str = Field(
+        default=SCRAPER_PROVIDER_HTTP,
+        validation_alias="ATHOME_SCRAPER_PROVIDER",
+        description="Scraper adapter: http.",
+    )
+
+    # -- OpencodeGo (used when llm_provider == "opencodego") ----------------
+
+    opencodego_api_key: str = Field(
+        default="", description="OpencodeGo API key (from OPENCODEGO_API_KEY)."
+    )
+    opencodego_model: str = Field(
+        default=DEFAULT_OPENCODEGO_MODEL,
+        validation_alias="ATHOME_OPENCODEGO_MODEL",
+        description="OpencodeGo model identifier (opencode-go/...).",
+    )
+    opencodego_base_url: str = Field(
+        default=DEFAULT_OPENCODEGO_URL,
+        validation_alias="ATHOME_OPENCODEGO_BASE_URL",
+        description="OpencodeGo OpenAI-compatible chat completions endpoint.",
+    )
+
+    # -- Store (used when store_provider == "sqlite") -----------------------
+
+    store_path: str = Field(
+        default="athome.db",
+        validation_alias="ATHOME_STORE_PATH",
+        description="SQLite database file path.",
     )
 
     general_model: str = Field(
