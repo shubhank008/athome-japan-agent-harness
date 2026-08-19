@@ -17,18 +17,23 @@ challenge detection), `scraping/playwright_adapter.py` (scaffold),
 (extraction tool), `.github/workflows/filter-map.yml` (weekly refresh), checked-in
 `filters/data/filter_map.v1.json`. M3: `scraping/list_parser.py` (results HTML ->
 `ListingSummary` list), `scraping/detail_parser.py` (detail HTML -> `ListingDetail`),
-live-captured fixtures in `tests/fixtures/`. 165 unit tests green; ruff and mypy clean.
-Feature 002 adds the Patchright cookie farmer and typed curl-cffi handoff;
-full tests, ruff, and mypy are green. No LLM, store, or orchestration yet.
+live-captured fixtures in `tests/fixtures/`. M3 parser hardening remains pending for
+building age, normalized building type, month-based deposit terms, detail disabled-feature
+coverage, and the required second/third detail fixtures. Feature 002 adds the Patchright
+cookie farmer and typed curl-cffi handoff; Feature 006 adds lean production refarming.
+Merged `origin/main` currently passes 190 unit tests, ruff, and mypy. No LLM, store, or
+orchestration yet.
 
 ## Active feature
 
 | Feature | Spec | Status |
 |---------|------|--------|
-| 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0, M1, M2 done; M3-M8 pending |
-| 002 Playwright Cookie Fetcher | `docs/specs/002-playwright-cookie-fetcher/` | done and verified on `feat/playwright-cookie-fetcher` |
-| 003 curl-cffi HTTP Integration | `docs/specs/003-curl-cffi-http-integration/` | implementation and offline gates done; live AtHome challenge remains unresolved |
-| 004 Playwright Challenge Diagnostics | `docs/specs/004-playwright-challenge-diagnostics/` | done; diagnostics, headed probe, and offline gates verified |
+| 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0, M1, M2 done; M3 merged with hardening follow-up |
+| 002 Playwright Cookie Fetcher | `docs/specs/002-playwright-cookie-fetcher/` | merged through PR #7; security boundary and live behavior require ongoing review |
+| 003 curl-cffi HTTP Integration | `docs/specs/003-curl-cffi-http-integration/` | merged through PR #7; bounded refarm path implemented |
+| 004 Playwright Challenge Diagnostics | `docs/specs/004-playwright-challenge-diagnostics/` | merged through PR #7; operator diagnostics path implemented |
+| 005 Patchright Runtime | `docs/specs/005-patchright-runtime/` | merged through PR #7; live challenge behavior remains operationally constrained |
+| 006 Lean Cookie Fetcher | `docs/specs/006-lean-cookie-fetcher/` | merged through PR #7; production diagnostics reduced to handoff/session state |
 
 ## Feature 001 summary
 
@@ -51,7 +56,7 @@ revalidation, vision A/B benchmarks.
 | M0 Skeleton | T01-T04 | done (2026-07-08, `feat/001-m0-skeleton`, verified) |
 | M1 Scraper core | T05-T09 | done (2026-07-08, `feat/001-m1-scraper`, PR #2 merged, independently verified) |
 | M2 Filter map | T10-T13 | done (2026-08-17, `feat/001-m2-filter-map`) |
-| M3 Parsing | T14-T16 | done (2026-08-18, `feat/playwright-cookie-fetcher`) |
+| M3 Parsing | T14-T16 | merged through PR #4; hardening follow-up pending |
 | M4 LLM layer | T17-T21 | todo |
 | M5 Store | T22-T23 | todo |
 | M6 Orchestration + CLI | T24-T26 | todo |

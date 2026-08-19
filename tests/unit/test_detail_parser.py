@@ -8,6 +8,7 @@ category rows, no map-link suffix) purely to prove graceful handling.
 
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -16,10 +17,23 @@ from athome_harness.scraping.detail_parser import parse_detail_page
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 DETAIL_FIXTURE = FIXTURES / "detail_1101570928.html"
+DETAIL_FIXTURE_1131157822 = FIXTURES / "detail_1131157822.html"
+DETAIL_FIXTURE_1122949022 = FIXTURES / "detail_1122949022.html"
+
+# Fixed frame for deterministic age assertions; matches the build dates captured.
+AGE_REF_DATE = date(2026, 8, 18)
 
 
 def _load_detail() -> str:
     return DETAIL_FIXTURE.read_text(encoding="utf-8")
+
+
+def _load_detail_1131157822() -> str:
+    return DETAIL_FIXTURE_1131157822.read_text(encoding="utf-8")
+
+
+def _load_detail_1122949022() -> str:
+    return DETAIL_FIXTURE_1122949022.read_text(encoding="utf-8")
 
 
 def test_captured_detail_identity() -> None:
@@ -115,3 +129,123 @@ def test_synthetic_detail_missing_optionals_parse_gracefully(
     assert detail.area_m2 == pytest.approx(40.10)
     assert detail.station == "テスト"
     assert detail.walk_minutes == 3.0
+
+
+def test_captured_detail_age_from_build_date() -> None:
+    """The new-build detail page exposes a near-zero age, never a silent None.
+
+    The ``築年月`` value (2026年7月) is an observed construction date, so it must be
+    converted to a small fractional age rather than recorded as ``None``.
+    """
+    detail = parse_detail_page(_load_detail(), ref_date=AGE_REF_DATE)
+    assert detail.age is not None
+    assert 0.0 <= detail.age < 1.0
+
+
+def test_captured_detail_age_from_older_build() -> None:
+    """An older captured build (2026年2月) yields a larger, still-positive age."""
+    detail = parse_detail_page(_load_detail_1131157822(), ref_date=AGE_REF_DATE)
+    assert detail.age is not None
+    assert 0.4 <= detail.age < 1.0
+
+
+def test_captured_detail_1122949022_identity_and_price() -> None:
+    """Third fixture parses correctly: key, URL, title, address, and price."""
+    detail = parse_detail_page(_load_detail_1122949022())
+    assert detail.athome_key == "1122949022"
+    assert detail.internal_id == "1122949022"
+    assert detail.url == "https://www.athome.co.jp/chintai/1122949022/"
+    assert "みおつくし大池橋" in detail.title
+    assert detail.address == "大阪府大阪市生野区中川西３丁目"
+    assert detail.price.rent == 59_500
+    assert detail.price.management_fee == 5_000
+    assert detail.price.deposit == 0
+    assert detail.price.deposit_raw == "なし"
+    assert detail.price.key_money == 0
+    assert detail.price.key_money_raw == "なし"
+
+
+def test_captured_detail_1122949022_property_fields() -> None:
+    """Third fixture property fields: floor plan, area, type, floors, station."""
+    detail = parse_detail_page(_load_detail_1122949022())
+    assert detail.floor_plan == "１Ｋ"
+    assert detail.area_m2 == pytest.approx(22.62)
+    assert detail.building_type == "賃貸マンション"
+    assert detail.floors == "10階建 / 9階"
+    assert detail.station == "桃谷"
+    assert detail.walk_minutes == 15.0
+
+
+def test_captured_detail_1122949022_age() -> None:
+    """Third fixture age from 築年月 2026年2月 against fixed ref date."""
+    detail = parse_detail_page(_load_detail_1122949022(), ref_date=AGE_REF_DATE)
+    assert detail.age is not None
+    assert 0.4 <= detail.age < 1.0
+
+
+def test_captured_detail_1122949022_facilities() -> None:
+    """Third fixture has facility features and no disabled markers."""
+    detail = parse_detail_page(_load_detail_1122949022())
+    assert len(detail.facility_features) > 0
+    assert detail.probable_negatives == []
+
+
+def test_captured_detail_price_raw_terms() -> None:
+    """Deposit/key money keep their raw terms alongside yen values."""
+    detail = parse_detail_page(_load_detail())
+    assert detail.price.deposit == 0
+    assert detail.price.deposit_raw == "なし"
+    assert detail.price.key_money == 70_000
+    assert detail.price.key_money_raw == "7万円"
+
+
+def test_synthetic_detail_age_years_form() -> None:
+    """A plain ``築年数`` value ``7年`` is used directly as the age in years."""
+    html = (
+        "<html><body><title>[999900100]</title>"
+        '<table class="dataTbl">'
+        "<tr><th>築年数</th><td>7年</td></tr>"
+        "</table></body></html>"
+    )
+    detail = parse_detail_page(html, ref_date=AGE_REF_DATE)
+    assert detail.age == pytest.approx(7.0)
+
+
+# Synthetic disabled-facility detail case: facility rows where some items carry
+# the ``facility_disabled-list`` class. Hand-built (not a live capture) because
+# the captured detail pages have no disabled markers; the list fixture covers the
+# list path, this covers the detail path (T16).
+SYNTHETIC_DISABLED_DETAIL_HTML = """
+<html><body>
+<title>テスト物件 ２０１ １Ｋ【アットホーム】[999900101]</title>
+<div class="paymentInfo typeChintai">
+  <dl class="data"><dt>賃料：</dt><dd>6万円</dd></dl>
+</div>
+<table class="dataTbl">
+  <tr><th>バス・トイレ</th>
+    <td>
+      <p>バス・トイレ別</p>
+      <p class="facility_disabled-list">浴室乾燥機</p>
+    </td>
+  </tr>
+  <tr><th>キッチン</th>
+    <td><p>システムキッチン、ガスコンロ</p></td>
+  </tr>
+  <tr><th>セキュリティー</th>
+    <td><p class="facility_disabled-list">オートロック</p></td>
+  </tr>
+</table>
+</body></html>
+"""
+
+
+def test_synthetic_detail_disabled_facilities_are_probable_negatives() -> None:
+    """Disabled-facility markers populate probable_negatives, enabled ones USP."""
+    detail = parse_detail_page(SYNTHETIC_DISABLED_DETAIL_HTML)
+    assert "バス・トイレ別" in detail.facility_features
+    assert "システムキッチン" in detail.facility_features
+    assert "浴室乾燥機" in detail.probable_negatives
+    assert "オートロック" in detail.probable_negatives
+    # Enabled items never leak into the negatives, and vice versa.
+    assert not any("システムキッチン" in n for n in detail.probable_negatives)
+    assert not any("オートロック" in f for f in detail.facility_features)

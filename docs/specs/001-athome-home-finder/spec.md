@@ -107,6 +107,72 @@ Y presented with reasons so I can act without opening dozens of tabs.
 - [ ] Every recommendation cites which hard filters and soft preferences it satisfies
       and which it violates, if any.
 
+
+## DOM Access Map (AtHome HTML contract)
+
+This access map is the maintenance reference for the rental list and detail parsers.
+Selectors and labels were verified against the captured Osaka fixtures on 2026-08-18.
+When AtHome changes markup, update this map and the corresponding fixture/parser tests
+in the same change. A challenge page is not a valid fixture and must be rejected before
+this map is applied.
+
+### Property list page: building and unit access map
+
+| Output field | DOM access path | Scope | Requiredness and parsing rule |
+|---|---|---|---|
+| Building title | `div.p-property--building > h2.p-property__title--building` | Building | Required for identity context; warn if absent. |
+| Address | `div.p-property--building dl.p-property__information-hint dd:nth-of-type(1)` | Building | Optional text; preserve the displayed address. |
+| Station | Same hint list, `dd:nth-of-type(2)`, station text matching `「...」駅` | Building | Optional; warn or return `None` when transit text has no station. |
+| Walk minutes | Same transport hint, `徒歩N分` | Building | Optional numeric value in minutes. |
+| Building type | Same hint list, `dd:nth-of-type(3)` | Building | Extract the type label only, not floor count or construction date. |
+| Unit identity | `div.p-property__room--detailbox[data-bukken-no]` | Unit | Required; missing keys must warn and skip only that unit. |
+| Room/floor | `li.p-property__room-number` | Unit | Optional; detached houses may omit it and must emit a warning. |
+| Rent | `li.p-property__room-rent p.p-property__information-price b.p-property__information-rent` | Unit | Required for a usable rental summary; bare values are in 万円. |
+| Management fee | `p.p-property__information-price > span` within the rent row | Unit | Optional yen value; absent means unknown, not necessarily zero. |
+| Deposit | `li.p-property__room-keymoney > p` | Unit | Optional; `なし`, yen, 万円, and month terms must remain distinguishable. |
+| Key money | `li.p-property__room-keymoney > span` | Unit | Optional; `なし`, yen, 万円, and month terms must remain distinguishable. |
+| Floor plan | `li.p-property__room-floorplan div.p-property__floor` | Unit | Optional displayed layout. |
+| Area | `li.p-property__room-floorplan > span` | Unit | Optional numeric m² value. |
+| USP tags | `div.p-property__information-facility li` without the disabled class | Unit | Enabled facility text becomes `usp_tags`. |
+| Probable negatives | `div.p-property__information-facility li.p-property__information-facility_disabled-list` | Unit | Disabled facility text becomes `probable_negatives`. |
+| Photos | `img[src]` or `img[data-original]` under the unit block | Unit | Resolve absolute and root-relative URLs; ignore missing images. |
+| Detail URL | Unit link or `/chintai/{data-bukken-no}/` fallback | Unit | Preserve the actual flow URL when available; do not hardcode rental paths for purchase pages. |
+| Building age | Building hint or detail-derived age field when exposed | Building/Unit | Required by FR-9 when available; never silently default an observed age to `None`. |
+
+### Property detail page: access map
+
+| Output field | DOM access path | Requiredness and parsing rule |
+|---|---|---|
+| AtHome key | `<title>` numeric `[N]` suffix, with canonical URL as fallback | Required identity; warn and reject if no stable key can be found. |
+| Title | `table.dataTbl` row whose `<th>` is `建物名・部屋番号` | Required display field when present. |
+| Address | `table.dataTbl` row `<th>` `住所` or `所在地` | Optional text; remove only the `地図で見る` UI suffix. |
+| Station and walk minutes | `table.dataTbl` row `<th>` `交通`, matching station and `徒歩N分` | Optional independently parsed values. |
+| Building type | `table.dataTbl` row `<th>` `物件種目` or `種目` | Optional display category. |
+| Floor plan | `table.dataTbl` row `<th>` `間取り` | Optional layout. |
+| Area | `table.dataTbl` row `<th>` `専有面積` or `面積` | Optional numeric m² value. |
+| Building age | `table.dataTbl` row `<th>` `築年月` or `築年数` | Required for FR-9 when exposed; normalize to the model's age representation. |
+| Floors | `table.dataTbl` row `<th>` `階建 / 階` | Optional raw floor/building text. |
+| Description | `table.dataTbl` row `<th>` `備考` | Optional free text. |
+| Rent | `div.paymentInfo.typeChintai dl.data` with `<dt>` containing `賃料` | Required for rental details; parse 万円 to yen. |
+| Management fee | Same payment block, `<dt>` containing `管理費` | Optional yen value. |
+| Deposit | Same payment block, `<dt>` `敷金` | Optional; preserve month-based terms distinctly from zero. |
+| Key money | Same payment block, `<dt>` `礼金` | Optional; preserve month-based terms distinctly from zero. |
+| Photo URLs | `#detail-image_view ul.zoomList li.item img[src|data-original]` | Optional; resolve absolute and root-relative URLs. |
+| Floor-plan image | Same photo item whose `dt#subCategory` is `間取図` | Optional URL and must also be present in `photo_urls` when available. |
+| USP tags | `#item-detai_basic__point dd` and `div.pointList ul.typeInline li img[alt]` | Prefer meaningful icon alt labels, otherwise use point text. |
+| Facility features | `table.dataTbl` rows with category `<th>` such as `バス・トイレ`, `キッチン`, `収納`, `設備・サービス`, `TV・通信`, `その他` | Enabled items become `facility_features`. |
+| Probable negatives | Facility `<td>`, `<p>`, `<span>`, or `<li>` carrying `facility_disabled-list` | Disabled items become `probable_negatives`; this requires a dedicated detail fixture/test. |
+
+### Access-map change checklist
+
+1. Confirm the response is not an AtHome challenge and record the redacted URL and
+   challenge marker if it is blocked.
+2. Compare the live DOM to the relevant table above, including labels and ancestor
+   scope, not just a matching text fragment.
+3. Update the parser and its captured/synthetic regression test together.
+4. Re-run the parser tests, full gates, and fixture sanity check before changing the
+   corresponding row from verified to current.
+
 ### US-005: Session memory
 **Description:** As a returning user, I want the agent to remember what it already
 showed me, what I saved, and what I rejected, so recommendations improve and never repeat.

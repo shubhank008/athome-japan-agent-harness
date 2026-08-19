@@ -40,3 +40,28 @@ Capture policy notes:
 - This particular detail page has no disabled-facility markers; `probable_negatives`
   resolves to an empty list for it. The disabled-facility edge case is covered by
   the list fixture above.
+- `築年月` is `2026年7月` (new build); the parser converts it to a small fractional
+  age against a fixed reference date for a deterministic regression assertion.
+
+## detail_1131157822.html
+
+- Source: public AtHome rental detail page for listing key `1131157822`
+  (「みおつくし大池橋 ９０２ １Ｋ」), a 賃貸マンション in 大阪市生野区.
+- Captured during M3 T14 from the project's configured HTTP fetch path
+  (`HttpDomAdapter` over curl-cffi), 2026-07-08 UTC.
+- Validated with `detect_athome_challenge`: no challenge, `valid=True`.
+- Content: full detail page with price table, property data table, photo set,
+  floor-plan image, and facility feature table; 29 facility features.
+- `築年月` is `2026年2月`; used for a deterministic age regression assertion.
+- `敷金`/`礼金` are both `なし`; no disabled-facility markers present.
+
+## detail_1122949022.html
+
+- Source: public AtHome rental detail page for listing key `1122949022`
+  (「みおつくし大池橋 ９０４ １Ｋ」), a 賃貸マンション in 大阪市生野区.
+- Captured during M3 T14 from the project's configured HTTP fetch path
+  (`HttpDomAdapter` over curl-cffi), 2026-07-08 UTC.
+- Validated with `detect_athome_challenge`: no challenge, `valid=True`.
+- Content: full detail page; 39 facility features.
+- `築年月` is `2026年2月`; used for a deterministic age regression assertion.
+- `敷金`/`礼金` are both `なし`; no disabled-facility markers present.

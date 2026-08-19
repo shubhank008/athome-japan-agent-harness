@@ -25,6 +25,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from datetime import date
 
 from selectolax.parser import HTMLParser, Node
 
@@ -55,6 +56,31 @@ _RE_MAN = re.compile(r"([0-9]+(?:\.[0-9]+)?)\s*万円")
 _RE_YEN = re.compile(r"([0-9,]+)\s*円")
 _RE_WALK = re.compile(r"徒歩([0-9]+)分")
 _RE_STATION = re.compile(r"「([^」]+)」駅")
+# Building-hint tokens that terminate the property-type label: a floor count
+# (``2階建``), a construction date (``2026年6月``), or a parenthesised age note.
+_RE_FLOOR_COUNT = re.compile(r"^[0-9]+階建")
+# Build-date form ``YYYY年M月`` inside the third hint (matched before the floor
+# count so a construction year is never mistaken for the building-type label).
+_RE_BUILD_DATE = re.compile(r"([0-9]{4})年([0-9]{1,2})月")
+_DAYS_PER_YEAR = 365.25
+
+
+def _build_age(building_info: str, ref_date: date) -> float | None:
+    """Return building age in years from the third hint's construction date.
+
+    ``building_info`` renders like ``賃貸アパート 3階建 2026年8月``; the ``YYYY年M月``
+    construction date is converted to fractional years since ``ref_date``
+    (clamped below at zero). Returns ``None`` (with a warning) when no
+    construction date is exposed, matching the detail-parser contract that an
+    observed age is never silently dropped.
+    """
+    match = _RE_BUILD_DATE.search(building_info)
+    if not match:
+        logger.warning("list_parser: no construction date in building hint %r", building_info)
+        return None
+    build_year, build_month = int(match.group(1)), int(match.group(2))
+    build_start = date(build_year, build_month, 1)
+    return max(0.0, (ref_date - build_start).days / _DAYS_PER_YEAR)
 
 
 @dataclass
@@ -66,11 +92,17 @@ class BuildingBlock:
     station: str | None
     walk_minutes: float | None
     building_type: str | None
+    age: float | None
     units: list[Node] = field(default_factory=list)
 
 
-def parse_list_page(html: str) -> list[ListingSummary]:
+def parse_list_page(html: str, ref_date: date | None = None) -> list[ListingSummary]:
     """Parse an AtHome results page into one :class:`ListingSummary` per unit.
+
+    ``ref_date`` is the frame used to convert a ``YYYY年M月`` construction date
+    (from the third building hint) into an age in years; it defaults to today.
+    Tests pass a fixed date so the age is deterministic; production callers rely
+    on the default.
 
     Raises nothing for missing optional fields: missing cells are logged as
     parse warnings and the affected unit is still emitted. Only structurally
@@ -79,7 +111,7 @@ def parse_list_page(html: str) -> list[ListingSummary]:
     tree = HTMLParser(html)
     summaries: list[ListingSummary] = []
     for building in tree.css(_BUILDING):
-        block = _parse_building_heading(building)
+        block = _parse_building_heading(building, ref_date or date.today())
         if not block.units:
             logger.warning("list_parser: building %r has no unit sub-blocks", block.title)
             continue
@@ -90,7 +122,7 @@ def parse_list_page(html: str) -> list[ListingSummary]:
     return summaries
 
 
-def _parse_building_heading(building: Node) -> BuildingBlock:
+def _parse_building_heading(building: Node, ref_date: date) -> BuildingBlock:
     """Extract the shared building identity and the unit sub-block nodes."""
     title_node = building.css_first(_TITLE)
     title = title_node.text(strip=True) if title_node else ""
@@ -103,6 +135,7 @@ def _parse_building_heading(building: Node) -> BuildingBlock:
     station = _extract_station(transport)
     walk = _extract_walk_minutes(transport)
     building_type = _extract_building_type(building_info)
+    age = _build_age(building_info, ref_date)
 
     return BuildingBlock(
         title=title,
@@ -110,6 +143,7 @@ def _parse_building_heading(building: Node) -> BuildingBlock:
         station=station,
         walk_minutes=walk,
         building_type=building_type,
+        age=age,
         units=building.css(_DETAILBOX),
     )
 
@@ -127,9 +161,20 @@ def _extract_walk_minutes(transport: str) -> float | None:
 
 
 def _extract_building_type(building_info: str) -> str | None:
-    """Return the first label of the building info hint (e.g. 賃貸アパート)."""
-    first = building_info.split("\n")[0].strip()
-    return first or None
+    """Return only the property-type label from the building info hint.
+
+    The hint renders like ``賃貸アパート 2階建 2026年6月`` (type, floor count,
+    construction date, occasionally a parenthesised age note), so the label is
+    the leading tokens up to the first floor-count or date token. Floor count
+    and construction date are excluded per the DOM access map.
+    """
+    type_tokens: list[str] = []
+    for token in building_info.split():
+        if _RE_FLOOR_COUNT.match(token) or _RE_BUILD_DATE.match(token) or token.startswith("("):
+            break
+        type_tokens.append(token)
+    label = " ".join(type_tokens).strip()
+    return label or None
 
 
 def _parse_unit(unit: Node, block: BuildingBlock) -> ListingSummary | None:
@@ -159,7 +204,7 @@ def _parse_unit(unit: Node, block: BuildingBlock) -> ListingSummary | None:
         walk_minutes=block.walk_minutes,
         building_type=block.building_type,
         floors=floors,
-        age=None,
+        age=block.age,
         price=price,
         floor_plan=floor_plan,
         area_m2=area,
@@ -184,11 +229,17 @@ def _extract_room_number(unit: Node, block: BuildingBlock) -> str | None:
 
 
 def _extract_price(unit: Node, block: BuildingBlock) -> PriceBreakdown:
-    """Parse rent, management fee, deposit, and key money for one unit."""
+    """Parse rent, management fee, deposit, and key money for one unit.
+
+    Deposit/key-money cells keep their raw displayed term (``なし``, ``5万円``,
+    ``1ヶ月``, ...) alongside the numeric yen value so a month-based term is never
+    indistinguishable from zero.
+    """
     rent = 0
     management_fee = 0
     deposit = 0
     key_money = 0
+    deposit_raw = key_money_raw = None
 
     rent_node = unit.css_first(_RENT)
     if rent_node:
@@ -197,12 +248,14 @@ def _extract_price(unit: Node, block: BuildingBlock) -> PriceBreakdown:
     if price_node is not None:
         management_fee = _parse_management_fee(price_node.text(separator="", strip=True))
 
-    deposit, key_money = _parse_deposit_key_money(unit, block)
+    deposit, key_money, deposit_raw, key_money_raw = _parse_deposit_key_money(unit, block)
     return PriceBreakdown(
         rent=rent,
         management_fee=management_fee,
         deposit=deposit,
         key_money=key_money,
+        deposit_raw=deposit_raw,
+        key_money_raw=key_money_raw,
     )
 
 
@@ -215,23 +268,25 @@ def _parse_management_fee(raw: str) -> int:
     return _to_int(match.group(1))
 
 
-def _parse_deposit_key_money(unit: Node, block: BuildingBlock) -> tuple[int, int]:
-    """Return ``(deposit, key_money)`` yen, warning on non-convertible values.
+def _parse_deposit_key_money(
+    unit: Node, block: BuildingBlock
+) -> tuple[int, int, str | None, str | None]:
+    """Return ``(deposit, key_money, deposit_raw, key_money_raw)``.
 
-    A month-based deposit/key money (e.g. ``1ヶ月``) cannot be expressed as a
-    fixed yen amount without the rent context, so it is logged as a parse
-    warning and recorded as 0 rather than being silently misrepresented.
+    Yen amounts parse through the optional-numeric path so ``なし`` yields zero,
+    while the raw displayed term (``なし``, ``1ヶ月``, ``5万円``) is preserved so a
+    month-based deposit/key money is never indistinguishable from zero.
     """
     node = unit.css_first(_KEYMONEY)
     if node is None:
-        return (0, 0)
+        return (0, 0, None, None)
     texts = [p.text(strip=True) for p in node.css("p")]
     texts += [s.text(strip=True) for s in node.css("span")]
     deposit_text = texts[0] if texts else ""
     key_money_text = texts[1] if len(texts) > 1 else ""
     deposit = _parse_optional_yen(deposit_text, "deposit", block)
     key_money = _parse_optional_yen(key_money_text, "key money", block)
-    return (deposit, key_money)
+    return (deposit, key_money, deposit_text or None, key_money_text or None)
 
 
 def _parse_optional_yen(raw: str, label: str, block: BuildingBlock) -> int:
