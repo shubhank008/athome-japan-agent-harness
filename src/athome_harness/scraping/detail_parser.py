@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import re
+from datetime import date
 
 from selectolax.parser import HTMLParser, Node
 
@@ -45,6 +46,12 @@ _RE_WALK = re.compile(r"徒歩([0-9]+)分")
 # Matches a station name immediately before 駅, with or without 「」 quotes.
 _RE_STATION = re.compile(r"「?([^/「」\s]{1,24})」?駅")
 _RE_AREA = re.compile(r"([0-9]+(?:\.[0-9]+)?)")
+# Build-date form ``YYYY年M月`` (checked before the plain-years form below).
+_RE_BUILD_DATE = re.compile(r"([0-9]{4})年([0-9]{1,2})月")
+# Plain age form ``N年`` (e.g. 築7年). Guarded by the build-date check above so a
+# 4-digit construction year is never misread as an age in years.
+_RE_AGE_YEARS = re.compile(r"([0-9]+(?:\.[0-9]+)?)年")
+_DAYS_PER_YEAR = 365.25
 
 _MAP_LINK_SUFFIX = "地図で見る"
 
@@ -70,6 +77,7 @@ BUILDING_TYPE_LABELS = ("物件種目", "種目")
 FLOOR_PLAN_LABELS = ("間取り",)
 AREA_LABELS = ("専有面積", "面積")
 FLOORS_LABELS = ("階建 / 階",)
+AGE_LABELS = ("築年月", "築年数")
 DESCRIPTION_LABELS = ("備考",)
 
 
@@ -81,11 +89,15 @@ def _field(fields: dict[str, str], labels: tuple[str, ...]) -> str | None:
     return None
 
 
-def parse_detail_page(html: str) -> ListingDetail:
+def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     """Parse an AtHome detail page into a :class:`ListingDetail`.
 
     Required identity fields (athome_key) come from the page title/URL; optional
     cells that are absent are logged as warnings and left as ``None``/empty.
+
+    ``ref_date`` is the frame used to convert a ``築年月`` construction date into
+    an age in years; it defaults to today. Tests pass a fixed date so the age is
+    deterministic; production callers rely on the default.
     """
     tree = HTMLParser(html)
     athome_key = _extract_key(tree, html)
@@ -95,6 +107,7 @@ def parse_detail_page(html: str) -> ListingDetail:
     floor_plan_image = _extract_floor_plan_image(tree)
     point_text, point_icons = _extract_usp(tree)
     facility_features, probable_negatives = _extract_facilities(tree)
+    age = _extract_age(fields, ref_date or date.today())
 
     usp_tags = point_icons if point_icons else ([point_text] if point_text else [])
     title = _field(fields, TITLE_LABELS) or ""
@@ -111,7 +124,7 @@ def parse_detail_page(html: str) -> ListingDetail:
         walk_minutes=walk,
         building_type=_field(fields, BUILDING_TYPE_LABELS),
         floors=_field(fields, FLOORS_LABELS),
-        age=None,
+        age=age,
         price=price,
         floor_plan=_field(fields, FLOOR_PLAN_LABELS),
         area_m2=_parse_area(_field(fields, AREA_LABELS)),
@@ -122,6 +135,29 @@ def parse_detail_page(html: str) -> ListingDetail:
         floor_plan_image_url=floor_plan_image,
         facility_features=facility_features,
     )
+
+
+def _extract_age(fields: dict[str, str], ref_date: date) -> float | None:
+    """Return building age in years from ``築年月``/``築年数``, or ``None``.
+
+    A ``YYYY年M月`` build date is converted to fractional years since ``ref_date``
+    (clamped below at zero for future/new builds). A plain ``N年`` value is used
+    directly. An observed age is never silently dropped: only a fully absent
+    field yields ``None``.
+    """
+    raw = _field(fields, AGE_LABELS)
+    if not raw:
+        return None
+    build = _RE_BUILD_DATE.search(raw)
+    if build:
+        build_year, build_month = int(build.group(1)), int(build.group(2))
+        build_start = date(build_year, build_month, 1)
+        return max(0.0, (ref_date - build_start).days / _DAYS_PER_YEAR)
+    years = _RE_AGE_YEARS.search(raw)
+    if years:
+        return max(0.0, float(years.group(1)))
+    logger.warning("detail_parser: unparsable building age %r", raw)
+    return None
 
 
 def _extract_key(tree: HTMLParser, html: str) -> str:
@@ -160,8 +196,14 @@ def _extract_data_fields(tree: HTMLParser) -> dict[str, str]:
 
 
 def _extract_price(tree: HTMLParser) -> PriceBreakdown:
-    """Parse rent, management fee, deposit, and key money from the price block."""
+    """Parse rent, management fee, deposit, and key money from the price block.
+
+    Deposit/key-money cells keep their raw displayed term (``なし``, ``7万円``,
+    ``1ヶ月``, ...) alongside the numeric yen value, so a month-based term is
+    never indistinguishable from zero.
+    """
     rent = management_fee = deposit = key_money = 0
+    deposit_raw = key_money_raw = None
     payment = tree.css_first(_PAYMENT_INFO)
     if payment is not None:
         for dl in payment.css("dl.data"):
@@ -177,13 +219,17 @@ def _extract_price(tree: HTMLParser) -> PriceBreakdown:
                 management_fee = _parse_yen(value)
             elif "敷金" in label:
                 deposit = _parse_optional_yen(value, "deposit")
+                deposit_raw = value
             elif "礼金" in label:
                 key_money = _parse_optional_yen(value, "key money")
+                key_money_raw = value
     return PriceBreakdown(
         rent=rent,
         management_fee=management_fee,
         deposit=deposit,
         key_money=key_money,
+        deposit_raw=deposit_raw,
+        key_money_raw=key_money_raw,
     )
 
 
