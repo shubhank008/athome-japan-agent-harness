@@ -209,15 +209,12 @@ def _single_bool_code(flow: str, field_name: str, filter_map: FilterMap) -> str:
     options = _field_options(flow, field_name, filter_map)
     if len(options) != 1:
         raise UnknownFilter(
-            f"{flow}.{field_name}: bool field must expose exactly one option, "
-            f"found {len(options)}"
+            f"{flow}.{field_name}: bool field must expose exactly one option, found {len(options)}"
         )
     return options[0].code
 
 
-def _field_options(
-    flow: str, field_name: str, filter_map: FilterMap
-) -> list[FilterOption]:
+def _field_options(flow: str, field_name: str, filter_map: FilterMap) -> list[FilterOption]:
     """Return the ordered options for ``(flow, field_name)`` from the snapshot.
 
     The snapshot stores options as pydantic :class:`FilterOption` objects, so
@@ -232,9 +229,7 @@ def _field_options(
     return options
 
 
-def _require_known_code(
-    flow: str, field_name: str, code: str, filter_map: FilterMap
-) -> None:
+def _require_known_code(flow: str, field_name: str, code: str, filter_map: FilterMap) -> None:
     """Raise if ``code`` is not a selectable option of ``(flow, field)``."""
     options = _field_options(flow, field_name, filter_map)
     if any(option.code == code for option in options):
@@ -276,4 +271,3 @@ def _bool_value(flow: str, field_name: str, values: list[str]) -> bool:
     if raw in _FALSE_WORDS:
         return False
     raise UnknownFilterValue(f"{flow}.{field_name}: unparseable bool toggle '{values[0]}'")
-

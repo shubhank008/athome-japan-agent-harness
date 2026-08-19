@@ -96,7 +96,8 @@ revalidation, vision A/B benchmarks.
   Patchright verification reached AtHome but remained on the security challenge after
   one permitted Click to Verify attempt; before/after captures were retained only under
   ignored `debug/` paths.
-- 2026-07-08: Challenge diagnostics use browser trace and WebM recording plus redacted
-  JSONL lifecycle events. Automated verification is limited to one frame-aware semantic
-  press-hold click; puzzle sliders are not dragged or solved programmatically. A separate
-  headed probe supports operator observation and manual interaction.
+- 2026-07-08: Challenge diagnostics (browser trace, WebM, screenshots, JSONL events)
+  live exclusively in the operator probe; the production farmer is lean (spec 006) and
+  persists only the handoff and session_state. Automated verification is limited to one
+  frame-aware semantic press-hold click; puzzle sliders are not dragged or solved
+  programmatically.

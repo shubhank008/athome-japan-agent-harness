@@ -22,12 +22,8 @@ def _build_map() -> FilterMap:
     """Build the validated filter map from the deterministic fixtures."""
     from tools.dump_filter_map import extract_flow
 
-    rent = extract_flow(
-        (FIXTURES / "filter_map_rent.html").read_text(encoding="utf-8"), "rent"
-    )
-    buy = extract_flow(
-        (FIXTURES / "filter_map_buy.html").read_text(encoding="utf-8"), "buy"
-    )
+    rent = extract_flow((FIXTURES / "filter_map_rent.html").read_text(encoding="utf-8"), "rent")
+    buy = extract_flow((FIXTURES / "filter_map_buy.html").read_text(encoding="utf-8"), "buy")
     filter_map = FilterMap(
         version=SUPPORTED_SCHEMA_VERSION,
         content_hash="0" * 12,
@@ -56,6 +52,7 @@ def _params(plan: SearchPlan) -> dict[str, list[str]]:
 # --------------------------------------------------------------------------
 # Cardinalities
 # --------------------------------------------------------------------------
+
 
 def test_single_select_encodes_one_pair() -> None:
     """single: FIELD=<code>."""
@@ -118,6 +115,7 @@ def test_bool_false_spellings_emit_nothing(word: str) -> None:
 # Unknown filters and values must raise, never guess
 # ---------------------------------------------------------------------------
 
+
 def test_unknown_filter_raises() -> None:
     with pytest.raises(UnknownFilter, match="no filter named"):
         encode_plan(_plan("rent", {"BOGUS": ["x"]}), _build_map())
@@ -156,6 +154,7 @@ def test_no_unknown_marker_emitted(caplog) -> None:
 # ---------------------------------------------------------------------------
 # Flow-context collisions
 # ---------------------------------------------------------------------------
+
 
 def test_same_code_encodes_per_flow() -> None:
     """The same code 'km002' in rent and buy must map in its own flow's map."""

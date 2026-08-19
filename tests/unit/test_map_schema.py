@@ -31,12 +31,8 @@ def fixture_map() -> FilterMap:
     """Build the validated filter map from the deterministic fixture pages."""
     from tools.dump_filter_map import extract_flow
 
-    rent = extract_flow(
-        (FIXTURES / "filter_map_rent.html").read_text(encoding="utf-8"), "rent"
-    )
-    buy = extract_flow(
-        (FIXTURES / "filter_map_buy.html").read_text(encoding="utf-8"), "buy"
-    )
+    rent = extract_flow((FIXTURES / "filter_map_rent.html").read_text(encoding="utf-8"), "rent")
+    buy = extract_flow((FIXTURES / "filter_map_buy.html").read_text(encoding="utf-8"), "buy")
     filter_map = FilterMap(
         version=SUPPORTED_SCHEMA_VERSION,
         content_hash=compute_content_hash({"rent": rent, "buy": buy}),
@@ -87,9 +83,7 @@ def test_canonical_payload_is_stable_and_deterministic() -> None:
     first = canonical_payload(filter_map.version, filter_map.mappings)
     second = canonical_payload(filter_map.version, filter_map.mappings)
     assert first == second
-    assert compute_content_hash(filter_map.mappings) == compute_content_hash(
-        filter_map.mappings
-    )
+    assert compute_content_hash(filter_map.mappings) == compute_content_hash(filter_map.mappings)
     # The hash is the standard 12-hex-char truncation of SHA-256.
     assert len(compute_content_hash(filter_map.mappings)) == 12
     assert all(c in "0123456789abcdef" for c in compute_content_hash(filter_map.mappings))
@@ -98,6 +92,7 @@ def test_canonical_payload_is_stable_and_deterministic() -> None:
 # ---------------------------------------------------------------------------
 # Schema version
 # ---------------------------------------------------------------------------
+
 
 def test_unsupported_version_is_rejected() -> None:
     """A map with a version we do not understand must be refused."""
@@ -117,6 +112,7 @@ def test_validate_rejects_non_filtermap() -> None:
 # ---------------------------------------------------------------------------
 # Flow and filter presence
 # ---------------------------------------------------------------------------
+
 
 def test_unknown_flow_is_rejected() -> None:
     """A flow name outside rent/buy must be a schema violation."""
@@ -168,6 +164,7 @@ def test_unknown_filter_name_is_rejected() -> None:
 # ---------------------------------------------------------------------------
 # Option-level rules
 # ---------------------------------------------------------------------------
+
 
 def test_empty_option_code_rejected() -> None:
     filter_map = fixture_map()

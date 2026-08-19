@@ -27,6 +27,7 @@ orchestration are pending.
 - [docs/specs/003-curl-cffi-http-integration/](docs/specs/003-curl-cffi-http-integration/) -- feature 003 curl-cffi HTTP adapter integration
 - [docs/specs/004-playwright-challenge-diagnostics/](docs/specs/004-playwright-challenge-diagnostics/) -- feature 004 browser challenge diagnostics and headed probe
 - [docs/specs/005-patchright-runtime/](docs/specs/005-patchright-runtime/) -- feature 005 Patchright browser runtime migration
+- [docs/specs/006-lean-cookie-fetcher/](docs/specs/006-lean-cookie-fetcher/) -- feature 006 lean production cookie fetcher (diagnostics moved to probe-only)
 - [AGENTS.md](AGENTS.md) -- agent workflow and architecture invariants
 
 ## Browser cookie handoff
@@ -67,13 +68,13 @@ ATHOME_LIVE_TEST=1 pytest -m live tests/live/test_playwright_curl_live.py
 
 The farmer uses one headless Patchright persistent context with the installed Chrome
 channel and the existing stealth compatibility hook, waits three seconds after render,
-and captures challenge HTML/screenshots
-under `debug/` when the `Click to verify` flow appears. It performs at most one
-visible press-hold verification click and never drags a puzzle piece. Diagnostics
-also write a browser trace, WebM video, and redacted JSONL event log to `debug/`,
-including evidence when the challenge remains blocked. The handoff is bound to the
-same proxy and user agent; workers must refarm when curl-cffi is blocked again.
-`debug/` is ignored because it contains cookies and browser captures.
+and persists only the handoff (`cookie_handoff_<proxy>.json`, `cookies.txt`) and a
+`session_state.json` snapshot. It performs at most one visible press-hold verification
+click and never drags a puzzle piece. Screenshots, browser trace, video, and event
+log are captured only by the operator probe (see below), not the production farmer.
+The handoff is bound to the same proxy and user agent; workers must refarm when
+curl-cffi is blocked again. `debug/` is ignored because it contains cookies and
+session data.
 
 For an operator-driven headed observation, run this locally on the machine whose
 IP and browser window you want to inspect. The command pauses after the initial
