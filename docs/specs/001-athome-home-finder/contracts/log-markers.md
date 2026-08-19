@@ -35,6 +35,34 @@ All values are examples; tests match on marker name and required keys, not exact
 [PARTIAL_REPORT] reason=<budget|block> listings=<n>
 ```
 
+## Refarm orchestration markers (SessionRefarmer, M7 / T27)
+
+The bounded browser refarm loop wraps the synchronous HTTP adapter. It runs a
+direct attempt first, then farms a fresh browser session on block and retries
+once (bounded by `max_refarms`). These markers prove that loop ran in order;
+the M7 integration test asserts their relative order and that the forbidden
+failure patterns never appear alongside them.
+
+```
+[REHANDOFF_TRIGGERED] url=<redacted> signature=<403|429|captcha> refarms=<n>
+[REHANDOFF_FARMED] proxy=<identity|direct> cookies=<n>
+[REHANDOFF_STILL_BLOCKED] url=<redacted> signature=<403|429|captcha>
+[CURL_HANDOFF_BOUND] proxy=<identity|direct> cookies=<n> impersonate=<profile>
+[CURL_BLOCK_REHANDOFF] url=<redacted> signature=<403|429|captcha>
+```
+
+The adapter-internal `[CURL_REQUEST]` line records each in-flight request and is
+expected, but is not a contract marker on its own. In a successful direct-first
+recovery the markers must appear in this relative order:
+
+```
+[BLOCK_DETECTED] -> [REHANDOFF_TRIGGERED] -> [REHANDOFF_FARMED] -> [CURL_HANDOFF_BOUND]
+```
+
+When the rebound attempt is still blocked, `[REHANDOFF_STILL_BLOCKED]` appears
+after `[REHANDOFF_FARMED]` and the original block is re-raised without further
+farming (bounded by `max_refarms`).
+
 ## Maintenance-tool markers (tools/dump_filter_map.py)
 
 ```
