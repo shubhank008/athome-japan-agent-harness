@@ -30,7 +30,7 @@ src/athome_harness/
                             #   Recommendation, FilterMap, RunReport
   llm/
     base.py                 # BaseLLMProvider
-    openrouter.py           # OpenRouter impl (httpx)
+    openrouter.py           # OpenRouter impl (curl-cffi)
     query_parser.py         # NL query -> SearchPlan (hard filters + soft prefs)
     shortlister.py          # harvest -> top X (batched scoring)
     recommender.py          # details -> top Y report (md + json)
@@ -39,7 +39,7 @@ src/athome_harness/
     encoder.py              # SearchPlan -> AtHome POST params via filter map
   scraping/
     base.py                 # BaseScraper, BlockDetected, ProxyProvider iface
-    http_adapter.py         # httpx + selectolax DOM adapter
+    http_adapter.py         # curl-cffi + selectolax DOM adapter
     playwright_adapter.py   # scaffold only, conforms to BaseScraper
     rate_limiter.py         # global polite limiter + jitter
     list_parser.py          # results HTML -> ListingSummary (multi-unit support)

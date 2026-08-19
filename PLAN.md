@@ -4,25 +4,31 @@ Live project plan. Updated after every feature or update, per AGENTS.md.
 
 ## Current state
 
-M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), and M3 (parsing)
-implemented and verified. M0: `config.py` (strict env parser + `Budgets`), `models.py`
-(pydantic data models), `pyproject.toml` + exact-pinned `requirements.txt`. M1:
-`scraping/base.py` (`BaseScraper`, `BlockDetected`, `ProxyProvider`),
-`scraping/rate_limiter.py` (token-bucket with jitter), `scraping/http_adapter.py`
-(curl-cffi + selectolax DOM adapter with block detection, proxy rotation, and AtHome
-challenge detection), `scraping/playwright_adapter.py` (scaffold),
-`scraping/proxy/base.py` + `scraping/proxy/webshare.py` (proxy rotation policy). M2:
-`filters/map_schema.py` (versioned schema + validation with missing-flow rejection),
-`filters/encoder.py` (SearchPlan -> POST params), `tools/dump_filter_map.py`
+M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), M3 (parsing),
+and M4 (LLM layer) implemented and verified. M0: `config.py` (strict env parser +
+`Budgets`), `models.py` (pydantic data models), `pyproject.toml` + exact-pinned
+`requirements.txt`. M1: `scraping/base.py` (`BaseScraper`, `BlockDetected`,
+`ProxyProvider`), `scraping/rate_limiter.py` (token-bucket with jitter),
+`scraping/http_adapter.py` (curl-cffi + selectolax DOM adapter with block detection,
+proxy rotation, and AtHome challenge detection), `scraping/playwright_adapter.py`
+(scaffold), `scraping/proxy/base.py` + `scraping/proxy/webshare.py` (proxy rotation
+policy). M2: `filters/map_schema.py` (versioned schema + validation with missing-flow
+rejection), `filters/encoder.py` (SearchPlan -> POST params), `tools/dump_filter_map.py`
 (extraction tool), `.github/workflows/filter-map.yml` (weekly refresh), checked-in
 `filters/data/filter_map.v1.json`. M3: `scraping/list_parser.py` (results HTML ->
 `ListingSummary` list), `scraping/detail_parser.py` (detail HTML -> `ListingDetail`),
-live-captured fixtures in `tests/fixtures/`. M3 parser hardening remains pending for
-building age, normalized building type, month-based deposit terms, detail disabled-feature
-coverage, and the required second/third detail fixtures. Feature 002 adds the Patchright
-cookie farmer and typed curl-cffi handoff; Feature 006 adds lean production refarming.
-Merged `origin/main` currently passes 190 unit tests, ruff, and mypy. No LLM, store, or
-orchestration yet.
+live-captured fixtures in `tests/fixtures/`. M4: `llm/base.py` (BaseLLMProvider with
+schema-validated completion, token accounting, exactly-one repair retry),
+`llm/openrouter.py` (OpenRouter transport via curl-cffi, injectable session),
+`llm/query_parser.py` (NL -> SearchPlan with rent/buy flow resolution and clarification),
+`llm/shortlister.py` (token-bounded batched scoring, ordered top-X with rationales),
+`llm/recommender.py` (top-Y ranking with reasons and violated constraints, markdown +
+JSON reports with golden-file tests). `ATHOME_LLM_MAX_TOKENS` budget added to config and
+`.env.example`. M3 parser hardening remains pending for building age, normalized building
+type, month-based deposit terms, detail disabled-feature coverage, and the required
+second/third detail fixtures. Feature 002 adds the Patchright cookie farmer and typed
+curl-cffi handoff; Feature 006 adds lean production refarming. Merged `origin/main`
+currently passes 190+ unit tests, ruff, and mypy.
 
 ## Active feature
 
@@ -58,7 +64,7 @@ revalidation, vision A/B benchmarks.
 | M1 Scraper core | T05-T09 | done (2026-07-08, `feat/001-m1-scraper`, PR #2 merged, independently verified) |
 | M2 Filter map | T10-T13 | done (2026-08-17, `feat/001-m2-filter-map`) |
 | M3 Parsing | T14-T16 | merged through PR #4; hardening follow-up pending |
-| M4 LLM layer | T17-T21 | todo |
+| M4 LLM layer | T17-T21 | done (2026-08-19, `feat/001-m4-llm-layer-fresh`) |
 | M5 Store | T22-T23 | todo |
 | M6 Orchestration + CLI | T24-T26 | todo |
 | M7 Maintenance surfaces | T27-T28 | todo |
