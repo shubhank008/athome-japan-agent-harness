@@ -57,6 +57,29 @@ def test_price_components_reject_negative() -> None:
         PriceBreakdown(rent=-1)
 
 
+def test_price_raw_terms_preserve_month_based_terms() -> None:
+    """Raw terms distinguish a ``1ヶ月`` month term from ``なし``/zero.
+
+    Both share numeric 0, but the raw field keeps them apart.
+    """
+    month = PriceBreakdown(rent=80000, deposit=0, deposit_raw="1ヶ月")
+    none_ = PriceBreakdown(rent=80000, deposit=0, deposit_raw="なし")
+    assert month.deposit == none_.deposit == 0
+    assert month.deposit_raw == "1ヶ月"
+    assert none_.deposit_raw == "なし"
+    assert month.deposit_raw != none_.deposit_raw
+
+
+def test_price_raw_terms_default_when_omitted() -> None:
+    """Existing callers omitting raw fields keep working (backwards compatible)."""
+    price = PriceBreakdown(rent=80000, deposit=200000, key_money=0)
+    assert price.deposit == 200000
+    assert price.key_money == 0
+    assert price.deposit_raw is None
+    assert price.key_money_raw is None
+    assert price.total == 280000
+
+
 def test_area_must_be_non_negative() -> None:
     """Floor area cannot be negative."""
     negative = _listing().model_dump()

@@ -25,6 +25,15 @@ class PriceBreakdown(BaseModel):
     management_fee: int = Field(default=0, ge=0, description="Monthly management fee in yen.")
     deposit: int = Field(default=0, ge=0, description="Upfront deposit in yen.")
     key_money: int = Field(default=0, ge=0, description="Upfront key money in yen.")
+    # Raw deposit/key-money terms as displayed (e.g. ``1ヶ月``), preserved so a
+    # month-based term is never indistinguishable from ``なし``/zero, which
+    # cannot be converted to yen without the rent context. ``None`` when absent.
+    deposit_raw: str | None = Field(
+        default=None, description="Upfront deposit term as displayed, e.g. 1ヶ月."
+    )
+    key_money_raw: str | None = Field(
+        default=None, description="Upfront key-money term as displayed, e.g. 1ヶ月."
+    )
 
     @property
     def total(self) -> int:
@@ -53,7 +62,12 @@ class ListingSummary(BaseModel):
     )
     floors: str | None = Field(default=None, description="Floor/build-height descriptor, raw text.")
     age: float | None = Field(
-        default=None, ge=0, description="Building age in years; None for new builds."
+        default=None,
+        ge=0,
+        description=(
+            "Building age in years. A new build with an observed construction date "
+            "yields a value near zero; None only when no age/build date is exposed."
+        ),
     )
     price: PriceBreakdown = Field(description="Monetary breakdown for the unit.")
     floor_plan: str | None = Field(default=None, description="Layout descriptor (e.g. 1LDK).")
