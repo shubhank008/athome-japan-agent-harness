@@ -38,7 +38,7 @@ from athome_harness.filters.map_schema import (
     validate,
 )
 from athome_harness.models import FilterMap, FilterOption
-from athome_harness.scraping.base import BaseScraper, BlockDetected, redact_url
+from athome_harness.scraping.base import BlockDetected, redact_url
 
 logger = logging.getLogger(__name__)
 
@@ -290,22 +290,11 @@ def check_map(path: str | Path) -> tuple[int, str]:
     )
 
 
-def build_fetch(adapter: BaseScraper) -> FetchFn:
-    """Bind a fetcher to an adapter's ``fetch_html`` (transport hook)."""
-
-    def fetch(url: str) -> str:
-        return adapter.fetch_html(url)
-
-    return fetch
-
-
 def _default_fetcher() -> FetchFn:
-    """Return the production fetcher (HttpDomAdapter over plain HTTP)."""
-    from athome_harness.config import Budgets
-    from athome_harness.scraping.http_adapter import HttpDomAdapter
+    """Return the production fetcher from the configured scraper provider."""
+    from athome_harness.providers import build_production_fetch
 
-    adapter = HttpDomAdapter(Budgets())
-    return build_fetch(adapter)
+    return build_production_fetch()
 
 
 def default_fetcher() -> FetchFn:
