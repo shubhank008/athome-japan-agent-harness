@@ -144,9 +144,7 @@ def test_captured_detail_age_from_build_date() -> None:
 
 def test_captured_detail_age_from_older_build() -> None:
     """An older captured build (2026年2月) yields a larger, still-positive age."""
-    detail = parse_detail_page(
-        _load_detail_1131157822(), ref_date=AGE_REF_DATE
-    )
+    detail = parse_detail_page(_load_detail_1131157822(), ref_date=AGE_REF_DATE)
     assert detail.age is not None
     assert 0.4 <= detail.age < 1.0
 

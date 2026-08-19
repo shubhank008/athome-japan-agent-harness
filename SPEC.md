@@ -107,8 +107,12 @@ The mapping of (flow, field) -> [{code, label}] is extracted from rendered HTML 
 - `ListingSummary`: one per unit (multi-unit buildings yield several summaries sharing a
   building identity). Fields: internal_id, athome_key (BKLISTID), url, title, address,
   station + walk_minutes, building_type, floors, age, rent, management_fee, deposit,
-  key_money, floor_plan, area_m2, usp_tags[], probable_negatives[], photo_urls[].
-- `ListingDetail`: ListingSummary + full text fields, all photo_urls, floor_plan_image_url.
+  deposit_raw, key_money, key_money_raw, floor_plan, area_m2, usp_tags[],
+  probable_negatives[], photo_urls[]. Raw deposit/key-money terms (e.g. ``1ヶ月``) are
+  preserved alongside yen values so month-based terms are never indistinguishable from
+  zero.
+- `ListingDetail`: ListingSummary + full text fields, all photo_urls, floor_plan_image_url,
+  facility_features[].
 - `Recommendation`: listing ref, rank, reasons[], satisfied_constraints[],
   violated_constraints[], probable_negatives[].
 - `FilterMap`: versioned (flow, field) -> options, with content hash.

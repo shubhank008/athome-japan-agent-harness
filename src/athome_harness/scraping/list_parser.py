@@ -170,11 +170,7 @@ def _extract_building_type(building_info: str) -> str | None:
     """
     type_tokens: list[str] = []
     for token in building_info.split():
-        if (
-            _RE_FLOOR_COUNT.match(token)
-            or _RE_BUILD_DATE.match(token)
-            or token.startswith("(")
-        ):
+        if _RE_FLOOR_COUNT.match(token) or _RE_BUILD_DATE.match(token) or token.startswith("("):
             break
         type_tokens.append(token)
     label = " ".join(type_tokens).strip()

@@ -130,9 +130,7 @@ def test_captured_month_based_key_money_preserves_raw_term() -> None:
     indistinguishable from ``なし``/zero. The raw field must disambiguate.
     """
     summaries = parse_list_page(_load_list())
-    month_units = [
-        s for s in summaries if s.price.key_money_raw == "1ヶ月"
-    ]
+    month_units = [s for s in summaries if s.price.key_money_raw == "1ヶ月"]
     assert month_units
     for unit in month_units:
         assert unit.price.key_money == 0
