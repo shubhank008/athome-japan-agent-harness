@@ -41,6 +41,26 @@
   sub-dependency. After confirming the dependency is the source of failure, prefer a
   simpler native or already-supported project path and record the dependency limitation.
 
+## Isolated worktree protocol
+
+- The repository-root checkout is the main session's coordination checkout. Any
+  sub-chat or delegated Plan/Task that reads or modifies repository files must use
+  its own worktree, except for a pure discussion that does not touch files.
+- Before dispatching the sub-chat, fetch the latest base and create a unique branch
+  and worktree from `origin/main`, for example:
+  `git fetch origin && git worktree add -b feat/<scope> .worktrees/<scope> origin/main`.
+- Pass the sub-chat the absolute worktree path and branch name. All implementation,
+  tests, commits, and publication preparation must happen in that worktree. A
+  sub-chat must not switch branches or edit the main session's checkout.
+- Inspect the root checkout's status before dispatching and preserve its existing
+  user edits. Worktrees created from `origin/main` intentionally exclude dirty root
+  changes unless the main session explicitly decides otherwise.
+- Use one worktree and branch per concurrent sub-chat or milestone. The main session
+  independently reviews the worktree diff and verification evidence before merging
+  through the `/no-mistakes` PR workflow.
+- After a branch is merged, fetch the remote, synchronize the main checkout, and
+  remove the clean worktree. Delete the local branch only when it is no longer
+  needed for recovery or reference.
 
 ## Where code lives
 
@@ -130,11 +150,14 @@ place.
 * Name any throwaway verification virtualenv `.venv-verify`, not `.venv`, because `.venv` matches the gitignore pattern; delete it after use.
 * Webshare's rotating plan uses one credentialed gateway URL; a pool of length one is intentional. The proxy retry budget, not pool size, bounds consecutive proxy attempts. A base proxy provider must reuse its last candidate when the pool is shorter than the retry budget, or the configured budget is never consumed.
 * `Settings` requires `OPENROUTER_API_KEY`; tests constructing settings directly must pass an explicit throwaway key rather than relying on a local `.env` file or a real credential.
+* Because `Settings.openrouter_api_key` is statically required even though `BaseSettings` loads it from the environment at runtime, strict-mypy production code must construct it explicitly, for example `Settings(openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", ""))`; `Settings()` alone raises a call-argument type error. Tests should continue passing an explicit throwaway key.
 * Numeric label parsers must check specific unit words such as `million` and `thousand` before generic suffix patterns such as `m`; otherwise `5million` is misread as 5.
 * Negative log-marker tests must assert universal absence, for example `not any(marker in record for record in records)`, not merely that one record lacks the marker.
 * Validators for snapshots with multiple supported flows must reject a missing entire flow, not only malformed fields within flows that happen to be present.
 * AtHome can return an HTTP 200 puzzle/authentication page instead of content. Treat `Click to verify`, `To regain access, please make sure that cookies and JavaScript are enabled`, and the Japanese authentication heading as challenge markers before parsing or saving HTML; use bounded alternate-request handling and never attempt to solve or circumvent the puzzle.
 * A live capture must validate that it contains expected page content before becoming a fixture. Never save an AtHome challenge page as a parser fixture, and record the challenge marker and redacted request context when capture is blocked.
+* Optional debug state on a production adapter (for example a raw-response capture gated behind `debug=False`) must be typed as optional (`CurlResponse | None`) when initialized to `None`; typing it as the non-optional response type makes mypy fail. Expose it through a public read-only property, not raw underscored attributes from callers.
+* A manual probe script that mirrors an orchestration fallback loop is a real program: initialize every branch-local adapter variable (for example the rebound adapter) to `None` and guard it, and wrap multi-adapter flows in `try/finally` so each transport is closed even when a later step raises. An unguarded reference to a variable set only in an except block raises `UnboundLocalError` when no exception ever fires.
 * A green gate does not prove milestone completeness. Before marking a milestone done, verify every acceptance criterion, required fixture count, and required model field against the actual merged tree; add regression assertions for fields that can silently default to `None` or zero.
 * PR identity is determined by the merged commit and changed-file tree, not by a local branch name or the latest local commit. After publication or merge, fetch/prune remotes and compare the PR commit list, merge head, and local tracking branch before reporting synchronization.
 * Browser session state, cookies, proxy URLs, and handoff headers are credentials or sensitive session material. Keep them in ignored local paths, never place them in fixtures, logs, commits, or generic diagnostics, and never expose them through a public artifact.

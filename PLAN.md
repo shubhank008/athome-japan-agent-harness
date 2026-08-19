@@ -5,7 +5,8 @@ Live project plan. Updated after every feature or update, per AGENTS.md.
 ## Current state
 
 M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), M3 (parsing),
-M4 (LLM layer), M5 (store), and M6 (orchestration + CLI) implemented and verified.
+M4 (LLM layer), M5 (store), M6 (orchestration + CLI), and M7 (maintenance
+surfaces) implemented and verified.
 M0: `config.py` (strict env parser + `Budgets`), `models.py` (pydantic data models),
 `pyproject.toml` + exact-pinned `requirements.txt`. M1: `scraping/base.py`
 (`BaseScraper`, `BlockDetected`, `ProxyProvider`), `scraping/rate_limiter.py`
@@ -30,17 +31,24 @@ JSON reports with golden-file tests). `ATHOME_LLM_MAX_TOKENS` budget added to co
 M6: `scraping/harvester.py` (budget-aware pagination engine with partial results and
 marker logging), `cli.py` (typed conversational CLI/REPL with dependency injection,
 search, save/reject/more like/refine feedback commands), scripted e2e test session.
+M7: `tests/e2e/test_proxy_fallback.py` (T27) drives the real `SessionRefarmer` +
+`HttpDomAdapter` boundary with a fake curl session and fake async farmer, asserting
+the direct-first then bounded farm/rebind recovery and the marker contract order
+(`[BLOCK_DETECTED] -> [REHANDOFF_TRIGGERED] -> [REHANDOFF_FARMED] ->
+[CURL_HANDOFF_BOUND]`); refarm orchestration markers were added to the marker
+contract. Documentation (T28) added a README quickstart and architecture section
+and updated this plan and the feature plan/contract.
 M3 parser hardening remains pending for building age, normalized building type,
 month-based deposit terms, detail disabled-feature coverage, and the required
 second/third detail fixtures. Feature 002 adds the Patchright cookie farmer and typed
 curl-cffi handoff; Feature 006 adds lean production refarming. Merged `origin/main`
-currently passes 190+ unit tests, ruff, and mypy.
+currently passes 300+ unit tests, ruff, and mypy.
 
 ## Active feature
 
 | Feature | Spec | Status |
 |---------|------|--------|
-| 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0-M6 done; M7 pending |
+| 001 AtHome Home Finder | `docs/specs/001-athome-home-finder/` (spec, plan, marker contract) | M0-M7 done |
 | 002 Playwright Cookie Fetcher | `docs/specs/002-playwright-cookie-fetcher/` | merged through PR #7; security boundary and live behavior require ongoing review |
 | 003 curl-cffi HTTP Integration | `docs/specs/003-curl-cffi-http-integration/` | merged through PR #7; bounded refarm path implemented |
 | 004 Playwright Challenge Diagnostics | `docs/specs/004-playwright-challenge-diagnostics/` | merged through PR #7; operator diagnostics path implemented |
@@ -73,7 +81,7 @@ revalidation, vision A/B benchmarks.
 | M4 LLM layer | T17-T21 | done (2026-08-19, `feat/001-m4-llm-layer-fresh`) |
 | M5 Store | T22-T23 | done (2026-08-19, `feat/001-m5-store`) |
 | M6 Orchestration + CLI | T24-T26 | done (2026-08-19, `feat/001-m6-orchestration-cli`) |
-| M7 Maintenance surfaces | T27-T28 | todo |
+| M7 Maintenance surfaces | T27-T28 | done (2026-07-08, `feat/001-m7-maintenance-surfaces`) |
 | M8 Post-MVP | T29-T31 | spec'd, not scheduled |
 
 ## Decisions log
@@ -128,3 +136,10 @@ revalidation, vision A/B benchmarks.
   composition is `SessionRefarmer` (HttpDom -> block -> PlaywrightCookieFetcher ->
   session_state.json -> rebound HttpDom); direct adapter use is reserved for unit tests
   and the operator probe.
+- 2026-07-08: M7 added the refarm orchestration markers (`REHANDOFF_TRIGGERED`,
+  `REHANDOFF_FARMED`, `REHANDOFF_STILL_BLOCKED`, `CURL_HANDOFF_BOUND`,
+  `CURL_BLOCK_REHANDOFF`) to the marker contract and proved the direct-first then
+  bounded farm/rebind recovery at the real `SessionRefarmer`/`HttpDomAdapter`
+  boundary with a fake curl session and fake async farmer. Only the external
+  transport and farmer are faked; all orchestration is real code, matching the
+  existing unit-test style.
