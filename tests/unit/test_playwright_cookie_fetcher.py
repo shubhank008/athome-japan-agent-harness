@@ -428,9 +428,7 @@ async def test_cleanup_failures_do_not_mask_render_error(
 
 
 GEETEST_HTML = (
-    '<html><body>'
-    "var captcha = { gt: 'abc123', challenge: 'def456', data: '3:xxx' }"
-    '</body></html>'
+    "<html><body>var captcha = { gt: 'abc123', challenge: 'def456', data: '3:xxx' }</body></html>"
 )
 
 
@@ -468,9 +466,7 @@ async def test_try_geetest_capsolver_injects_solution_on_success() -> None:
 
     assert result is True
     mock_solve.assert_called_once_with("test-key", page.url, "abc123", "def456")
-    injection = [
-        e for e in page._evaluated_expressions if "solvedCaptcha" in e
-    ]
+    injection = [e for e in page._evaluated_expressions if "solvedCaptcha" in e]
     assert len(injection) == 1
     payload = json.loads(injection[0].removeprefix("solvedCaptcha(").removesuffix(")"))
     assert payload["geetest_challenge"] == "ch"
@@ -525,9 +521,7 @@ async def test_try_turnstile_capsolver_injects_token_on_success() -> None:
 
     assert result is True
     mock_solve.assert_called_once_with("test-key", page.url, "0x4AAAAAAA")
-    injection = [
-        e for e in page._evaluated_expressions if "token" in e.lower()
-    ]
+    injection = [e for e in page._evaluated_expressions if "token" in e.lower()]
     assert len(injection) == 1
 
 
@@ -557,17 +551,13 @@ async def test_try_turnstile_capsolver_returns_false_on_api_failure() -> None:
 async def test_capsolver_exception_falls_back_to_click() -> None:
     """An exception in capsolver solve is caught, allowing click fallback."""
     page = FakePage(PUZZLE_HTML, advance_on_click=True)
-    fetcher = PlaywrightCookieFetcher(
-        wait_seconds=0, capsolver_key="test-key", min_html_length=20
-    )
+    fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key", min_html_length=20)
 
     with patch(
         "athome_harness.scraping.playwright_cookie_fetcher._solve_geetest_capsolver",
         new_callable=AsyncMock,
         side_effect=RuntimeError("API timeout"),
     ):
-        result = await fetcher._try_capsolver_solve(
-            page, GEETEST_HTML, "puzzle"
-        )
+        result = await fetcher._try_capsolver_solve(page, GEETEST_HTML, "puzzle")
 
     assert result is False

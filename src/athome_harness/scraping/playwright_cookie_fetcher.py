@@ -354,9 +354,7 @@ class PlaywrightCookieFetcher:
             logger.warning("[PLAYWRIGHT_VERIFY] interaction_error=<%s>", type(error).__name__)
             return False
 
-    async def _try_capsolver_solve(
-        self, page: Page, html: str, challenge_kind: str
-    ) -> bool:
+    async def _try_capsolver_solve(self, page: Page, html: str, challenge_kind: str) -> bool:
         """Attempt to solve a WAF challenge via CapSolver. Returns True on success."""
         if not self._capsolver_key:
             return False
@@ -371,6 +369,7 @@ class PlaywrightCookieFetcher:
 
     async def _try_geetest_capsolver(self, page: Page, html: str) -> bool:
         """Attempt to solve a Geetest V3 puzzle via CapSolver."""
+        assert self._capsolver_key is not None
         gt_match = re.search(r'gt:\s*["\']([^"\']+)["\']', html)
         challenge_match = re.search(r'challenge:\s*["\']([^"\']+)["\']', html)
         data_match = re.search(r'data:\s*["\'](3:[^"\']+)["\']', html)
@@ -384,9 +383,7 @@ class PlaywrightCookieFetcher:
         incapsula_data = data_match.group(1)
 
         logger.warning("[CAPSOLVER_GEETEST] extracting params from puzzle")
-        solution = await _solve_geetest_capsolver(
-            self._capsolver_key, page.url, gt, challenge
-        )
+        solution = await _solve_geetest_capsolver(self._capsolver_key, page.url, gt, challenge)
 
         if not solution:
             return False
@@ -404,16 +401,14 @@ class PlaywrightCookieFetcher:
 
     async def _try_turnstile_capsolver(self, page: Page) -> bool:
         """Attempt to solve a Cloudflare Turnstile challenge via CapSolver."""
+        assert self._capsolver_key is not None
         site_key = await page.evaluate(
-            "() => document.querySelector('[data-sitekey]')"
-            "?.getAttribute('data-sitekey') || ''"
+            "() => document.querySelector('[data-sitekey]')?.getAttribute('data-sitekey') || ''"
         )
         if not site_key:
             return False
 
-        token = await _solve_turnstile_capsolver(
-            self._capsolver_key, page.url, site_key
-        )
+        token = await _solve_turnstile_capsolver(self._capsolver_key, page.url, site_key)
         if not token:
             return False
 
