@@ -148,10 +148,9 @@ def _getTime() -> str:
 
 
 def _clearDebug(folder_path: str) -> None:
-    # Delete the entire folder and all its contents
-    shutil.rmtree(folder_path)
-    # Recreate the empty folder
-    os.makedirs(folder_path)
+    if os.path.exists(folder_path):
+        shutil.rmtree(folder_path)
+    os.makedirs(folder_path, exist_ok=True)
     print(_getTime() + " - Cleared existing debug data")
 
 

@@ -138,6 +138,39 @@ def test_fetch_binary_recovery_path() -> None:
     assert len(farm_calls) == 1
 
 
+def test_multiple_refarms_close_intermediate_adapters() -> None:
+    """When max_refarms >= 2, every replaced adapter is closed before reassigning."""
+    direct = FakeScraper(html="blocked", binary=b"blocked", on_block=True)
+    rebound1 = FakeScraper(html="blocked", binary=b"blocked", on_block=True)
+    rebound2 = FakeScraper(html="<html>recovered</html>", binary=b"ok", on_block=False)
+
+    adapters = [direct, rebound1, rebound2]
+    index = 0
+    farm_calls: list[CookieHandoff] = []
+
+    def build(handoff: CookieHandoff | None) -> FakeScraper:
+        nonlocal index
+        if handoff is None:
+            return direct
+        index += 1
+        return adapters[index]
+
+    async def run() -> str:
+        refarmer = SessionRefarmer(
+            build_adapter=build,
+            farm=lambda: _completed_handoff(farm_calls),
+            max_refarms=2,
+        )
+        return await refarmer.fetch_html("https://www.athome.co.jp/")
+
+    html = asyncio.run(run())
+    assert html == "<html>recovered</html>"
+    assert len(farm_calls) == 2
+    assert direct.closed
+    assert rebound1.closed
+    assert rebound2.closed
+
+
 def test_zero_refarms_disables_recovery() -> None:
     """With max_refarms zero the direct block is not recovered."""
     direct = FakeScraper(html="blocked", binary=b"blocked", on_block=True)
