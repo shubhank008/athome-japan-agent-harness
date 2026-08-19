@@ -361,59 +361,76 @@ class PlaywrightCookieFetcher:
         if not self._capsolver_key:
             return False
 
-        if challenge_kind == "puzzle":
-            gt_match = re.search(r'gt:\s*["\']([^"\']+)["\']', html)
-            challenge_match = re.search(r'challenge:\s*["\']([^"\']+)["\']', html)
-            data_match = re.search(r'data:\s*["\'](3:[^"\']+)["\']', html)
+        try:
+            if challenge_kind == "puzzle":
+                return await self._try_geetest_capsolver(page, html)
+            return await self._try_turnstile_capsolver(page)
+        except Exception:
+            logger.warning("[CAPSOLVER] solve raised, falling back to click", exc_info=True)
+            return False
 
-            if gt_match and challenge_match and data_match:
-                gt = gt_match.group(1)
-                challenge = challenge_match.group(1)
-                incapsula_data = data_match.group(1)
+    async def _try_geetest_capsolver(self, page: Page, html: str) -> bool:
+        """Attempt to solve a Geetest V3 puzzle via CapSolver."""
+        gt_match = re.search(r'gt:\s*["\']([^"\']+)["\']', html)
+        challenge_match = re.search(r'challenge:\s*["\']([^"\']+)["\']', html)
+        data_match = re.search(r'data:\s*["\'](3:[^"\']+)["\']', html)
 
-                logger.warning("[CAPSOLVER_GEETEST] extracting params from puzzle")
-                solution = await _solve_geetest_capsolver(
-                    self._capsolver_key, page.url, gt, challenge
-                )
+        if not (gt_match and challenge_match and data_match):
+            logger.warning("[CAPSOLVER_GEETEST] failed to extract params from HTML")
+            return False
 
-                if solution:
-                    payload = {
-                        "geetest_challenge": solution.get("challenge"),
-                        "geetest_validate": solution.get("validate"),
-                        "geetest_seccode": solution.get("seccode"),
-                        "data": incapsula_data,
-                    }
-                    logger.warning("[CAPSOLVER_GEETEST] injecting solution")
-                    await page.evaluate(f"solvedCaptcha({json.dumps(payload)})")
-                    await self._sleep(5.0)
-                    return True
-            else:
-                logger.warning("[CAPSOLVER_GEETEST] failed to extract params from HTML")
-        else:
-            site_key = await page.evaluate(
-                "() => document.querySelector('[data-sitekey]')"
-                "?.getAttribute('data-sitekey') || ''"
-            )
-            if site_key:
-                token = await _solve_turnstile_capsolver(
-                    self._capsolver_key, page.url, site_key
-                )
-                if token:
-                    await page.evaluate(
-                        """
-                        (token) => {
-                            const input =
-                                document.querySelector('input[name="cf-turnstile-response"]')
-                                || document.createElement('input');
-                            input.value = token;
-                            document.forms[0]?.submit();
-                        }
-                        """,
-                        token,
-                    )
-                    await self._sleep(5.0)
-                    return True
-        return False
+        gt = gt_match.group(1)
+        challenge = challenge_match.group(1)
+        incapsula_data = data_match.group(1)
+
+        logger.warning("[CAPSOLVER_GEETEST] extracting params from puzzle")
+        solution = await _solve_geetest_capsolver(
+            self._capsolver_key, page.url, gt, challenge
+        )
+
+        if not solution:
+            return False
+
+        payload = {
+            "geetest_challenge": solution.get("challenge"),
+            "geetest_validate": solution.get("validate"),
+            "geetest_seccode": solution.get("seccode"),
+            "data": incapsula_data,
+        }
+        logger.warning("[CAPSOLVER_GEETEST] injecting solution")
+        await page.evaluate(f"solvedCaptcha({json.dumps(payload)})")
+        await self._sleep(5.0)
+        return True
+
+    async def _try_turnstile_capsolver(self, page: Page) -> bool:
+        """Attempt to solve a Cloudflare Turnstile challenge via CapSolver."""
+        site_key = await page.evaluate(
+            "() => document.querySelector('[data-sitekey]')"
+            "?.getAttribute('data-sitekey') || ''"
+        )
+        if not site_key:
+            return False
+
+        token = await _solve_turnstile_capsolver(
+            self._capsolver_key, page.url, site_key
+        )
+        if not token:
+            return False
+
+        await page.evaluate(
+            """
+            (token) => {
+                const input =
+                    document.querySelector('input[name="cf-turnstile-response"]')
+                    || document.createElement('input');
+                input.value = token;
+                document.forms[0]?.submit();
+            }
+            """,
+            token,
+        )
+        await self._sleep(5.0)
+        return True
 
     async def _find_verification_target(
         self,
