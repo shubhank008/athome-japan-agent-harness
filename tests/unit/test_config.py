@@ -33,6 +33,18 @@ def test_defaults_load(settings: Settings) -> None:
     assert settings.budgets == Budgets()
 
 
+def test_provider_selection_defaults(settings: Settings) -> None:
+    """Provider selectors default to the existing OpenRouter/http/sqlite stack."""
+    assert settings.llm_provider == "openrouter"
+    assert settings.store_provider == "sqlite"
+    assert settings.scraper_provider == "http"
+    assert settings.opencodego_model == "opencode-go/deepseek-v4-flash"
+    assert settings.opencodego_base_url == (
+        "https://opencode.ai/zen/go/v1/chat/completions"
+    )
+    assert settings.store_path == "athome.db"
+
+
 def test_budgets_defaults(settings: Settings) -> None:
     """Budgets expose the exact defaults from the spec budget table."""
     b = settings.budgets
@@ -74,6 +86,12 @@ def test_unknown_athome_env_key_raises(clean_env: None, monkeypatch: pytest.Monk
     [
         "ATHOME_GENERAL_MODEL",
         "ATHOME_VISION_MODEL",
+        "ATHOME_LLM_PROVIDER",
+        "ATHOME_STORE_PROVIDER",
+        "ATHOME_SCRAPER_PROVIDER",
+        "ATHOME_OPENCODEGO_MODEL",
+        "ATHOME_OPENCODEGO_BASE_URL",
+        "ATHOME_STORE_PATH",
         "ATHOME_RATE_REQUESTS",
         "ATHOME_RATE_INTERVAL_S",
         "ATHOME_RATE_JITTER_MAX_S",
