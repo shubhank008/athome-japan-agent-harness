@@ -282,7 +282,7 @@ class SearchSession:
         self.last_recommendations = recommendations
 
         # Render and persist the report files.
-        md_path, json_path = self._write_report(query, recommendations)
+        md_path, json_path = self._write_report(query, recommendations, session_id=session_id)
 
         # Record recommendations and feedback-facing store state.
         self._deps.store.record_recommendation(search_id, recommendations)
@@ -364,7 +364,8 @@ class SearchSession:
             top_y=self._deps.budgets.recommendations_count,
         )
         self.last_recommendations = recommendations
-        self._write_report(f"{self.last_query or ''} more like {rank}", recommendations)
+        more_session_id = f"more-like-{uuid.uuid4()}"
+        self._write_report(f"{self.last_query or ''} more like {rank}", recommendations, session_id=more_session_id)
         return recommendations
 
     def refine(self, clause: str) -> SearchOutcome:
@@ -400,10 +401,17 @@ class SearchSession:
         rec = self.last_recommendations[rank - 1]
         return rec.listing
 
-    def _write_report(self, query: str, recommendations: list[Recommendation]) -> tuple[Path, Path]:
+    def _write_report(
+        self,
+        query: str,
+        recommendations: list[Recommendation],
+        *,
+        session_id: str | None = None,
+    ) -> tuple[Path, Path]:
         """Write markdown and JSON reports, return their paths."""
-        md = self._deps.report_dir / f"report-{self.last_session_id or 'session'}.md"
-        js = self._deps.report_dir / f"report-{self.last_session_id or 'session'}.json"
+        sid = session_id or self.last_session_id or "session"
+        md = self._deps.report_dir / f"report-{sid}.md"
+        js = self._deps.report_dir / f"report-{sid}.json"
         md.write_text(render_markdown(recommendations, query=query), encoding="utf-8")
         js.write_text(render_json(recommendations), encoding="utf-8")
         logger.info(

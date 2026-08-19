@@ -338,11 +338,19 @@ def test_more_like_returns_recommendations(
     session, _, _, _ = _make_session(tmp_path)
     session.search("cheap 2LDK")
 
+    search_md = list((tmp_path / "reports").glob("report-*.md"))
+    search_json = list((tmp_path / "reports").glob("report-*.json"))
+    search_md_content = search_md[0].read_text(encoding="utf-8")
+
     recs = session.more_like(1)
     assert recs, "more_like should return a fresh ranking"
     assert len(recs) >= 1
-    # A new report file was written for the more-like run.
-    assert list((tmp_path / "reports").glob("report-*.md"))
+
+    after_more_md = sorted((tmp_path / "reports").glob("report-*.md"))
+    after_more_json = sorted((tmp_path / "reports").glob("report-*.json"))
+    assert len(after_more_md) == len(search_md) + 1, "more_like must not overwrite search report"
+    assert len(after_more_json) == len(search_json) + 1
+    assert search_md[0].read_text(encoding="utf-8") == search_md_content
 
 
 def test_refine_runs_new_search(tmp_path: Path, caplog: pytest.LogCaptureFixture) -> None:
