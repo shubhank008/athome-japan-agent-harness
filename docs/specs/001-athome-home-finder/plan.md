@@ -162,13 +162,13 @@ PLAN.md                     # repo-level live plan, updated after every feature
 
 ### M6: Orchestration and CLI
 
-- [ ] T24 `scraping/harvester.py`: pagination engine over BaseScraper; budget checks
+- [x] T24 `scraping/harvester.py`: pagination engine over BaseScraper; budget checks
   each page; partial-results summary on abort; marker logging per contract. Unit tests
   with fake scraper serving fixture pages.
-- [ ] T25 `cli.py`: conversational loop wiring parser -> plan confirm -> harvest ->
+- [x] T25 `cli.py`: conversational loop wiring parser -> plan confirm -> harvest ->
   top-X preview -> detail scrape -> report -> feedback commands (`save N`, `reject N`,
   `more like N`, `refine ...`). Unit tests per command handler.
-- [ ] T26 `tests/e2e/test_search_session.py`: scripted human-like session against
+- [x] T26 `tests/e2e/test_search_session.py`: scripted human-like session against
   fixtures + fake LLM: runs the full loop, asserts every contract marker appears and no
   failure patterns appear, asserts report files exist and parse.
 
