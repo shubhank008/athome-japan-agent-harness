@@ -85,19 +85,23 @@ class OpenRouterProvider(BaseLLMProvider):
         model: str = DEFAULT_GENERAL_MODEL,
         session: ChatSession | None = None,
         base_url: str = OPENROUTER_URL,
+        max_tokens: int | None = None,
     ) -> None:
         """Configure an OpenRouter transport.
 
         ``api_key`` is required and used only as an ``Authorization`` header.
-        ``model`` selects the completion model. ``session`` allows tests to
-        inject a fake transport; when omitted a real curl-cffi session is
-        built and owned by this instance.
+        ``model`` selects the completion model. ``max_tokens`` is the API-level
+        ceiling on completion tokens (mapped from
+        ``ATHOME_LLM_MAX_TOKENS``); when *None* the endpoint default is used.
+        ``session`` allows tests to inject a fake transport; when omitted a
+        real curl-cffi session is built and owned by this instance.
         """
         resolved_key = api_key or os.environ.get("OPENROUTER_API_KEY")
         if not resolved_key:
             raise LLMProviderError("OpenRouter API key is required")
         self._model = model
         self._base_url = base_url
+        self._max_tokens = max_tokens
         self._session_owned = session is None
         self._session: ChatSession = session or self._build_session()
         # Stored solely to seed the Authorization header; never logged.
@@ -126,7 +130,7 @@ class OpenRouterProvider(BaseLLMProvider):
         temperature: float = 0.0,
     ) -> tuple[str, LLMUsage]:
         """Return ``(text, usage)`` for a system/user message pair."""
-        payload = {
+        payload: dict[str, object] = {
             "model": self._model,
             "messages": [
                 {"role": _SYSTEM_ROLE, "content": system},
@@ -135,6 +139,8 @@ class OpenRouterProvider(BaseLLMProvider):
             "temperature": temperature,
             "response_format": {"type": "json_object"},
         }
+        if self._max_tokens is not None:
+            payload["max_tokens"] = self._max_tokens
         headers = {
             "Authorization": f"Bearer {self._api_key}",
             "Content-Type": "application/json",

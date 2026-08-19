@@ -138,3 +138,21 @@ def test_temperature_can_be_configured() -> None:
     provider.complete_text(system="sys", user="usr", temperature=0.7)
     _, kwargs = session.calls[0]
     assert kwargs["json"]["temperature"] == 0.7  # type: ignore[index]
+
+
+def test_max_tokens_appears_in_payload_when_configured() -> None:
+    """max_tokens is sent in the request when the provider is configured with one."""
+    session = FakeSession([FakeResponse(200, _ok_body())])
+    provider = OpenRouterProvider("k", session=session, max_tokens=512)
+    provider.complete_text(system="sys", user="usr")
+    _, kwargs = session.calls[0]
+    assert kwargs["json"]["max_tokens"] == 512  # type: ignore[index]
+
+
+def test_max_tokens_omitted_when_none() -> None:
+    """max_tokens is absent from the payload when not configured."""
+    session = FakeSession([FakeResponse(200, _ok_body())])
+    provider = OpenRouterProvider("k", session=session)
+    provider.complete_text(system="sys", user="usr")
+    _, kwargs = session.calls[0]
+    assert "max_tokens" not in kwargs["json"]  # type: ignore[index]
