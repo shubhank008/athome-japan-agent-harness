@@ -153,10 +153,10 @@ PLAN.md                     # repo-level live plan, updated after every feature
 
 ### M5: Store
 
-- [ ] T22 `store/base.py`: `BaseDataStore` (upsert_listing, record_search,
+- [x] T22 `store/base.py`: `BaseDataStore` (upsert_listing, record_search,
   record_recommendation, save, reject, history queries). Contract test suite reusable
   by future backends.
-- [ ] T23 `store/sqlite_store.py`: schema v1 (listings keyed by internal ID with
+- [x] T23 `store/sqlite_store.py`: schema v1 (listings keyed by internal ID with
   AtHome `BKLISTID` + URL dedupe, searches, recommendations, saves, rejects, cache_meta
   for US-009). Migration helper. Unit tests on temp DB, passing the T22 contract suite.
 

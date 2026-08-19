@@ -65,7 +65,7 @@ revalidation, vision A/B benchmarks.
 | M2 Filter map | T10-T13 | done (2026-08-17, `feat/001-m2-filter-map`) |
 | M3 Parsing | T14-T16 | merged through PR #4; hardening follow-up pending |
 | M4 LLM layer | T17-T21 | done (2026-08-19, `feat/001-m4-llm-layer-fresh`) |
-| M5 Store | T22-T23 | todo |
+| M5 Store | T22-T23 | done (2026-08-19, `feat/001-m5-store`) |
 | M6 Orchestration + CLI | T24-T26 | todo |
 | M7 Maintenance surfaces | T27-T28 | todo |
 | M8 Post-MVP | T29-T31 | spec'd, not scheduled |
