@@ -365,7 +365,8 @@ class SearchSession:
         )
         self.last_recommendations = recommendations
         more_session_id = f"more-like-{uuid.uuid4()}"
-        self._write_report(f"{self.last_query or ''} more like {rank}", recommendations, session_id=more_session_id)
+        report_query = f"{self.last_query or ''} more like {rank}"
+        self._write_report(report_query, recommendations, session_id=more_session_id)
         return recommendations
 
     def refine(self, clause: str) -> SearchOutcome:
