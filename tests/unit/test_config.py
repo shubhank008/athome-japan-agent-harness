@@ -46,6 +46,7 @@ def test_budgets_defaults(settings: Settings) -> None:
     assert b.proxy_retries == 3
     assert b.prefetch_ttl_hours == 48.0
     assert b.llm_temperature == 0.0
+    assert b.llm_max_tokens == 2048
 
 
 def test_env_overrides_settings(clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -53,10 +54,12 @@ def test_env_overrides_settings(clean_env: None, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("ATHOME_GENERAL_MODEL", "custom/model")
     monkeypatch.setenv("ATHOME_MAX_PAGES", "50")
     monkeypatch.setenv("ATHOME_LLM_TEMPERATURE", "0.3")
+    monkeypatch.setenv("ATHOME_LLM_MAX_TOKENS", "4096")
     s = Settings()
     assert s.general_model == "custom/model"
     assert s.max_pages == 50
     assert s.llm_temperature == 0.3
+    assert s.llm_max_tokens == 4096
 
 
 def test_unknown_athome_env_key_raises(clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -83,6 +86,7 @@ def test_unknown_athome_env_key_raises(clean_env: None, monkeypatch: pytest.Monk
         "ATHOME_PROXY_RETRIES",
         "ATHOME_PREFETCH_TTL_HOURS",
         "ATHOME_LLM_TEMPERATURE",
+        "ATHOME_LLM_MAX_TOKENS",
     ],
 )
 def test_every_env_example_athome_key_is_accepted(

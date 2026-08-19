@@ -57,6 +57,9 @@ class Budgets(BaseModel):
     # Determinism: LLM scoring is always temperature 0 (SPEC section 5).
     llm_temperature: float = Field(default=0.0, ge=0)
 
+    # Ceiling on tokens a single LLM completion may consume before rejection.
+    llm_max_tokens: int = Field(default=2048, ge=1)
+
 
 class Settings(BaseSettings):
     """Typed view of every runtime environment key.
@@ -101,6 +104,7 @@ class Settings(BaseSettings):
     proxy_retries: int = Field(default=3, validation_alias="ATHOME_PROXY_RETRIES")
     prefetch_ttl_hours: float = Field(default=48.0, validation_alias="ATHOME_PREFETCH_TTL_HOURS")
     llm_temperature: float = Field(default=0.0, validation_alias="ATHOME_LLM_TEMPERATURE")
+    llm_max_tokens: int = Field(default=2048, validation_alias="ATHOME_LLM_MAX_TOKENS")
 
     @property
     def budgets(self) -> Budgets:
@@ -118,6 +122,7 @@ class Settings(BaseSettings):
             proxy_retries=self.proxy_retries,
             prefetch_ttl_hours=self.prefetch_ttl_hours,
             llm_temperature=self.llm_temperature,
+            llm_max_tokens=self.llm_max_tokens,
         )
 
     @model_validator(mode="after")
