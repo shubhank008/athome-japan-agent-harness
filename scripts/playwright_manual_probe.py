@@ -22,13 +22,23 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, cast
 
-import aiohttp
-from patchright.async_api import async_playwright
+from patchright.async_api import Page, async_playwright
 
 from athome_harness.scraping.base import redact_url
 from athome_harness.scraping.challenge import detect_athome_challenge
+from athome_harness.scraping.playwright_shared import (
+    CHALLENGE_SELECTOR,
+    LISTING_SELECTOR,
+    intercept_route,
+    read_settled_content,
+    set_route_logger,
+    solve_geetest_capsolver,
+    solve_turnstile_capsolver,
+    wait_for_page_signal,
+)
 from athome_harness.scraping.session_state import (
     SessionState,
+    build_launch_options,
     get_installed_chrome_version,
 )
 
@@ -45,11 +55,6 @@ except ImportError:
 DEFAULT_URL = "https://www.athome.co.jp/chintai/osaka/list/"
 # Set to true to capture and save screenshot, video and tracestack
 DEBUG = False
-
-# --- 1. Define Selectors for Waiting either main content load or WAF Challenge load ---
-CHALLENGE_SELECTOR = "#captcha-box"
-LISTING_SELECTOR = "#container, .maincontents"
-COMBINED_TARGET = f"{CHALLENGE_SELECTOR}, {LISTING_SELECTOR}"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -72,54 +77,6 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-async def intercept_route(route):
-    # Curated list of trackers based on AtHome's network waterfall, help save page load time
-    BLOCKED_DOMAINS = [
-        "google-analytics.com",
-        "googletagmanager.com",
-        "googletagservices.com",
-        "doubleclick.net",
-        "amazon-adsystem.com",
-        "googlesyndication.com",
-        "adservice.google",
-        "scorecardresearch.com",
-        "criteo.com",
-        "amzn.js",  # Amazon ad library
-        "pubmatic.com",
-        "google.com/ccm/",
-        "google.com/pagead/",
-    ]
-
-    request = route.request
-    url = request.url.lower()
-
-    try:
-        # 1. Block heavy visual/audio assets that do not affect DOM logic
-        # if resource_type in ["image", "media", "font"]:
-        #    await route.abort()
-        #    return
-
-        # 2. Block specific ad/analytics domains via substring match
-        for domain in BLOCKED_DOMAINS:
-            if domain in url:
-                if DEBUG:
-                    print(
-                        f"{_getTime()} - [intercept_route] Abort loading of resources from: "
-                        + domain
-                    )
-                await route.abort()
-                return
-        # Allow all core structural assets (HTML, internal JS, CSS)
-        await route.continue_()
-    except Exception:
-        # 4. Fail-safe: If the interceptor logic crashes, let the request through
-        # so it doesn't break the entire Playwright execution pipeline.
-        try:
-            await route.continue_()
-        except Exception:
-            pass
-
-
 def _event(debug_dir: Path, name: str, **fields: object) -> None:
     """Append a redacted event to the probe JSONL log."""
     payload: dict[str, object] = {
@@ -138,7 +95,7 @@ async def _capture(page: object, debug_dir: Path, stage: str) -> str:
         # Screenshot first so we know what the browser is seeing
         screenshot_path = str(debug_dir / f"playwright_{stage}.png")
         await page.screenshot(path=screenshot_path)  # type: ignore[attr-defined]
-    html = await page.content()  # type: ignore[attr-defined]
+    html = await read_settled_content(cast(Page, page))
     (debug_dir / f"playwright_{stage}.html").write_text(html, encoding="utf-8")
     return cast(str, html)
 
@@ -232,90 +189,6 @@ async def _attempt_challenge_click(page: Any) -> bool:
     return False
 
 
-async def _solve_turnstile_capsolver(api_key: str, site_url: str, site_key: str) -> str | None:
-    """Solve Cloudflare Turnstile using CapSolver API."""
-    print(f"{_getTime()} - Requesting CapSolver token for {site_url}")
-    endpoint = "https://api.capsolver.com/createTask"
-
-    payload = {
-        "clientKey": api_key,
-        "task": {
-            "type": "AntiTurnstileTaskProxyLess",
-            "websiteURL": site_url,
-            "websiteKey": site_key,
-        },
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(endpoint, json=payload) as resp:
-            data = await resp.json()
-            if data.get("errorId", 0) != 0:
-                print(f"{_getTime()} - CapSolver createTask error: {data.get('errorDescription')}")
-                return None
-            task_id = data.get("taskId")
-
-        # Poll result
-        result_url = "https://api.capsolver.com/getTaskResult"
-        for _ in range(30):
-            await asyncio.sleep(2)
-            async with session.post(
-                result_url, json={"clientKey": api_key, "taskId": task_id}
-            ) as res_resp:
-                res_data = await res_resp.json()
-                if res_data.get("status") == "ready":
-                    print(f"{_getTime()} - CapSolver token received!")
-                    return res_data["solution"]["token"]
-                if res_data.get("status") == "failed":
-                    print(f"{_getTime()} - CapSolver failed to solve challenge.")
-                    return None
-    return None
-
-
-async def _solve_geetest_capsolver(
-    api_key: str, site_url: str, gt: str, challenge: str
-) -> dict | None:
-    """Solve Geetest V3 using CapSolver API."""
-    print(f"{_getTime()} - Requesting CapSolver token for Geetest (gt: {gt[:5]}...)")
-    endpoint = "https://api.capsolver.com/createTask"
-
-    # https://docs.capsolver.com/en/guide/captcha/Geetest/
-    payload = {
-        "clientKey": api_key,
-        "task": {
-            "type": "GeeTestTaskProxyLess",
-            "websiteURL": site_url,
-            "gt": gt,
-            "challenge": challenge,
-        },
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(endpoint, json=payload) as resp:
-            data = await resp.json()
-            if data.get("errorId", 0) != 0:
-                print(f"{_getTime()} - CapSolver createTask error: {data.get('errorDescription')}")
-                print(f"{_getTime()} - CapSolver errorRes: {data}")
-                return None
-            task_id = data.get("taskId")
-
-        # Poll result
-        result_url = "https://api.capsolver.com/getTaskResult"
-        for _ in range(30):  # Poll for up to 60 seconds
-            await asyncio.sleep(2)
-            async with session.post(
-                result_url, json={"clientKey": api_key, "taskId": task_id}
-            ) as res_resp:
-                res_data = await res_resp.json()
-                if res_data.get("status") == "ready":
-                    print(f"{_getTime()} - CapSolver token received!")
-                    return res_data["solution"]  # Returns dict with challenge, validate, seccode
-                if res_data.get("status") == "failed":
-                    print(f"{_getTime()} - CapSolver failed to solve challenge.")
-                    print(f"{_getTime()} - CapSolver Response: {res_data}")
-                    return None
-    return None
-
-
 async def save_session_state(
     context: object,
     user_agent: str,
@@ -370,28 +243,12 @@ async def _run(args: argparse.Namespace) -> None:
                     duration = (time.time() - active_requests[url]) * 1000  # in ms
                     script_timings[url] = duration
 
-            chrome_ver = get_installed_chrome_version() or "151.0.0.0"
-            launch_options: dict[str, object] = {
-                "user_data_dir": user_data_dir,
-                "channel": "chrome",
-                "headless": True,
-                # "no_viewport": True,
-                "viewport": {"width": 1280, "height": 720},
-                "locale": "ja-JP",
-                "timezone_id": "Asia/Tokyo",
-                "args": [
-                    "--window-size=1280,720",
-                    "--start-maximized",
-                    "--disable-blink-features=AutomationControlled",
-                    "--lang=ja-JP",
-                    (
-                        "--user-agent=Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-                        f"(KHTML, like Gecko) Chrome/{chrome_ver} Safari/537.36"
-                    ),
-                ],
-            }
-            if args.proxy:
-                launch_options["proxy"] = {"server": args.proxy}
+            chrome_ver = get_installed_chrome_version()
+            launch_options: dict[str, object] = build_launch_options(
+                user_data_dir=user_data_dir,
+                chrome_version=chrome_ver,
+                proxy_url=args.proxy,
+            )
             if DEBUG:
                 launch_options["record_video_dir"] = str(args.debug_dir)
                 launch_options["record_video_size"] = {"width": 1280, "height": 720}
@@ -406,43 +263,41 @@ async def _run(args: argparse.Namespace) -> None:
                 await context.tracing.start(screenshots=True, snapshots=True, sources=False)
 
             page = await context.new_page()
-            await page.route("**/*", intercept_route)
             if DEBUG:
+                set_route_logger(
+                    lambda domain: print(
+                        f"{_getTime()} - [intercept_route] Abort loading of resources from: "
+                        + domain
+                    )
+                )
                 page.on("request", on_request)
                 page.on("response", on_response)
+            await page.route("**/*", intercept_route)
             print(_getTime() + " - Ready browser, start loading page")
             try:
                 # await stealth_async(page)
                 await page.goto(args.url, wait_until="domcontentloaded")
                 print(_getTime() + " - Page DomContent Loaded, waiting for selectors..")
-                try:
-                    # Wait for whichever DOM element attaches first (timeout: 15s)
-                    winning_element = await page.wait_for_selector(
-                        COMBINED_TARGET, state="attached", timeout=30000
+                # Wait for whichever terminal DOM element attaches first
+                # (challenge box or listing content); shared with the farmer.
+                winning_element = await wait_for_page_signal(page)
+                if winning_element and DEBUG:
+                    # 1. Get the exact HTML signature of what popped up
+                    element_id = await winning_element.evaluate("el => el.id || 'N/A'")
+                    element_class = await winning_element.evaluate("el => el.className || 'N/A'")
+                    element_tag = await winning_element.evaluate("el => el.tagName.toLowerCase()")
+
+                    print(
+                        f"{_getTime()} - RACE WON BY: <{element_tag} "
+                        f"id='{element_id}' class='{element_class}'>"
                     )
-                    if winning_element and DEBUG:
-                        # 1. Get the exact HTML signature of what popped up
-                        element_id = await winning_element.evaluate("el => el.id || 'N/A'")
-                        element_class = await winning_element.evaluate(
-                            "el => el.className || 'N/A'"
-                        )
-                        element_tag = await winning_element.evaluate(
-                            "el => el.tagName.toLowerCase()"
-                        )
 
-                        print(
-                            f"{_getTime()} - RACE WON BY: <{element_tag} "
-                            f"id='{element_id}' class='{element_class}'>"
-                        )
-
-                        # 2. Determine which logical branch we are in
-                        if await page.locator(CHALLENGE_SELECTOR).count() > 0:
-                            print(f"{_getTime()} - STATUS: WAF Challenge Detected.")
-                        elif await page.locator(LISTING_SELECTOR).count() > 0:
-                            print(f"{_getTime()} - STATUS: Clean Property Listing Detected.")
-                    print(_getTime() + " - Selectors found, waiting a little extra seconds..")
-                except Exception as e:
-                    print(f"{_getTime()} - Warning: no selector appeared in 15s: {e}")
+                    # 2. Determine which logical branch we are in
+                    if await page.locator(CHALLENGE_SELECTOR).count() > 0:
+                        print(f"{_getTime()} - STATUS: WAF Challenge Detected.")
+                    elif await page.locator(LISTING_SELECTOR).count() > 0:
+                        print(f"{_getTime()} - STATUS: Clean Property Listing Detected.")
+                print(_getTime() + " - Selectors found, waiting a little extra seconds..")
                 # Since we are already waiting for selectors, this can be as little as 0.5s now
                 # await asyncio.sleep(args.wait_seconds)
                 await asyncio.sleep(0.5)
@@ -497,7 +352,7 @@ async def _run(args: argparse.Namespace) -> None:
                                     f"{_getTime()} - Extracted Geetest Params. "
                                     "Sending to CapSolver..."
                                 )
-                                solution = await _solve_geetest_capsolver(
+                                solution = await solve_geetest_capsolver(
                                     args.capsolver_key, page.url, gt, challenge
                                 )
 
@@ -533,7 +388,7 @@ async def _run(args: argparse.Namespace) -> None:
                                 "?.getAttribute('data-sitekey') || ''"
                             )
                             if site_key:
-                                token = await _solve_turnstile_capsolver(
+                                token = await solve_turnstile_capsolver(
                                     args.capsolver_key, page.url, site_key
                                 )
                                 if token:
