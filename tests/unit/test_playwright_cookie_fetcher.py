@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any, cast
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -114,6 +116,7 @@ class FakePage:
         *,
         advance_on_click: bool = True,
         child_role: bool = False,
+        evaluate_overrides: dict[str, Any] | None = None,
     ) -> None:
         self.current_html = initial_html
         self.advance_on_click = advance_on_click
@@ -124,6 +127,8 @@ class FakePage:
         self.video = None
         self._request_handler: Any = None
         self._child_frame = FakeFrame(self) if child_role else None
+        self._evaluate_overrides = evaluate_overrides or {}
+        self._evaluated_expressions: list[str] = []
 
     @property
     def frames(self) -> list[object]:
@@ -143,10 +148,14 @@ class FakePage:
         """Return the current page HTML."""
         return self.current_html
 
-    async def evaluate(self, expression: str) -> str:
-        """Return the browser's exact user agent."""
-        assert expression == "navigator.userAgent"
-        return "Fake Browser/1.0"
+    async def evaluate(self, expression: str, *args: Any) -> Any:
+        """Evaluate a JS expression, dispatching to overrides or defaults."""
+        self._evaluated_expressions.append(expression)
+        if expression in self._evaluate_overrides:
+            return self._evaluate_overrides[expression]
+        if expression == "navigator.userAgent":
+            return "Fake Browser/1.0"
+        return ""
 
     def on(self, event: str, handler: Any) -> None:
         """Register the navigation request listener."""
@@ -416,3 +425,149 @@ async def test_cleanup_failures_do_not_mask_render_error(
 
     assert context.closed
     assert "[PATCHRIGHT_CONTEXT_CLOSE_FAILED]" in caplog.text
+
+
+GEETEST_HTML = (
+    '<html><body>'
+    "var captcha = { gt: 'abc123', challenge: 'def456', data: '3:xxx' }"
+    '</body></html>'
+)
+
+
+@pytest.mark.asyncio
+async def test_try_capsolver_solve_returns_false_without_key() -> None:
+    """_try_capsolver_solve short-circuits when capsolver_key is None."""
+    page = FakePage(GOOD_HTML)
+    fetcher = PlaywrightCookieFetcher(wait_seconds=0)
+    result = await fetcher._try_capsolver_solve(page, GOOD_HTML, "puzzle")
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_try_geetest_capsolver_returns_false_on_missing_params() -> None:
+    """_try_geetest_capsolver returns False when HTML lacks required params."""
+    page = FakePage("<html><body>no params here</body></html>")
+    fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
+    result = await fetcher._try_geetest_capsolver(page, "<html></html>")
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_try_geetest_capsolver_injects_solution_on_success() -> None:
+    """Successful Geetest solve injects payload via page.evaluate."""
+    page = FakePage(GOOD_HTML)
+    fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
+    solution = {"challenge": "ch", "validate": "val", "seccode": "sec"}
+
+    with patch(
+        "athome_harness.scraping.playwright_cookie_fetcher._solve_geetest_capsolver",
+        new_callable=AsyncMock,
+        return_value=solution,
+    ) as mock_solve:
+        result = await fetcher._try_geetest_capsolver(page, GEETEST_HTML)
+
+    assert result is True
+    mock_solve.assert_called_once_with("test-key", page.url, "abc123", "def456")
+    injection = [
+        e for e in page._evaluated_expressions if "solvedCaptcha" in e
+    ]
+    assert len(injection) == 1
+    payload = json.loads(injection[0].removeprefix("solvedCaptcha(").removesuffix(")"))
+    assert payload["geetest_challenge"] == "ch"
+    assert payload["geetest_validate"] == "val"
+    assert payload["geetest_seccode"] == "sec"
+    assert payload["data"] == "3:xxx"
+
+
+@pytest.mark.asyncio
+async def test_try_geetest_capsolver_returns_false_on_api_failure() -> None:
+    """Geetest solve returns None on API error, falling back to click."""
+    page = FakePage(GOOD_HTML)
+    fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
+
+    with patch(
+        "athome_harness.scraping.playwright_cookie_fetcher._solve_geetest_capsolver",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        result = await fetcher._try_geetest_capsolver(page, GEETEST_HTML)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_try_turnstile_capsolver_returns_false_without_sitekey() -> None:
+    """_try_turnstile_capsolver returns False when no data-sitekey is found."""
+    page = FakePage("<html><body>no sitekey</body></html>")
+    fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
+    result = await fetcher._try_turnstile_capsolver(page)
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_try_turnstile_capsolver_injects_token_on_success() -> None:
+    """Successful Turnstile solve injects the token into the page form."""
+    page = FakePage(
+        GOOD_HTML,
+        evaluate_overrides={
+            "() => document.querySelector('[data-sitekey]')"
+            "?.getAttribute('data-sitekey') || ''": "0x4AAAAAAA",
+        },
+    )
+    fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
+
+    with patch(
+        "athome_harness.scraping.playwright_cookie_fetcher._solve_turnstile_capsolver",
+        new_callable=AsyncMock,
+        return_value="turnstile-token-123",
+    ) as mock_solve:
+        result = await fetcher._try_turnstile_capsolver(page)
+
+    assert result is True
+    mock_solve.assert_called_once_with("test-key", page.url, "0x4AAAAAAA")
+    injection = [
+        e for e in page._evaluated_expressions if "token" in e.lower()
+    ]
+    assert len(injection) == 1
+
+
+@pytest.mark.asyncio
+async def test_try_turnstile_capsolver_returns_false_on_api_failure() -> None:
+    """Turnstile solve returns None on API error, falling back to click."""
+    page = FakePage(
+        GOOD_HTML,
+        evaluate_overrides={
+            "() => document.querySelector('[data-sitekey]')"
+            "?.getAttribute('data-sitekey') || ''": "0x4AAAAAAA",
+        },
+    )
+    fetcher = PlaywrightCookieFetcher(wait_seconds=0, capsolver_key="test-key")
+
+    with patch(
+        "athome_harness.scraping.playwright_cookie_fetcher._solve_turnstile_capsolver",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        result = await fetcher._try_turnstile_capsolver(page)
+
+    assert result is False
+
+
+@pytest.mark.asyncio
+async def test_capsolver_exception_falls_back_to_click() -> None:
+    """An exception in capsolver solve is caught, allowing click fallback."""
+    page = FakePage(PUZZLE_HTML, advance_on_click=True)
+    fetcher = PlaywrightCookieFetcher(
+        wait_seconds=0, capsolver_key="test-key", min_html_length=20
+    )
+
+    with patch(
+        "athome_harness.scraping.playwright_cookie_fetcher._solve_geetest_capsolver",
+        new_callable=AsyncMock,
+        side_effect=RuntimeError("API timeout"),
+    ):
+        result = await fetcher._try_capsolver_solve(
+            page, GEETEST_HTML, "puzzle"
+        )
+
+    assert result is False
