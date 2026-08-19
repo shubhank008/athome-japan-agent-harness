@@ -81,7 +81,7 @@ revalidation, vision A/B benchmarks.
 | M4 LLM layer | T17-T21 | done (2026-08-19, `feat/001-m4-llm-layer-fresh`) |
 | M5 Store | T22-T23 | done (2026-08-19, `feat/001-m5-store`) |
 | M6 Orchestration + CLI | T24-T26 | done (2026-08-19, `feat/001-m6-orchestration-cli`) |
-| M7 Maintenance surfaces | T27-T28 | done (2026-07-08, `feat/001-m7-maintenance-surfaces`) |
+| M7 Maintenance surfaces | T27-T28 | done (2026-08-19, `feat/001-m7-maintenance-surfaces`) |
 | M8 Post-MVP | T29-T31 | spec'd, not scheduled |
 
 ## Decisions log
