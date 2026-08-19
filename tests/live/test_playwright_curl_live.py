@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 pytestmark = pytest.mark.live
 BROAD_SEARCH_URL = "https://www.athome.co.jp/chintai/osaka/list/"
 MIN_EXPECTED_HTML = 200
-# AtHome's broad search regularly answers in ~5s; 15s keeps the live test
+# AtHome's broad search regularly answers in ~5s; 30s keeps the live test
 # bounded while tolerating that latency (production default is 30s).
 LIVE_TIMEOUT_S = 30.0
 

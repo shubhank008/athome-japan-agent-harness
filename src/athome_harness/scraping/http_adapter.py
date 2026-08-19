@@ -138,6 +138,10 @@ class HttpDomAdapter(BaseScraper):
     A plain successful GET is subject to exponential-backoff retries for
     connection failures only; those are silent at the marker level because the
     marker contract only names block and rotation events.
+
+    When ``debug=True`` the adapter captures the last raw curl-cffi response
+    object, accessible via the :attr:`raw_response` property. This is intended
+    for operator probe scripts; production adapters leave it disabled.
     """
 
     def __init__(
@@ -151,7 +155,11 @@ class HttpDomAdapter(BaseScraper):
         sleep_fn: Callable[[float], None] | None = None,
         debug: bool = False,
     ) -> None:
-        """Configure a curl-cffi adapter, optionally bound to a browser handoff."""
+        """Configure a curl-cffi adapter, optionally bound to a browser handoff.
+
+        When *debug* is ``True`` the adapter captures each raw curl-cffi
+        response in :attr:`raw_response` for operator inspection.
+        """
         self._budgets = budgets
         self._proxy_provider = None if handoff is not None else proxy_provider
         self._handoff = handoff
