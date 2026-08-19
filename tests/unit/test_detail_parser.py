@@ -151,6 +151,47 @@ def test_captured_detail_age_from_older_build() -> None:
     assert 0.4 <= detail.age < 1.0
 
 
+def test_captured_detail_1122949022_identity_and_price() -> None:
+    """Third fixture parses correctly: key, URL, title, address, and price."""
+    detail = parse_detail_page(_load_detail_1122949022())
+    assert detail.athome_key == "1122949022"
+    assert detail.internal_id == "1122949022"
+    assert detail.url == "https://www.athome.co.jp/chintai/1122949022/"
+    assert "みおつくし大池橋" in detail.title
+    assert detail.address == "大阪府大阪市生野区中川西３丁目"
+    assert detail.price.rent == 59_500
+    assert detail.price.management_fee == 5_000
+    assert detail.price.deposit == 0
+    assert detail.price.deposit_raw == "なし"
+    assert detail.price.key_money == 0
+    assert detail.price.key_money_raw == "なし"
+
+
+def test_captured_detail_1122949022_property_fields() -> None:
+    """Third fixture property fields: floor plan, area, type, floors, station."""
+    detail = parse_detail_page(_load_detail_1122949022())
+    assert detail.floor_plan == "１Ｋ"
+    assert detail.area_m2 == pytest.approx(22.62)
+    assert detail.building_type == "賃貸マンション"
+    assert detail.floors == "10階建 / 9階"
+    assert detail.station == "桃谷"
+    assert detail.walk_minutes == 15.0
+
+
+def test_captured_detail_1122949022_age() -> None:
+    """Third fixture age from 築年月 2026年2月 against fixed ref date."""
+    detail = parse_detail_page(_load_detail_1122949022(), ref_date=AGE_REF_DATE)
+    assert detail.age is not None
+    assert 0.4 <= detail.age < 1.0
+
+
+def test_captured_detail_1122949022_facilities() -> None:
+    """Third fixture has facility features and no disabled markers."""
+    detail = parse_detail_page(_load_detail_1122949022())
+    assert len(detail.facility_features) > 0
+    assert detail.probable_negatives == []
+
+
 def test_captured_detail_price_raw_terms() -> None:
     """Deposit/key money keep their raw terms alongside yen values."""
     detail = parse_detail_page(_load_detail())
