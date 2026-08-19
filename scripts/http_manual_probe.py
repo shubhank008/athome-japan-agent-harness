@@ -68,37 +68,37 @@ async def _build_adapter_and_run(args: argparse.Namespace) -> None:
     rebound: HttpDomAdapter | None = None
 
     try:
-        html = first.fetch_html(args.url)
-        (debug_dir / "http_first.html").write_text(html, encoding="utf-8")
-    except BlockDetected as first_block:
-        logger.warning(
-            "[REHANDOFF_TRIGGERED] url=<%s> signature=<%s>",
-            args.url,
-            first_block.signature,
-        )
-        handoff: CookieHandoff = await PlaywrightCookieFetcher(
-            url=args.url,
-            debug_dir=debug_dir,
-            capsolver_key=args.capsolver_key,
-        ).farm()
-        rebound = build_adapter(handoff)
         try:
-            html = rebound.fetch_html(args.url)
-            (debug_dir / "http_second.html").write_text(html, encoding="utf-8")
-        except BlockDetected as block:
+            html = first.fetch_html(args.url)
+            (debug_dir / "http_first.html").write_text(html, encoding="utf-8")
+        except BlockDetected as first_block:
             logger.warning(
-                "[REHANDOFF_STILL_BLOCKED] url=<%s> signature=<%s>",
+                "[REHANDOFF_TRIGGERED] url=<%s> signature=<%s>",
                 args.url,
-                block.signature,
+                first_block.signature,
             )
-
-    _save_response(debug_dir, "http_first_raw.html", first)
-    if rebound is not None:
-        _save_response(debug_dir, "http_second_raw.html", rebound)
-
-    first.close()
-    if rebound is not None:
-        rebound.close()
+            handoff: CookieHandoff = await PlaywrightCookieFetcher(
+                url=args.url,
+                debug_dir=debug_dir,
+                capsolver_key=args.capsolver_key,
+            ).farm()
+            rebound = build_adapter(handoff)
+            try:
+                html = rebound.fetch_html(args.url)
+                (debug_dir / "http_second.html").write_text(html, encoding="utf-8")
+            except BlockDetected as block:
+                logger.warning(
+                    "[REHANDOFF_STILL_BLOCKED] url=<%s> signature=<%s>",
+                    args.url,
+                    block.signature,
+                )
+    finally:
+        _save_response(debug_dir, "http_first_raw.html", first)
+        if rebound is not None:
+            _save_response(debug_dir, "http_second_raw.html", rebound)
+        first.close()
+        if rebound is not None:
+            rebound.close()
 
 
 def main() -> int:
