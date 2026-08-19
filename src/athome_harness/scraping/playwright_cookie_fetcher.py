@@ -12,13 +12,11 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Final, cast
 
-import aiohttp
 from patchright.async_api import (
     BrowserContext,
     Frame,
     Locator,
     Page,
-    ProxySettings,
     Request,
     async_playwright,
 )
@@ -26,8 +24,17 @@ from patchright.async_api import (
 from athome_harness.scraping.base import redact_url
 from athome_harness.scraping.challenge import detect_athome_challenge
 from athome_harness.scraping.cookie_handoff import CookieHandoff, proxy_identity
+from athome_harness.scraping.playwright_shared import (
+    DEFAULT_SETTLE_SECONDS,
+    intercept_route,
+    read_settled_content,
+    solve_geetest_capsolver,
+    solve_turnstile_capsolver,
+    wait_for_page_signal,
+)
 from athome_harness.scraping.session_state import (
     SessionState,
+    build_launch_options,
     get_installed_chrome_version,
 )
 
@@ -39,85 +46,6 @@ DEFAULT_WAIT_SECONDS: Final = 3.0
 DEFAULT_CLICK_HOLD_SECONDS: Final = 2.5
 MIN_RENDERED_HTML_LENGTH: Final = 200
 _CLICK_TEXT = re.compile(r"click(?:\s+here)?\s+to\s+verify", re.IGNORECASE)
-
-
-async def _solve_turnstile_capsolver(api_key: str, site_url: str, site_key: str) -> str | None:
-    """Solve Cloudflare Turnstile using CapSolver API."""
-    logger.warning("[CAPSOLVER_TURNSTILE] url=<%s> site_key=<%s>", site_url, site_key)
-    endpoint = "https://api.capsolver.com/createTask"
-
-    payload = {
-        "clientKey": api_key,
-        "task": {
-            "type": "AntiTurnstileTaskProxyLess",
-            "websiteURL": site_url,
-            "websiteKey": site_key,
-        },
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(endpoint, json=payload) as resp:
-            data = await resp.json()
-            if data.get("errorId", 0) != 0:
-                logger.warning("[CAPSOLVER_TURNSTILE] error=<%s>", data.get("errorDescription"))
-                return None
-            task_id = data.get("taskId")
-
-        result_url = "https://api.capsolver.com/getTaskResult"
-        for _ in range(30):
-            await asyncio.sleep(2)
-            async with session.post(
-                result_url, json={"clientKey": api_key, "taskId": task_id}
-            ) as res_resp:
-                res_data = await res_resp.json()
-                if res_data.get("status") == "ready":
-                    logger.warning("[CAPSOLVER_TURNSTILE] solved")
-                    return str(res_data["solution"]["token"])
-                if res_data.get("status") == "failed":
-                    logger.warning("[CAPSOLVER_TURNSTILE] failed")
-                    return None
-    return None
-
-
-async def _solve_geetest_capsolver(
-    api_key: str, site_url: str, gt: str, challenge: str
-) -> dict[str, Any] | None:
-    """Solve Geetest V3 using CapSolver API."""
-    logger.warning("[CAPSOLVER_GEETEST] url=<%s> gt=<%s>", site_url, gt[:5])
-    endpoint = "https://api.capsolver.com/createTask"
-
-    payload = {
-        "clientKey": api_key,
-        "task": {
-            "type": "GeeTestTaskProxyLess",
-            "websiteURL": site_url,
-            "gt": gt,
-            "challenge": challenge,
-        },
-    }
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(endpoint, json=payload) as resp:
-            data = await resp.json()
-            if data.get("errorId", 0) != 0:
-                logger.warning("[CAPSOLVER_GEETEST] error=<%s>", data.get("errorDescription"))
-                return None
-            task_id = data.get("taskId")
-
-        result_url = "https://api.capsolver.com/getTaskResult"
-        for _ in range(30):
-            await asyncio.sleep(2)
-            async with session.post(
-                result_url, json={"clientKey": api_key, "taskId": task_id}
-            ) as res_resp:
-                res_data = await res_resp.json()
-                if res_data.get("status") == "ready":
-                    logger.warning("[CAPSOLVER_GEETEST] solved")
-                    return dict(res_data["solution"])
-                if res_data.get("status") == "failed":
-                    logger.warning("[CAPSOLVER_GEETEST] failed")
-                    return None
-    return None
 
 
 class PlaywrightCookieFetcherError(RuntimeError):
@@ -182,19 +110,15 @@ class PlaywrightCookieFetcher:
         )
         async with async_playwright() as patchright:
             with tempfile.TemporaryDirectory(prefix="athome-patchright-") as user_data_dir:
-                context = await patchright.chromium.launch_persistent_context(
+                launch_options = build_launch_options(
                     user_data_dir=user_data_dir,
-                    channel="chrome",
-                    headless=True,
-                    no_viewport=True,
-                    proxy=self._playwright_proxy(),
-                    **cast(Any, self._context_options()),
+                    chrome_version=get_installed_chrome_version(),
+                    proxy_url=self._proxy_url,
+                )
+                context = await patchright.chromium.launch_persistent_context(
+                    **cast(Any, launch_options)
                 )
                 return await self._farm_in_context(context)
-
-    def _context_options(self) -> dict[str, object]:
-        """Return context options shared by persistent Chrome sessions."""
-        return {"locale": "ja-JP"}
 
     async def _farm_in_context(self, context: BrowserContext) -> CookieHandoff:
         """Run the page workflow inside a persistent browser context."""
@@ -208,9 +132,15 @@ class PlaywrightCookieFetcher:
                     request_headers.update(dict(request.headers))
 
             page.on("request", remember_request_headers)
+            await page.route("**/*", intercept_route)
             await page.goto(self._url, wait_until="domcontentloaded")
-            await self._sleep(self._wait_seconds)
-            html = await page.content()
+            # Deterministic settle: wait for the challenge box or the listing
+            # container to attach instead of a blind fixed sleep, then allow
+            # a small buffer for in-flight subresource loads.
+            winner = await wait_for_page_signal(page)
+            logger.warning("[PLAYWRIGHT_PAGE_SIGNAL] found=<%s>", str(winner is not None).lower())
+            await self._sleep(min(self._wait_seconds, DEFAULT_SETTLE_SECONDS))
+            html = await read_settled_content(page)
             user_agent = await page.evaluate("navigator.userAgent")
             await self._validate_render(html, request_headers, blocked_allowed=True)
 
@@ -221,8 +151,11 @@ class PlaywrightCookieFetcher:
                 if not solved:
                     clicked = await self._click_verification(page)
                     logger.warning("[PLAYWRIGHT_VERIFY] clicked=<%s>", str(clicked).lower())
+                # Re-wait on the terminal selectors: verification reloads the
+                # page, so the same settle condition applies before re-reading.
+                await wait_for_page_signal(page)
                 await self._sleep(self._wait_seconds)
-                html = await page.content()
+                html = await read_settled_content(page)
                 after_kind = detect_athome_challenge(html)
                 accepted = after_kind is None
                 logger.warning(
@@ -383,7 +316,7 @@ class PlaywrightCookieFetcher:
         incapsula_data = data_match.group(1)
 
         logger.warning("[CAPSOLVER_GEETEST] extracting params from puzzle")
-        solution = await _solve_geetest_capsolver(self._capsolver_key, page.url, gt, challenge)
+        solution = await solve_geetest_capsolver(self._capsolver_key, page.url, gt, challenge)
 
         if not solution:
             return False
@@ -408,7 +341,7 @@ class PlaywrightCookieFetcher:
         if not site_key:
             return False
 
-        token = await _solve_turnstile_capsolver(self._capsolver_key, page.url, site_key)
+        token = await solve_turnstile_capsolver(self._capsolver_key, page.url, site_key)
         if not token:
             return False
 
@@ -451,12 +384,6 @@ class PlaywrightCookieFetcher:
             (index for index, candidate in enumerate(page.frames) if candidate == frame),
             -1,
         )
-
-    def _playwright_proxy(self) -> ProxySettings | None:
-        """Translate the configured proxy URL to Patchright launch settings."""
-        if self._proxy_url is None:
-            return None
-        return cast(ProxySettings, {"server": self._proxy_url})
 
     def _reject(self, reason: str) -> None:
         """Raise a stable rejection marker without returning challenged content."""
