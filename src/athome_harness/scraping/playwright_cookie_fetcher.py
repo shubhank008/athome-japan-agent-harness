@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import re
 import tempfile
@@ -19,13 +18,16 @@ from patchright.async_api import (
     Page,
     ProxySettings,
     Request,
-    Video,
     async_playwright,
 )
 
 from athome_harness.scraping.base import redact_url
 from athome_harness.scraping.challenge import detect_athome_challenge
 from athome_harness.scraping.cookie_handoff import CookieHandoff, proxy_identity
+from athome_harness.scraping.session_state import (
+    SessionState,
+    get_installed_chrome_version,
+)
 
 try:
     from playwright_stealth import (
@@ -47,9 +49,6 @@ DEFAULT_WAIT_SECONDS: Final = 3.0
 DEFAULT_CLICK_HOLD_SECONDS: Final = 2.5
 MIN_RENDERED_HTML_LENGTH: Final = 200
 _CLICK_TEXT = re.compile(r"click(?:\s+here)?\s+to\s+verify", re.IGNORECASE)
-_DIAGNOSTIC_VIDEO_NAME: Final = "playwright_challenge.webm"
-_DIAGNOSTIC_TRACE_NAME: Final = "playwright_challenge_trace.zip"
-_DIAGNOSTIC_EVENTS_NAME: Final = "playwright_events.jsonl"
 
 
 class PlaywrightCookieFetcherError(RuntimeError):
@@ -57,7 +56,13 @@ class PlaywrightCookieFetcherError(RuntimeError):
 
 
 class PlaywrightCookieFetcher:
-    """Farm a short-lived AtHome browser session for curl-cffi workers."""
+    """Farm a short-lived AtHome browser session for curl-cffi workers.
+
+    Single-purpose and lean: it renders AtHome, performs one bounded
+    verification click if challenged, and persists the handoff plus
+    ``session_state.json``. It never captures screenshots, trace, video, or an
+    event log; that diagnostic overhead lives in the operator probe.
+    """
 
     def __init__(
         self,
@@ -66,13 +71,19 @@ class PlaywrightCookieFetcher:
         proxy_url: str | None = None,
         debug_dir: Path = DEFAULT_DEBUG_DIR,
         handoff_path: Path | None = None,
+        session_state_path: Path | None = None,
         wait_seconds: float = DEFAULT_WAIT_SECONDS,
         min_html_length: int = MIN_RENDERED_HTML_LENGTH,
         sleep_fn: Callable[[float], Awaitable[None]] | None = None,
-        diagnostics: bool = True,
         click_hold_seconds: float = DEFAULT_CLICK_HOLD_SECONDS,
     ) -> None:
-        """Configure one browser farm without starting a browser yet."""
+        """Configure one browser farm without starting a browser yet.
+
+        The production farmer stays lean: it persists only the session handoff
+        and ``session_state.json``. Screenshots, browser trace, video, and the
+        structured event log are owned by the operator probe
+        (``scripts/playwright_manual_probe.py`` DEBUG mode), not this adapter.
+        """
         if wait_seconds < 0:
             raise ValueError("wait_seconds must not be negative")
         if min_html_length < 1:
@@ -85,14 +96,11 @@ class PlaywrightCookieFetcher:
         self._handoff_path = handoff_path or (
             debug_dir / f"cookie_handoff_{proxy_identity(proxy_url)}.json"
         )
+        self._session_state_path = session_state_path or (debug_dir / "session_state.json")
         self._wait_seconds = wait_seconds
         self._min_html_length = min_html_length
         self._sleep = sleep_fn or asyncio.sleep
-        self._diagnostics = diagnostics
         self._click_hold_seconds = click_hold_seconds
-        self._events_path = debug_dir / _DIAGNOSTIC_EVENTS_NAME
-        self._trace_path = debug_dir / _DIAGNOSTIC_TRACE_NAME
-        self._video_path = debug_dir / _DIAGNOSTIC_VIDEO_NAME
 
     async def farm(self) -> CookieHandoff:
         """Render AtHome, optionally verify once, and persist the handoff."""
@@ -111,37 +119,16 @@ class PlaywrightCookieFetcher:
                     proxy=self._playwright_proxy(),
                     **cast(Any, self._context_options()),
                 )
-                self._event(
-                    "context_started",
-                    marker="[PATCHRIGHT_CONTEXT_STARTED]",
-                    proxy=proxy_identity(self._proxy_url),
-                )
                 return await self._farm_in_context(context)
 
     def _context_options(self) -> dict[str, object]:
         """Return context options shared by persistent Chrome sessions."""
-        options: dict[str, object] = {"locale": "ja-JP"}
-        if self._diagnostics:
-            self._debug_dir.mkdir(parents=True, exist_ok=True)
-            options["record_video_dir"] = str(self._debug_dir)
-            options["record_video_size"] = {"width": 1280, "height": 720}
-        return options
+        return {"locale": "ja-JP"}
 
     async def _farm_in_context(self, context: BrowserContext) -> CookieHandoff:
         """Run the page workflow inside a persistent browser context."""
-        trace_started = False
-        page_video: Video | None = None
         try:
-            if self._diagnostics:
-                await context.tracing.start(
-                    screenshots=True,
-                    snapshots=True,
-                    sources=False,
-                )
-                trace_started = True
-                self._event("diagnostics_start", artifacts=self._artifact_names())
             page = await context.new_page()
-            page_video = page.video
             request_headers: dict[str, str] = {}
 
             def remember_request_headers(request: Request) -> None:
@@ -160,13 +147,6 @@ class PlaywrightCookieFetcher:
             challenge_kind = detect_athome_challenge(html)
             if challenge_kind is not None:
                 logger.warning("[PLAYWRIGHT_CHALLENGE] kind=<%s>", challenge_kind)
-                self._event(
-                    "challenge_before",
-                    challenge_kind=challenge_kind,
-                    html_chars=len(html),
-                    url=redact_url(page.url),
-                )
-                await self._save_debug_capture(page, "before", html)
                 clicked = await self._click_verification(page)
                 logger.warning("[PLAYWRIGHT_VERIFY] clicked=<%s>", str(clicked).lower())
                 await self._sleep(self._wait_seconds)
@@ -181,15 +161,6 @@ class PlaywrightCookieFetcher:
                     after_kind or "none",
                     len(html),
                 )
-                self._event(
-                    "verification_result",
-                    attempted=clicked,
-                    accepted=accepted,
-                    challenge_kind=after_kind,
-                    html_chars=len(html),
-                    url=redact_url(page.url),
-                )
-                await self._save_debug_capture(page, "after", html)
                 await self._validate_render(html, request_headers, blocked_allowed=False)
 
             cookies = await context.cookies()
@@ -204,6 +175,11 @@ class PlaywrightCookieFetcher:
                 cookies=[dict(cookie) for cookie in cookies],
             )
             handoff.save(self._handoff_path, self._debug_dir / "cookies.txt")
+            self._persist_session_state(
+                cookies=[dict(cookie) for cookie in cookies],
+                user_agent=user_agent,
+                headers=request_headers,
+            )
             logger.warning(
                 "[PLAYWRIGHT_HANDOFF_SAVED] proxy=<%s> cookies=<%d>",
                 handoff.proxy_identity,
@@ -211,27 +187,40 @@ class PlaywrightCookieFetcher:
             )
             return handoff
         finally:
-            if trace_started:
-                try:
-                    await context.tracing.stop(path=str(self._trace_path))
-                except Exception:
-                    logger.exception("[PATCHRIGHT_TRACE_STOP_FAILED]")
             try:
                 await context.close()
             except Exception:
                 logger.exception("[PATCHRIGHT_CONTEXT_CLOSE_FAILED]")
-            if page_video is not None:
-                try:
-                    await self._finalize_video(page_video)
-                except Exception:
-                    logger.exception("[PATCHRIGHT_VIDEO_FINALIZE_FAILED]")
-            if self._diagnostics:
-                logger.warning(
-                    "[PLAYWRIGHT_DIAGNOSTICS_SAVED] events=<%s> trace=<%s> video=<%s>",
-                    self._events_path,
-                    self._trace_path,
-                    self._video_path,
-                )
+
+    def _persist_session_state(
+        self,
+        *,
+        cookies: list[dict[str, Any]],
+        user_agent: str,
+        headers: dict[str, str],
+    ) -> None:
+        """Persist the curl-cffi ``session_state.json`` beside the handoff.
+
+        The real navigation ``headers`` and ``user_agent`` from the browser are
+        preferred over the synthetic Chrome envelope so curl-cffi replays the
+        exact fingerprint AtHome just accepted.
+        """
+        state = SessionState.from_browser(
+            cookies=cookies,
+            user_agent=user_agent,
+            chrome_version=get_installed_chrome_version(),
+            proxy_url=self._proxy_url,
+        )
+        state.headers = dict(headers)
+        if "user-agent" in state.headers and not state.headers.get("user-agent"):
+            state.headers["user-agent"] = user_agent
+        state.user_agent = user_agent
+        state.save(self._session_state_path)
+        logger.warning(
+            "[PLAYWRIGHT_SESSION_STATE_SAVED] path=<%s> cookies=<%d>",
+            self._session_state_path,
+            len(cookies),
+        )
 
     async def _validate_render(
         self,
@@ -260,32 +249,20 @@ class PlaywrightCookieFetcher:
         target, frame, target_kind = await self._find_verification_target(page)
         if target is None or frame is None:
             logger.warning("[PLAYWRIGHT_VERIFY_TARGET] found=false")
-            self._event("verification_target", found=False)
             return False
         try:
             await target.wait_for(state="visible", timeout=5000)
             box = await target.bounding_box()
-            frame_url = redact_url(frame.url)
             logger.warning(
                 "[PLAYWRIGHT_VERIFY_TARGET] found=true frame=<%d> kind=<%s> visible=true box=<%s>",
                 self._frame_index(page, frame),
                 target_kind,
                 box,
             )
-            self._event(
-                "verification_target",
-                found=True,
-                frame_index=self._frame_index(page, frame),
-                frame_url=frame_url,
-                target_kind=target_kind,
-                visible=True,
-                bounding_box=box,
-            )
             await target.hover()
             await self._sleep(0.5)
             started = datetime.now(UTC)
             logger.warning("[PLAYWRIGHT_VERIFY_POINTER] action=<click_start>")
-            self._event("verification_pointer", action="click_start", mode="press_hold")
             mouse = getattr(page, "mouse", None)
             if box is not None and mouse is not None:
                 await mouse.move(box["x"] + box["width"] / 3, box["y"] + box["height"] / 3)
@@ -295,16 +272,14 @@ class PlaywrightCookieFetcher:
             else:
                 await target.click(delay=250)
             ended = datetime.now(UTC)
-            logger.warning("[PLAYWRIGHT_VERIFY_POINTER] action=<click_end>")
-            self._event(
-                "verification_pointer",
-                action="click_end",
-                duration_ms=(ended - started).total_seconds() * 1000,
+            duration_ms = (ended - started).total_seconds() * 1000
+            logger.warning(
+                "[PLAYWRIGHT_VERIFY_POINTER] action=<click_end> duration_ms=<%.0f>",
+                duration_ms,
             )
             return True
         except Exception as error:
             logger.warning("[PLAYWRIGHT_VERIFY] interaction_error=<%s>", type(error).__name__)
-            self._event("verification_error", error_type=type(error).__name__)
             return False
 
     async def _find_verification_target(
@@ -331,44 +306,6 @@ class PlaywrightCookieFetcher:
             (index for index, candidate in enumerate(page.frames) if candidate == frame),
             -1,
         )
-
-    def _artifact_names(self) -> dict[str, str]:
-        """Return local diagnostic artifact paths without sensitive values."""
-        return {
-            "events": str(self._events_path),
-            "trace": str(self._trace_path),
-            "video": str(self._video_path),
-        }
-
-    def _event(self, name: str, **fields: object) -> None:
-        """Append one redacted structured diagnostic event to the local JSONL log."""
-        if not self._diagnostics:
-            return
-        self._debug_dir.mkdir(parents=True, exist_ok=True)
-        payload: dict[str, object] = {
-            "event": name,
-            "timestamp": datetime.now(UTC).isoformat(),
-        }
-        payload.update(fields)
-        line = json.dumps(payload, ensure_ascii=False, sort_keys=True, default=str)
-        with self._events_path.open("a", encoding="utf-8") as events_file:
-            events_file.write(line + "\n")
-        logger.warning("[PLAYWRIGHT_DIAGNOSTIC_EVENT] event=<%s>", name)
-
-    async def _finalize_video(self, video: Video) -> None:
-        """Move Patchright's generated video to the stable diagnostic filename."""
-        generated_path = Path(await video.path())
-        if generated_path != self._video_path and generated_path.exists():
-            generated_path.replace(self._video_path)
-
-    async def _save_debug_capture(self, page: Page, stage: str, html: str) -> None:
-        """Save raw HTML and a screenshot for one challenge stage."""
-        self._debug_dir.mkdir(parents=True, exist_ok=True)
-        (self._debug_dir / f"playwright_{stage}.html").write_text(
-            html,
-            encoding="utf-8",
-        )
-        await page.screenshot(path=str(self._debug_dir / f"playwright_{stage}.png"))
 
     def _playwright_proxy(self) -> ProxySettings | None:
         """Translate the configured proxy URL to Patchright launch settings."""
