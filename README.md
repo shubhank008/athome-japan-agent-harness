@@ -8,17 +8,19 @@ returns a ranked, reasoned shortlist with direct links.
 ## Project status
 
 M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), M3 (parsing),
-and M4 (LLM layer) are implemented. The package `src/athome_harness/` contains
-configuration parsing, pydantic data models, the scraper abstraction layer
+M4 (LLM layer), and M5 (store) are implemented. The package `src/athome_harness/`
+contains configuration parsing, pydantic data models, the scraper abstraction layer
 (`BaseScraper`, `BlockDetected`, `ProxyProvider`), a token-bucket rate limiter, an HTTP
 DOM adapter with block detection, proxy rotation, and AtHome challenge handling, list
 and detail parsers that turn captured HTML into `ListingSummary`/`ListingDetail` models,
 a versioned filter-map schema with validation, a SearchPlan encoder that produces AtHome
-POST parameters, a weekly-refresh extraction tool with a checked-in snapshot, and the
+POST parameters, a weekly-refresh extraction tool with a checked-in snapshot, the
 LLM layer: `BaseLLMProvider` with schema-validated completion and token accounting,
 OpenRouter transport via curl-cffi, NL query parser with rent/buy flow resolution and
 clarification handling, token-bounded batched shortlisting, and top-Y recommendation
-ranking with markdown and JSON reports. Store and orchestration are pending.
+ranking with markdown and JSON reports, and the persistence layer: `BaseDataStore`
+abstract interface with a SQLite backend (`SqliteStore`) for listings, searches,
+recommendations, saves, rejects, and cache metadata. Orchestration is pending.
 
 ## Documentation
 
