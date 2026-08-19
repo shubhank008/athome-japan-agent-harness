@@ -2,8 +2,8 @@
 
 Import surface: consumers depend on :class:`BaseLLMProvider` / the funnel
 classes and never import a third-party LLM SDK directly. The concrete
-:class:`OpenRouterProvider` transport is exposed here for composition at the
-CLI orchestration layer.
+:class:`OpenRouterProvider` and :class:`OpenCodeGoProvider` transports are
+exposed here for composition at the CLI orchestration layer.
 """
 
 from athome_harness.llm.base import (
@@ -12,6 +12,7 @@ from athome_harness.llm.base import (
     LLMProviderError,
     LLMUsage,
 )
+from athome_harness.llm.opencodego import OpenCodeGoProvider
 from athome_harness.llm.openrouter import OpenRouterProvider
 from athome_harness.llm.query_parser import ClarificationNeeded, QueryParser
 from athome_harness.llm.recommender import (
@@ -28,6 +29,7 @@ __all__ = [
     "LLMJSONInvalidError",
     "LLMProviderError",
     "LLMUsage",
+    "OpenCodeGoProvider",
     "OpenRouterProvider",
     "QueryParser",
     "RecommendationOutput",

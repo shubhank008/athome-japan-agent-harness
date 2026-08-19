@@ -4,8 +4,8 @@ This module owns the business-facing LLM contract (:class:`BaseLLMProvider`),
 the token accounting value object (:class:`LLMUsage`), and the typed errors the
 rest of the funnel raises. It follows the repository's Abstract First
 invariant: only the standard library and project interfaces are imported here.
-The concrete transport (:class:`OpenRouterProvider` in ``openrouter.py``) is the
-only place a third-party HTTP client may appear.
+The concrete transport (:class:`OpenAICompatibleProvider` in ``openai_compat.py``)
+is the only place a third-party HTTP client may appear.
 
 The shared :meth:`BaseLLMProvider.complete_json` method implements the
 schema-validated completion loop once so every consumer (query parser,

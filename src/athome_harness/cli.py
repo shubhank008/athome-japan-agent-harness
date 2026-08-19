@@ -18,15 +18,13 @@ interfaces (:class:`BaseLLMProvider` plus its wrappers), the fetch callable
 (page HTML for list and detail), the store, the filter map, the report
 directory, the clock, and the plan-confirmation callback. No third-party
 transport is imported here. Tests inject fakes only at these boundaries; the
-live network path is built by :func:`build_default_fetch` for human use and is
-never exercised by unit or e2e tests.
+live network path is built by :func:`providers.build_production_fetch` for human
+use and is never exercised by unit or e2e tests.
 """
 
 from __future__ import annotations
 
-import asyncio
 import logging
-import os
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -34,7 +32,7 @@ from pathlib import Path
 
 from pydantic import BaseModel, Field
 
-from athome_harness.config import Budgets, Settings
+from athome_harness.config import Budgets
 from athome_harness.filters.encoder import UnknownFilter, UnknownFilterValue, encode_plan
 from athome_harness.llm.base import BaseLLMProvider
 from athome_harness.llm.query_parser import ClarificationNeeded, QueryParser
@@ -442,51 +440,6 @@ class SearchSession:
 # ---------------------------------------------------------------------------
 
 
-def _load_settings() -> Settings:
-    """Build runtime ``Settings`` from the environment.
-
-    ``openrouter_api_key`` is typed as required, so pass it explicitly; the
-    value comes from the ``OPENROUTER_API_KEY`` process environment variable
-    (empty when unset, in which case downstream LLM calls fail loudly).
-    """
-    return Settings(openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", ""))
-
-
-def build_default_fetch(
-    budgets: Budgets | None = None, settings: Settings | None = None
-) -> Callable[[str], str]:
-    """Build a production page fetch callable over the SessionRefarmer fallback.
-
-    Constructs the async refarm loop (curl-cffi direct, then Patchright session
-    on block) and exposes it as a synchronous URL -> HTML callable. This path
-    performs live network I/O and is intended for human use only; tests and the
-    scripted e2e run inject fakes instead.
-    """
-    from athome_harness.scraping.cookie_handoff import CookieHandoff
-    from athome_harness.scraping.http_adapter import HttpDomAdapter
-    from athome_harness.scraping.playwright_cookie_fetcher import PlaywrightCookieFetcher
-    from athome_harness.scraping.proxy.webshare import WebshareProxyProvider
-    from athome_harness.scraping.session_refarmer import SessionRefarmer
-
-    settings = settings or _load_settings()
-    budgets = budgets or settings.budgets
-    proxy = WebshareProxyProvider(settings=settings, budgets=budgets)
-
-    def build_adapter(handoff: CookieHandoff | None) -> object:
-        return HttpDomAdapter(
-            budgets=budgets,
-            proxy_provider=proxy,
-            handoff=handoff,
-        )
-
-    refarmer = SessionRefarmer(build_adapter=build_adapter, farm=PlaywrightCookieFetcher().farm)
-
-    def fetch(url: str) -> str:
-        return asyncio.run(refarmer.fetch_html(url))
-
-    return fetch
-
-
 def interactive() -> None:
     """Run the human REPL loop on stdin/stdout.
 
@@ -494,18 +447,21 @@ def interactive() -> None:
     session alive so later commands (save/reject/more like/refine) operate on
     the last search. This is the entry point for ``python -m athome_harness.cli``.
     """
-    settings = _load_settings()
-    from athome_harness.llm.openrouter import OpenRouterProvider
-    from athome_harness.store.sqlite_store import SqliteStore
+    from athome_harness.providers import (
+        build_llm_provider,
+        build_production_fetch,
+        build_store,
+        load_settings,
+    )
 
-    provider = OpenRouterProvider(api_key=settings.openrouter_api_key)
+    settings = load_settings()
     filter_map = _load_filter_map()
-    store = SqliteStore("athome.db")
+    store = build_store(settings)
     deps = SessionDeps(
-        provider=provider,
+        provider=build_llm_provider(settings),
         filter_map=filter_map,
         store=store,
-        fetch=build_default_fetch(settings.budgets, settings),
+        fetch=build_production_fetch(settings.budgets, settings),
         build_list_url=_default_list_url,
         build_detail_url=lambda summary: summary.url,
         report_dir=Path("reports"),

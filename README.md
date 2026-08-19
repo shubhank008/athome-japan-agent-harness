@@ -8,9 +8,10 @@ returns a ranked, reasoned shortlist with direct links.
 ## Project status
 
 M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), M3 (parsing),
-M4 (LLM layer), M5 (store), M6 (orchestration + CLI), and M7 (maintenance
+M4 (LLM layer), M5 (store), M6 (orchestration + CLI), M7 (maintenance
 surfaces: US-008 proxy-fallback integration coverage plus quickstart/architecture
-documentation) are implemented. The package
+documentation), and M8 (config-driven provider layer with OpenAI-compatible base,
+OpencodeGo transport, and provider factory) are implemented. The package
 `src/athome_harness/` contains configuration parsing, pydantic data models, the scraper
 abstraction layer (`BaseScraper`, `BlockDetected`, `ProxyProvider`), a token-bucket rate
 limiter, an HTTP DOM adapter with block detection, proxy rotation, and AtHome challenge
@@ -18,11 +19,14 @@ handling, list and detail parsers that turn captured HTML into `ListingSummary`/
 `ListingDetail` models, a versioned filter-map schema with validation, a SearchPlan
 encoder that produces AtHome POST parameters, a weekly-refresh extraction tool with a
 checked-in snapshot, the LLM layer: `BaseLLMProvider` with schema-validated completion
-and token accounting, OpenRouter transport via curl-cffi, NL query parser with rent/buy
+and token accounting, OpenAI-compatible base class with OpenRouter and OpencodeGo
+transports via curl-cffi, NL query parser with rent/buy
 flow resolution and clarification handling, token-bounded batched shortlisting, and
 top-Y recommendation ranking with markdown and JSON reports, the persistence layer:
 `BaseDataStore` abstract interface with a SQLite backend (`SqliteStore`) for listings,
-searches, recommendations, saves, rejects, and cache metadata, and the orchestration
+searches, recommendations, saves, rejects, and cache metadata, the provider factory:
+config-driven selection of LLM, store, and scraper adapters from `.env` settings, and
+the orchestration
 layer: a budget-aware pagination harvester with partial-result behavior, a typed
 conversational CLI/REPL with dependency injection and feedback commands (save/reject/
 more like/refine), a scripted fixture-based e2e search session, and a `SessionRefarmer`
@@ -42,7 +46,7 @@ loudly at startup on an unknown `ATHOME_`-prefixed key, so keep `.env` and
 
 ```bash
 cp .env.example .env
-# Edit .env: OPENROUTER_API_KEY is required; WEBSHARE_PROXY_USER/PASS are optional.
+# Edit .env: set ATHOME_LLM_PROVIDER (default openrouter) and its API key; WEBSHARE_PROXY_USER/PASS are optional.
 ```
 
 The exact accepted keys and their defaults live in `src/athome_harness/config.py`
@@ -132,8 +136,8 @@ Key layers in `src/athome_harness/`:
   and `detail_parser`; `harvester` (bounded pagination); `SessionRefarmer`
   (direct-first, then farm/rebind recovery); `rate_limiter`; Patchright cookie
   farmer.
-- `llm/` - `BaseLLMProvider`, OpenRouter transport, query parser, shortlister,
-  recommender.
+- `llm/` - `BaseLLMProvider`, OpenAI-compatible base class with OpenRouter and
+  OpencodeGo transports, query parser, shortlister, recommender.
 - `filters/` - versioned filter-map schema plus encoder that maps a `SearchPlan`
   to AtHome POST parameters.
 - `store/` - `BaseDataStore` with a SQLite backend.
