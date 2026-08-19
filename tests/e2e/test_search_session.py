@@ -225,7 +225,9 @@ def test_scripted_human_session(tmp_path: Path, caplog: pytest.LogCaptureFixture
         payload = json.loads(f.read_text(encoding="utf-8"))
         assert isinstance(payload, dict)
         assert isinstance(payload["recommendations"], list)
-        assert payload["recommendations"]
+        assert len(payload["recommendations"]) >= 1, (
+            f"expected >= 1 recommendation in {f.name}, got {len(payload['recommendations'])}"
+        )
 
     # 5) the store retained the search history and harvest
     assert store.search_history(limit=10)
