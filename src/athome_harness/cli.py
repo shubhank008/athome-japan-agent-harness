@@ -448,10 +448,10 @@ def interactive() -> None:
     the last search. This is the entry point for ``python -m athome_harness.cli``.
     """
     from athome_harness.providers import (
-        load_settings,
         build_llm_provider,
         build_production_fetch,
         build_store,
+        load_settings,
     )
 
     settings = load_settings()

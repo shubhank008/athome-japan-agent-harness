@@ -2,8 +2,8 @@
 
 Import surface: consumers depend on :class:`BaseLLMProvider` / the funnel
 classes and never import a third-party LLM SDK directly. The concrete
-:class:`OpenRouterProvider` transport is exposed here for composition at the
-CLI orchestration layer.
+:class:`OpenRouterProvider` and :class:`OpenCodeGoProvider` transports are
+exposed here for composition at the CLI orchestration layer.
 """
 
 from athome_harness.llm.base import (

@@ -21,7 +21,8 @@ adapter with block detection, proxy rotation, and AtHome challenge detection),
 `ListingSummary` list), `scraping/detail_parser.py` (detail HTML -> `ListingDetail`),
 live-captured fixtures in `tests/fixtures/`. M4: `llm/base.py` (BaseLLMProvider with
 schema-validated completion, token accounting, exactly-one repair retry),
-`llm/openrouter.py` (OpenRouter transport via curl-cffi, injectable session),
+`llm/openrouter.py` (OpenAI-compatible transport base with OpenRouter and OpencodeGo
+providers via curl-cffi, injectable session),
 `llm/query_parser.py` (NL -> SearchPlan with rent/buy flow resolution and clarification),
 `llm/shortlister.py` (token-bounded batched scoring, ordered top-X with rationales),
 `llm/recommender.py` (top-Y ranking with reasons and violated constraints, markdown +
@@ -64,8 +65,8 @@ shortlist (top X) -> detail scrape -> top-Y report (markdown + JSON) -> persiste
 memory (seen/saved/rejected). Abstract-first: BaseScraper (curl-cffi adapter now,
 Playwright scaffold), PlaywrightCookieFetcher (async browser farmer producing a
 typed CookieHandoff), SessionRefarmer (production fallback loop orchestrating
-HttpDom -> block -> browser farm -> rebound HttpDom), BaseLLMProvider (OpenRouter
-first), BaseDataStore (SQLite first), BaseFloorPlanEvaluator (text default, vision
+HttpDom -> block -> browser farm -> rebound HttpDom), BaseLLMProvider (OpenRouter or
+OpencodeGo, config-driven), BaseDataStore (SQLite first), BaseFloorPlanEvaluator (text default, vision
 stub). Webshare proxy rotation on block detection only. Weekly GitHub Action re-extracts the filter map and files an issue on
 DOM drift. Post-MVP: prefetch cache with freshness ordering and dead-listing
 revalidation, vision A/B benchmarks.

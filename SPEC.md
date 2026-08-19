@@ -127,8 +127,11 @@ The mapping of (flow, field) -> [{code, label}] is extracted from rendered HTML 
   `CookieHandoff` consumed by `HttpDomAdapter`. `SessionRefarmer` orchestrates the
   production fallback loop (HttpDom -> block -> PlaywrightCookieFetcher -> handoff ->
   HttpDom rebound). No third-party HTTP import outside adapters.
-- `BaseLLMProvider`: complete_json(schema) with token accounting. OpenRouter impl;
-  general model `deepseek/deepseek-v4-flash-0731`, vision `google/gemma-4-31b-it`.
+- `BaseLLMProvider`: complete_json(schema) with token accounting. Shared
+  `OpenAICompatibleProvider` base over curl-cffi; concrete transports: OpenRouter
+  (`openrouter.py`) and OpencodeGo (`opencodego.py`). Provider selection is
+  config-driven via `ATHOME_LLM_PROVIDER`. General model
+  `deepseek/deepseek-v4-flash-0731`, vision `google/gemma-4-31b-it`.
 - `BaseDataStore`: upsert_listing, record_search, record_recommendation, save, reject,
   history queries. SQLite impl; listings keyed by internal id with BKLISTID + URL dedupe.
 - `BaseFloorPlanEvaluator`: evaluate(detail) -> score/notes. `TextDescription...`
@@ -155,4 +158,7 @@ The mapping of (flow, field) -> [{code, label}] is extracted from rendered HTML 
 
 All runtime config via env / `.env` (git-ignored); `.env.example` documents every key
 and stays in sync with the parser (repo invariant). Keys: `OPENROUTER_API_KEY`,
-`WEBSHARE_PROXY_USER`, `WEBSHARE_PROXY_PASS`, model names, and the budget knobs above.
+`OPENCODEGO_API_KEY`, `WEBSHARE_PROXY_USER`, `WEBSHARE_PROXY_PASS`,
+`ATHOME_LLM_PROVIDER`, `ATHOME_STORE_PROVIDER`, `ATHOME_SCRAPER_PROVIDER`,
+`ATHOME_OPENCODEGO_MODEL`, `ATHOME_OPENCODEGO_BASE_URL`, `ATHOME_STORE_PATH`,
+model names, and the budget knobs above.
