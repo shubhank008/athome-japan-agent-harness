@@ -14,6 +14,7 @@ Import surface rules for the rest of the harness:
 
 from athome_harness.scraping.base import BaseScraper, BlockDetected, ProxyProvider, redact_url
 from athome_harness.scraping.cookie_handoff import CookieHandoff, proxy_identity
+from athome_harness.scraping.harvester import Harvester, HarvestResult
 from athome_harness.scraping.http_adapter import HttpDomAdapter
 from athome_harness.scraping.playwright_cookie_fetcher import PlaywrightCookieFetcher
 from athome_harness.scraping.session_refarmer import SessionFarmer, SessionRefarmer
@@ -27,6 +28,8 @@ __all__ = [
     "BaseScraper",
     "BlockDetected",
     "CookieHandoff",
+    "HarvestResult",
+    "Harvester",
     "HttpDomAdapter",
     "PlaywrightCookieFetcher",
     "ProxyProvider",
