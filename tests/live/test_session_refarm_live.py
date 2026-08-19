@@ -72,7 +72,6 @@ async def test_refarmer_direct_path_fetches_live_listing(tmp_path: Path) -> None
 
     refarmer = _build_refarmer(tmp_path)
     html = await refarmer.fetch_html(BROAD_SEARCH_URL)
-    #print(len(html))
 
     assert isinstance(html, str)
     assert detect_athome_challenge(html) is None
@@ -139,12 +138,9 @@ async def test_refarmer_fetches_detail_pages_through_farmed_session(tmp_path: Pa
     if os.getenv("ATHOME_LIVE_TEST") != "1":
         pytest.skip("set ATHOME_LIVE_TEST=1 to access AtHome")
 
-    #print(tmp_path)
-
     refarmer = _build_refarmer(tmp_path)
     broad_html = await refarmer.fetch_html(BROAD_SEARCH_URL)
     detail_urls = _absolute_urls(_DETAIL_LINK.findall(broad_html))[:3]
-    #print(detail_urls)
 
     if len(detail_urls) < 3:
         pytest.fail("AtHome broad search did not expose three detail links")

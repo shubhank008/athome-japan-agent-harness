@@ -161,7 +161,7 @@ class HttpDomAdapter(BaseScraper):
         self._client_owned = client is None
         self._client: CurlSession = client or self._build_client(initial_proxy)
         self._debug = debug or False
-        self._rawResponse: CurlResponse = None
+        self._raw_response: CurlResponse | None = None
         if handoff is not None:
             logger.warning(
                 "[CURL_HANDOFF_BOUND] proxy=<%s> cookies=<%d> impersonate=<%s>",
@@ -228,7 +228,7 @@ class HttpDomAdapter(BaseScraper):
         for attempt in range(attempts + 1):
             response = self._http_get(url, proxy_url)
             if self._debug:
-                self._rawResponse = response
+                self._raw_response = response
             challenge_kind = _detect_athome_challenge(response.text)
             if challenge_kind is not None:
                 logger.warning(
@@ -282,6 +282,11 @@ class HttpDomAdapter(BaseScraper):
                     raise
                 self._sleep(min(_BACKOFF_MAX_S, _BACKOFF_BASE_S * (2**attempt)))
         raise AssertionError("unreachable")
+
+    @property
+    def raw_response(self) -> CurlResponse | None:
+        """Last raw curl-cffi response captured when debug mode is enabled."""
+        return self._raw_response
 
     def close(self) -> None:
         """Release the underlying curl-cffi transport."""

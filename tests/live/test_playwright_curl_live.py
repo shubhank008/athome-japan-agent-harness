@@ -38,7 +38,6 @@ async def test_playwright_handoff_persists_and_replays(tmp_path: Path) -> None:
     if os.getenv("ATHOME_LIVE_TEST") != "1":
         pytest.skip("set ATHOME_LIVE_TEST=1 to access AtHome")
 
-    #print(tmp_path)
     fetcher = PlaywrightCookieFetcher(url=BROAD_SEARCH_URL, debug_dir=tmp_path)
     handoff = await fetcher.farm()
 
