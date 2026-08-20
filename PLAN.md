@@ -83,7 +83,8 @@ revalidation, vision A/B benchmarks.
 | M5 Store | T22-T23 | done (2026-08-19, `feat/001-m5-store`) |
 | M6 Orchestration + CLI | T24-T26 | done (2026-08-19, `feat/001-m6-orchestration-cli`) |
 | M7 Maintenance surfaces | T27-T28 | done (2026-08-19, `feat/001-m7-maintenance-surfaces`) |
-| M8 Post-MVP | T29-T31 | spec'd, not scheduled |
+| M8 Configurable providers | (factory) | done (PR #15 `feat/001-m8-configurable-providers`) |
+| Post-MVP | T29-T31 | spec'd, not scheduled |
 
 ## Decisions log
 
