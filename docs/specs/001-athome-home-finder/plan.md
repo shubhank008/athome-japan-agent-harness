@@ -185,7 +185,19 @@ PLAN.md                     # repo-level live plan, updated after every feature
   expectations) and an architecture section linking PRD/SPEC/feature spec/plan/
   marker contract/agent guidance; PLAN.md at repo root and this plan updated.
 
-### M8: Post-MVP (spec'd, scheduled later)
+### M8: Config-driven providers
+
+- [x] Config: add provider-selection and OpencodeGo settings (`ATHOME_LLM_PROVIDER`,
+  `ATHOME_SCRAPER_PROVIDER`, `ATHOME_STORE_PROVIDER`, `ATHOME_OPENCODEGO_MODEL`,
+  `ATHOME_OPENCODEGO_BASE_URL`), updated `.env.example` in the same change.
+- [x] `llm/openai_compat.py`: shared `OpenAICompatibleProvider` base over curl-cffi;
+  `llm/openrouter.py` and `llm/opencodego.py` concrete transports.
+- [x] `providers.py`: config-driven factory `build_llm_provider`, `build_store`,
+  `build_production_fetch` (HTTP scraper + SessionRefarmer), public `load_settings`.
+- [x] `cli.py`/tools consume the factory; provider selection is a config flip, not a code change.
+- [x] Merged through PR #15 (`feat/001-m8-configurable-providers`).
+
+### Post-MVP (spec'd, scheduled later)
 
 - [ ] T29 US-009 `cache/prefetch.py` + `cache/revalidator.py` behind config flag.
 - [ ] T30 US-010 vision evaluator stub + A/B benchmark harness + report.

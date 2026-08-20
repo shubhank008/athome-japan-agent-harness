@@ -143,6 +143,103 @@ Key layers in `src/athome_harness/`:
 - `store/` - `BaseDataStore` with a SQLite backend.
 - `config.py`, `models.py` - strict environment parser and pydantic data models.
 
+### Provider and adapter choices
+
+Providers are selected by config, not code (see `src/athome_harness/providers.py`):
+
+- **LLM** (`ATHOME_LLM_PROVIDER`): `openrouter` (default) or `opencodego`. Both share
+  the `OpenAICompatibleProvider` base over curl-cffi. The general model defaults to
+  `deepseek/deepseek-v4-flash-0731`; OpencodeGo uses `opencode-go/deepseek-v4-flash`
+  at its own base URL. Construction fails loudly when the selected provider's API key
+  is absent.
+- **Scraper** (`ATHOME_SCRAPER_PROVIDER`): `http` (default, the only supported value).
+  `HttpDomAdapter` over curl-cffi with block/challenge detection and Webshare proxy
+  rotation; on a block it falls back through the production `SessionRefarmer`.
+- **Store** (`ATHOME_STORE_PROVIDER`): `sqlite` (default) via `SqliteStore`.
+
+### Pagination and budget behavior
+
+Budgets are configurable through `ATHOME_*` env keys and covered by SPEC section 5:
+
+- Result page size 30, max 100 pages per live search, runtime budget 30 minutes.
+- The harvester checks budgets before each page and returns a partial report with an
+  explicit `partial: true` marker when it aborts rather than emitting wrong data.
+- Rate limit 1 request / 2 s with 0-1 s jitter; HTTP timeout 30 s; proxy retries 3.
+- Live searches scrape 100% of the LLM-filtered result set; broad-net freshness
+  coverage is delegated to the optional post-MVP prefetch cache, not to live searches.
+
+### LLM repair and token loop
+
+Every schema-validated LLM call goes through `BaseLLMProvider.complete_json`:
+
+- The model is asked for a pydantic-schema-validated JSON answer.
+- If the first completion is not schema-valid, exactly one repair retry runs with an
+  explicit fix-the-JSON instruction; a second failure raises a typed
+  `LLMJSONInvalidError` (contract marker `LLM_JSON_INVALID`).
+- Prompt and completion tokens are summed across the original and any repair call
+  into the returned `LLMUsage` and reported by the probe.
+- Long harvests are scored in token-bounded batches (max ~4000 estimated tokens per
+  batch) so prompt size stays bounded regardless of harvest size.
+
+### Mermaid architecture
+
+```mermaid
+flowchart LR
+    U[Operator / user] --> Q[NL query]
+    Q --> P[query_parser]
+    P --> SP[SearchPlan]
+    SP --> FE[filters / encoder <br/> versioned filter map]
+    FE --> H[harvester <br/> pagination + budgets]
+    H --> LS[Shortlister <br/> token-bounded batches]
+    LS --> D[detail scrape]
+    D --> R[Recommender top-Y]
+    R --> REP[report md + json]
+    REP --> S[(SqliteStore)]
+
+    subgraph LLM[LLM layer: BaseLLMProvider]
+        FA[factory: openrouter | opencodego] --> LS
+        FA --> P
+        FA --> R
+    end
+    subgraph NET[Scraper layer]
+        A[HttpDomAdapter curl-cffi] --> H
+        A --> D
+        REF[SessionRefarmer] --> A
+        PROX[Webshare proxy on block] --> A
+    end
+```
+
+### Available tools and probes
+
+Operator and diagnostic scripts live in `scripts/` and `tools/`. The three
+production-shaped probes are bounded, fail closed on an AtHome challenge, and never
+write challenge HTML, cookies, session state, proxy URLs, or credentials to tracked
+artifacts. All three are safe to inspect with `--help` and have offline verification
+paths that need no live request:
+
+- `scripts/property_rental_probe.py` - one property/listing flow. `--input-mode url`
+  (default) fetches a list page then its first detail over the HTTP adapter, bounded by
+  `--timeout`; `--input-mode fixture` parses `--list-html` and optional `--detail-html`
+  with no network. Artifacts go to `--debug-dir`. Shows request and parse stages and
+  validates content before writing.
+- `scripts/llm_probe.py` - configured LLM through the real provider factory and the
+  schema-validated JSON path. `--provider` / `--model` / `--prompt` select the target;
+  `--fake` runs a canned no-network provider. Reports resolved provider/model, token
+  usage, and parsed output; fails loudly when credentials are absent and never prints
+  a key.
+- `scripts/full_run_probe.py` - the full funnel in `SearchSession` order (query parser,
+  filter encoder, harvester, shortlister, detail parsing, recommender, report, store).
+  Default `--mode fixture` is offline and deterministic; `--mode live` is opt-in and
+  builds production transports. Cleans up its `--work-dir` on exit unless
+  `--keep-outputs`.
+
+Diagnostic probes (these capture raw artifacts under an ignored `debug/` dir and must
+not be committed):
+
+- `scripts/http_manual_probe.py` - raw `HttpDomAdapter` fetch with debug output.
+- `scripts/playwright_manual_probe.py` - headed Patchright browser observation.
+- `tools/dump_filter_map.py` - dump the versioned filter map.
+
 Authoritative references (keep these in sync with code changes):
 
 - [PRD.md](PRD.md) - project-level product requirements (authoritative for product intent)
