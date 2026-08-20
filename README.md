@@ -129,6 +129,17 @@ NL query -> query_parser -> SearchPlan -> filters/encoder -> HARVEST ->
 shortlister -> detail scrape -> recommender -> report (md + json) -> sqlite store
 ```
 
+Every layer named below has an in-depth, field-by-field reference page under
+[docs/reference/](docs/reference/README.md): [architecture and the session
+funnel](docs/reference/architecture.md), [data models](docs/reference/data-models.md)
+(including how detail-page photo and field overrides work), [configuration and
+budgets](docs/reference/config.md), [LLM layer](docs/reference/llm.md),
+[filter map and encoder](docs/reference/filters.md), [scraping
+layer](docs/reference/scraping.md), [parsers and the DOM access
+map](docs/reference/parsers.md), [store layer](docs/reference/store.md),
+[providers factory](docs/reference/providers.md), and
+[operator probes](docs/reference/probes.md).
+
 Key layers in `src/athome_harness/`:
 
 - `scraping/` - `BaseScraper` and `ProxyProvider` contracts; `HttpDomAdapter`
@@ -245,6 +256,7 @@ Authoritative references (keep these in sync with code changes):
 - [PRD.md](PRD.md) - project-level product requirements (authoritative for product intent)
 - [SPEC.md](SPEC.md) - project-level technical spec (authoritative for filter map, data models, interfaces)
 - [PLAN.md](PLAN.md) - live repository-level plan
+- [Building-block reference](docs/reference/README.md) - in-depth, field-by-field API docs for every building block (architecture, data models, config, LLM, filters, scraping, parsers, store, providers, probes)
 - [Feature 001 spec](docs/specs/001-athome-home-finder/spec.md) - task-scoped product/user-story spec
 - [Feature 001 plan](docs/specs/001-athome-home-finder/plan.md) - milestone/task tracking and invariants
 - [Marker contract](docs/specs/001-athome-home-finder/contracts/log-markers.md) - exact log markers and forbidden failure patterns
