@@ -197,7 +197,7 @@ flowchart LR
     REP --> S[(SqliteStore)]
 
     subgraph LLM[LLM layer: BaseLLMProvider]
-        FA[factory: openrouter | opencodego] --> LS
+        FA[factory: openrouter / opencodego] --> LS
         FA --> P
         FA --> R
     end
