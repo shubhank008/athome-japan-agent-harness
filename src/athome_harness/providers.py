@@ -26,9 +26,28 @@ from athome_harness.config import (
     Settings,
 )
 from athome_harness.llm.base import BaseLLMProvider
+from athome_harness.scraping.base import ProxyProvider
 from athome_harness.store.base import BaseDataStore
 
 logger = logging.getLogger(__name__)
+
+
+def build_proxy_provider(settings: Settings, budgets: Budgets) -> ProxyProvider | None:
+    """Build the rotating proxy provider, or ``None`` when no proxy is configured.
+
+    Webshare credentials are optional in :class:`Settings`. When either
+    ``WEBSHARE_PROXY_USER`` or ``WEBSHARE_PROXY_PASS`` is unset this returns
+    ``None`` so the HTTP adapter runs direct-only (no proxy rotation) instead of
+    failing at construction. When both are set it returns the Webshare provider.
+    """
+    if not settings.webshare_proxy_user or not settings.webshare_proxy_pass:
+        logger.info(
+            "[PROXY_DISABLED] reason=no-credentials; direct connection only (no proxy rotation)"
+        )
+        return None
+    from athome_harness.scraping.proxy.webshare import WebshareProxyProvider
+
+    return WebshareProxyProvider(settings=settings, budgets=budgets)
 
 
 def build_llm_provider(settings: Settings) -> BaseLLMProvider:
@@ -84,7 +103,6 @@ def build_production_fetch(
     from athome_harness.scraping.cookie_handoff import CookieHandoff
     from athome_harness.scraping.http_adapter import HttpDomAdapter
     from athome_harness.scraping.playwright_cookie_fetcher import PlaywrightCookieFetcher
-    from athome_harness.scraping.proxy.webshare import WebshareProxyProvider
     from athome_harness.scraping.session_refarmer import SessionRefarmer
 
     if settings is None:
@@ -97,7 +115,9 @@ def build_production_fetch(
             f"Unknown scraper provider '{settings.scraper_provider}'. "
             f"Expected one of: {SCRAPER_PROVIDER_HTTP}."
         )
-    proxy = WebshareProxyProvider(settings=settings, budgets=budgets)
+    # Proxy rotation is optional: with no Webshare credentials the adapter runs
+    # direct-only and a block surfaces immediately instead of rotating.
+    proxy = build_proxy_provider(settings, budgets)
 
     def build_adapter(handoff: CookieHandoff | None) -> HttpDomAdapter:
         return HttpDomAdapter(

@@ -12,14 +12,16 @@ from pathlib import Path
 
 import pytest
 
-from athome_harness.config import Settings
+from athome_harness.config import Budgets, Settings
 from athome_harness.llm.opencodego import OpenCodeGoProvider
 from athome_harness.llm.openrouter import OpenRouterProvider
 from athome_harness.providers import (
     build_llm_provider,
     build_production_fetch,
+    build_proxy_provider,
     build_store,
 )
+from athome_harness.scraping.proxy.webshare import WebshareProxyProvider
 from athome_harness.store.sqlite_store import SqliteStore
 
 
@@ -71,3 +73,24 @@ def test_scraper_unknown_provider_raises_before_side_effects(
     monkeypatch.setenv("ATHOME_SCRAPER_PROVIDER", "nope")
     with pytest.raises(ValueError, match="Unknown scraper provider"):
         build_production_fetch(settings=_settings())
+
+
+def test_proxy_provider_none_when_credentials_absent() -> None:
+    """Without Webshare credentials the proxy provider is None (direct-only)."""
+    assert build_proxy_provider(_settings(), Budgets()) is None
+    assert build_proxy_provider(_settings(webshare_proxy_user="u"), Budgets()) is None
+    assert build_proxy_provider(_settings(webshare_proxy_pass="p"), Budgets()) is None
+
+
+def test_proxy_provider_built_when_credentials_present() -> None:
+    """With both Webshare credentials the rotating provider is built."""
+    proxy = build_proxy_provider(
+        _settings(webshare_proxy_user="u", webshare_proxy_pass="p"), Budgets()
+    )
+    assert isinstance(proxy, WebshareProxyProvider)
+
+
+def test_production_fetch_builds_without_proxy_credentials() -> None:
+    """build_production_fetch succeeds with no Webshare creds (direct-only path)."""
+    fetch = build_production_fetch(settings=_settings())
+    assert callable(fetch)
