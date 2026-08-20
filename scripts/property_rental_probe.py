@@ -1,24 +1,31 @@
 """Bounded operator probe for a single property (rental) listing flow.
 
-Drives the real ``HttpDomAdapter`` -> ``list_parser`` -> ``detail_parser`` path
+Drives the real production fetch path -> ``list_parser`` -> ``detail_parser``
 for one property the way a human operator would inspect a single listing. It is
 safe to run with ``--help`` and its basic verification path needs no live
 request.
 
 Two input modes:
 
-* ``--input-mode url`` (default): fetches a single AtHome list page over the
-  HTTP adapter, parses the first listing, then fetches and parses that
-  listing's detail page. Each request is bounded by ``--timeout`` and the probe
-  fails closed on a block or an AtHome challenge.
+* ``--input-mode url`` (default): fetches a single AtHome list page through the
+  production fetch callable (:func:`athome_harness.providers.build_production_fetch`),
+  which wires the ``HttpDomAdapter`` with optional Webshare proxy rotation and
+  the ``SessionRefarmer`` browser-session fallback. It parses the first listing,
+  then fetches and parses that listing's detail page over the same path. Each
+  request is bounded by ``--timeout`` and the probe fails closed on a block or
+  an AtHome challenge (the refarmer recovers once, then the block surfaces).
 * ``--input-mode fixture``: parses an already-captured list HTML file (and,
   optionally, its matching detail HTML) with no network. This is the
   deterministic, offline verification path.
 
+Using the production fetch path (rather than a bare ``HttpDomAdapter``) keeps
+this probe adherent to how the classes are meant to be composed: direct-first,
+proxy rotation only on a block, and a bounded browser refarm on a challenge.
+
 Every stage validates content before writing any artifact, redacts URLs in
-diagnostics, and closes every adapter and transport in all paths (including
-error paths). No credentials, cookies, proxy URLs, or challenge HTML are ever
-written to tracked artifacts; the debug directory is ignored by git.
+diagnostics, and closes every transport in all paths (including error paths).
+No credentials, cookies, proxy URLs, or challenge HTML are ever written to
+tracked artifacts; the debug directory is ignored by git.
 
 RUN (network):   PYTHONPATH=src python scripts/property_rental_probe.py --url <LIST_URL>
 RUN (offline):   PYTHONPATH=src python scripts/property_rental_probe.py --input-mode fixture \
@@ -32,6 +39,7 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 # Ensure imports resolve whether the probe is run as `python scripts/...` or as
@@ -46,7 +54,6 @@ from athome_harness.config import Budgets  # noqa: E402
 from athome_harness.models import ListingDetail, ListingSummary  # noqa: E402
 from athome_harness.scraping.base import BlockDetected, redact_url  # noqa: E402
 from athome_harness.scraping.detail_parser import parse_detail_page  # noqa: E402
-from athome_harness.scraping.http_adapter import HttpDomAdapter  # noqa: E402
 from athome_harness.scraping.list_parser import parse_list_page  # noqa: E402
 from scripts.probe_common import (  # noqa: E402
     ProbeContentError,
@@ -137,13 +144,20 @@ def _probe_fixture(args: argparse.Namespace, debug_dir: Path) -> int:
 
 
 def _probe_url(args: argparse.Namespace, debug_dir: Path) -> int:
-    """Run the bounded live path, closing every adapter in all paths."""
+    """Run the bounded live path over the production fetch callable.
+
+    The fetch callable owns the ``HttpDomAdapter``/``SessionRefarmer`` lifecycle
+    (direct-first, proxy rotation on block, bounded browser refarm on a
+    challenge) and closes its transports internally, so the probe only has to
+    call it and validate the returned HTML.
+    """
+    from athome_harness.providers import build_production_fetch, load_settings
+
+    settings = load_settings()
     budgets = Budgets(http_timeout_s=args.timeout)
-    adapter: HttpDomAdapter | None = None
-    detail_adapter: HttpDomAdapter | None = None
+    fetch = build_production_fetch(budgets, settings)
     try:
-        adapter = HttpDomAdapter(budgets, debug=True)
-        list_html = _fetch_safe(adapter, args.url, stage="list_fetch")
+        list_html = _fetch_safe(fetch, args.url, stage="list_fetch")
         summaries = _parse_summaries(list_html, source=redact_url(args.url))
         summary = summaries[0]
         logger.info(
@@ -155,8 +169,7 @@ def _probe_url(args: argparse.Namespace, debug_dir: Path) -> int:
         _write_summary(debug_dir, summary)
 
         detail_url = summary.url
-        detail_adapter = HttpDomAdapter(budgets, debug=True)
-        detail_html = _fetch_safe(detail_adapter, detail_url, stage="detail_fetch")
+        detail_html = _fetch_safe(fetch, detail_url, stage="detail_fetch")
         detail = _parse_detail(detail_html, source=redact_url(detail_url))
         _write_detail(debug_dir, detail)
         _print_result(summary, detail)
@@ -166,20 +179,15 @@ def _probe_url(args: argparse.Namespace, debug_dir: Path) -> int:
             "[PROBE_BLOCKED] url=<%s> signature=<%s>", block.redacted_url, block.signature
         )
         return 3
-    finally:
-        if detail_adapter is not None:
-            detail_adapter.close()
-        if adapter is not None:
-            adapter.close()
 
 
-def _fetch_safe(adapter: HttpDomAdapter, url: str, *, stage: str) -> str:
-    """Fetch ``url``, failing closed on a challenge or block page.
+def _fetch_safe(fetch: Callable[[str], str], url: str, *, stage: str) -> str:
+    """Fetch ``url`` through the production path, failing closed on a challenge.
 
     ``stage`` names the probe step in error diagnostics. Nothing is saved for a
     challenge page; the production boundary never persists one.
     """
-    html = adapter.fetch_html(url)
+    html = fetch(url)
     validate_page_content(html, stage=stage, source=redact_url(url))
     return html
 

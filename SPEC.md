@@ -102,6 +102,11 @@ The mapping of (flow, field) -> [{code, label}] is extracted from rendered HTML 
 
 ## 3. Data models (pydantic)
 
+Field-by-field reference with defaults and types: `docs/reference/data-models.md`.
+The list-page `photo_urls` are the inline thumbnails only; the detail page overrides
+them with the full gallery set and adds `floor_plan_image_url` (see the photo-coverage
+note in the reference).
+
 - `SearchPlan`: flow, prefecture, cities[], hard_filters (typed per section 1.1
   cardinality), soft_prefs[], plus budgets.
 - `ListingSummary`: one per unit (multi-unit buildings yield several summaries sharing a
@@ -161,4 +166,5 @@ and stays in sync with the parser (repo invariant). Keys: `OPENROUTER_API_KEY`,
 `OPENCODEGO_API_KEY`, `WEBSHARE_PROXY_USER`, `WEBSHARE_PROXY_PASS`,
 `ATHOME_LLM_PROVIDER`, `ATHOME_STORE_PROVIDER`, `ATHOME_SCRAPER_PROVIDER`,
 `ATHOME_OPENCODEGO_MODEL`, `ATHOME_OPENCODEGO_BASE_URL`, `ATHOME_STORE_PATH`,
-model names, and the budget knobs above.
+model names, and the budget knobs above. Complete key-by-key reference with
+types, defaults, and env aliases: `docs/reference/config.md`.

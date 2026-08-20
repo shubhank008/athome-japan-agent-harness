@@ -222,3 +222,6 @@ dump/
 
 # Debug capture artifacts (headers, dumps, one-off captures)
 debug/
+
+# Full-run probe scratch outputs (cleaned up by the probe; safety net for hard kills)
+.probe-work/
