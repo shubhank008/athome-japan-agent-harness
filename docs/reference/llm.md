@@ -79,6 +79,12 @@ Thin declarations over the shared base:
 | `OpenRouterProvider` (`llm/openrouter.py`) | `OPENROUTER_API_KEY` | `deepseek/deepseek-v4-flash-0731` | `https://openrouter.ai/api/v1/chat/completions` |
 | `OpenCodeGoProvider` (`llm/opencodego.py`) | `OPENCODEGO_API_KEY` | `opencode-go/deepseek-v4-flash` | `https://opencode.ai/zen/go/v1/chat/completions` |
 
+OpenCodeGo additionally sends `User-Agent: athome-japan-agent-harness/0.1.0`
+and a generated `x-opencode-session` UUID. The UUID is created once per provider
+instance and reused for every completion in that conversation; it is never
+logged, persisted, or shared across application processes. OpenRouter keeps the
+shared authorization and content-type headers only.
+
 Selection is config-driven (`ATHOME_LLM_PROVIDER`) through
 [`build_llm_provider`](providers.md); both transports use the same shared base
 so switching is a config change, not a code change.

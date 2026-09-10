@@ -129,6 +129,13 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         if self._session_owned:
             self._session.close()
 
+    def _request_headers(self) -> dict[str, str]:
+        """Build the default authentication headers for one completion request."""
+        return {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+
     def complete_text(
         self,
         *,
@@ -148,12 +155,12 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         }
         if self._max_tokens is not None:
             payload["max_tokens"] = self._max_tokens
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-        }
         try:
-            response = self._session.post(self._base_url, json=payload, headers=headers)
+            response = self._session.post(
+                self._base_url,
+                json=payload,
+                headers=self._request_headers(),
+            )
         except Exception as exc:  # transport-level failure (network, DNS, TLS)
             raise LLMProviderError(
                 f"{self.provider_name} transport error: {type(exc).__name__}"

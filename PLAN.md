@@ -55,6 +55,7 @@ currently passes 300+ unit tests, ruff, and mypy.
 | 004 Playwright Challenge Diagnostics | `docs/specs/004-playwright-challenge-diagnostics/` | merged through PR #7; operator diagnostics path implemented |
 | 005 Patchright Runtime | `docs/specs/005-patchright-runtime/` | merged through PR #7; live challenge behavior remains operationally constrained |
 | 006 Lean Cookie Fetcher | `docs/specs/006-lean-cookie-fetcher/` | merged through PR #7; production diagnostics reduced to handoff/session state |
+| 007 OpenCodeGo session headers | `docs/specs/007-opencodego-session-headers/` | implemented locally; stable coding-agent headers and live provider handshake verified |
 
 ## Feature 001 summary
 
