@@ -1,3 +1,5 @@
+(WORK IN PROGRESS, CLI TOOL IS BROKEN DUE TO ATHOME DOM CHANGES. MANUAL PROBES CAN BE RUN FROM `scripts/` FOLDER)
+
 # athome-japan-agent-harness
 
 A conversational CLI agent that finds homes to rent or buy on athome.co.jp from
