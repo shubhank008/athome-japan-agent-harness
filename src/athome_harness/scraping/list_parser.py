@@ -31,6 +31,7 @@ from urllib.parse import urlsplit
 from selectolax.parser import HTMLParser, Node
 
 from athome_harness.models import ListingSummary, PriceBreakdown
+from athome_harness.scraping.age import age_values
 
 logger = logging.getLogger(__name__)
 
@@ -67,22 +68,18 @@ _RE_BUILD_DATE = re.compile(r"([0-9]{4})年([0-9]{1,2})月")
 _DAYS_PER_YEAR = 365.25
 
 
-def _build_age(building_info: str, ref_date: date) -> float | None:
-    """Return building age in years from the third hint's construction date.
-
-    ``building_info`` renders like ``賃貸アパート 3階建 2026年8月``; the ``YYYY年M月``
-    construction date is converted to fractional years since ``ref_date``
-    (clamped below at zero). Returns ``None`` (with a warning) when no
-    construction date is exposed, matching the detail-parser contract that an
-    observed age is never silently dropped.
-    """
+def _age_metadata(
+    building_info: str, ref_date: date
+) -> tuple[float | None, str | None, str | None, str | None]:
+    """Return rounded years, raw age, construction date, and display text."""
     match = _RE_BUILD_DATE.search(building_info)
     if not match:
         logger.warning("list_parser: no construction date in building hint %r", building_info)
-        return None
+        return None, building_info or None, None, None
     build_year, build_month = int(match.group(1)), int(match.group(2))
-    build_start = date(build_year, build_month, 1)
-    return max(0.0, (ref_date - build_start).days / _DAYS_PER_YEAR)
+    build_date = date(build_year, build_month, 1)
+    years, age_raw, display = age_values(match.group(0), ref_date, build_date)
+    return years, age_raw, match.group(0), display
 
 
 @dataclass
@@ -95,6 +92,9 @@ class BuildingBlock:
     walk_minutes: float | None
     building_type: str | None
     age: float | None
+    age_raw: str | None = None
+    construction_date: str | None = None
+    age_display: str | None = None
     units: list[Node] = field(default_factory=list)
 
 
@@ -140,7 +140,7 @@ def _parse_current_cards(tree: HTMLParser, ref_date: date) -> list[ListingSummar
         transport = station_node.text(separator=" ", strip=True) if station_node else ""
         building_info = type_node.text(separator=" ", strip=True) if type_node else ""
         building_type = _extract_building_type(building_info)
-        age = _build_age(building_info, ref_date) if building_info else None
+        age, age_raw, construction_date, age_display = _age_metadata(building_info, ref_date)
         station = _extract_station(transport)
         walk = _extract_walk_minutes(transport)
         for room in card.css("div.room-info-section"):
@@ -152,6 +152,9 @@ def _parse_current_cards(tree: HTMLParser, ref_date: date) -> list[ListingSummar
                 walk_minutes=walk,
                 building_type=building_type,
                 age=age,
+                age_raw=age_raw,
+                construction_date=construction_date,
+                age_display=age_display,
             )
             if summary is not None:
                 summaries.append(summary)
@@ -167,6 +170,9 @@ def _parse_current_room(
     walk_minutes: float | None,
     building_type: str | None,
     age: float | None,
+    age_raw: str | None,
+    construction_date: str | None,
+    age_display: str | None,
 ) -> ListingSummary | None:
     """Parse one room row from a current ``property-card`` element."""
     link = room.css_first("a[href*='/chintai/']")
@@ -208,6 +214,9 @@ def _parse_current_room(
         building_type=building_type,
         floors=room_node.text(strip=True) if room_node else None,
         age=age,
+        age_raw=age_raw,
+        construction_date=construction_date,
+        age_display=age_display,
         price=PriceBreakdown(
             rent=rent,
             management_fee=management_fee,
@@ -233,13 +242,17 @@ def _parse_yen_text(raw: str) -> int:
     return _to_int(match.group(1)) if match else 0
 
 
-def _parse_optional_current_term(raw: str | None) -> int:
-    """Parse a current-card deposit or key-money term without inventing months."""
-    if not raw or raw == "なし":
+def _parse_optional_current_term(raw: str | None) -> int | None:
+    """Parse numeric terms while preserving month/day terms as raw-only."""
+    if not raw:
+        return None
+    if raw == "なし":
         return 0
     if "万円" in raw:
         return _parse_man_yen(raw)
-    return _parse_yen_text(raw)
+    if "円" in raw:
+        return _parse_yen_text(raw)
+    return None
 
 
 def _parse_building_heading(building: Node, ref_date: date) -> BuildingBlock:
@@ -255,7 +268,7 @@ def _parse_building_heading(building: Node, ref_date: date) -> BuildingBlock:
     station = _extract_station(transport)
     walk = _extract_walk_minutes(transport)
     building_type = _extract_building_type(building_info)
-    age = _build_age(building_info, ref_date)
+    age, age_raw, construction_date, age_display = _age_metadata(building_info, ref_date)
 
     return BuildingBlock(
         title=title,
@@ -264,6 +277,9 @@ def _parse_building_heading(building: Node, ref_date: date) -> BuildingBlock:
         walk_minutes=walk,
         building_type=building_type,
         age=age,
+        age_raw=age_raw,
+        construction_date=construction_date,
+        age_display=age_display,
         units=building.css(_DETAILBOX),
     )
 
@@ -325,6 +341,9 @@ def _parse_unit(unit: Node, block: BuildingBlock) -> ListingSummary | None:
         building_type=block.building_type,
         floors=floors,
         age=block.age,
+        age_raw=block.age_raw,
+        construction_date=block.construction_date,
+        age_display=block.age_display,
         price=price,
         floor_plan=floor_plan,
         area_m2=area,

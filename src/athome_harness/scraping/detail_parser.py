@@ -27,6 +27,7 @@ from datetime import date
 from selectolax.parser import HTMLParser, Node
 
 from athome_harness.models import ListingDetail, PriceBreakdown
+from athome_harness.scraping.age import age_values
 from athome_harness.scraping.server_app_state import extract_server_app_detail
 
 logger = logging.getLogger(__name__)
@@ -117,7 +118,10 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     floor_plan_image = _extract_floor_plan_image(tree)
     point_text, point_icons = _extract_usp(tree)
     facility_features, probable_negatives = _extract_facilities(tree)
-    age = _extract_age(fields, ref_date or date.today())
+    reference_date = ref_date or date.today()
+    age, age_raw, construction_date, age_display = _age_metadata(
+        _field(fields, AGE_LABELS), reference_date
+    )
 
     usp_tags = point_icons if point_icons else ([point_text] if point_text else [])
     title = _field(fields, TITLE_LABELS) or _extract_h1_title(tree)
@@ -135,6 +139,9 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
         building_type=_field(fields, BUILDING_TYPE_LABELS),
         floors=_field(fields, FLOORS_LABELS),
         age=age,
+        age_raw=age_raw,
+        construction_date=construction_date,
+        age_display=age_display,
         price=price,
         floor_plan=_field(fields, FLOOR_PLAN_LABELS),
         area_m2=_parse_area(_field(fields, AREA_LABELS)),
@@ -195,6 +202,21 @@ def _price_from_server_state(state: dict[str, object]) -> PriceBreakdown:
         deposit_raw=deposit_raw,
         key_money_raw=key_money_raw,
     )
+
+
+def _age_metadata(
+    raw: str | None, ref_date: date
+) -> tuple[float | None, str | None, str | None, str | None]:
+    """Convert an observed construction term to consistent age metadata."""
+    if not raw:
+        return None, None, None, None
+    build_match = _RE_BUILD_DATE.search(raw)
+    if build_match is None:
+        years_match = _RE_AGE_YEARS.search(raw)
+        return (float(years_match.group(1)) if years_match else None), raw, None, None
+    build_date = date(int(build_match.group(1)), int(build_match.group(2)), 1)
+    years, age_raw, age_display = age_values(raw, ref_date, build_date)
+    return years, age_raw, build_match.group(0), age_display
 
 
 def _extract_age(fields: dict[str, str], ref_date: date) -> float | None:
@@ -287,7 +309,9 @@ def _extract_price(tree: HTMLParser) -> PriceBreakdown:
     ``1ヶ月``, ...) alongside the numeric yen value, so a month-based term is
     never indistinguishable from zero.
     """
-    rent = management_fee = deposit = key_money = 0
+    rent = management_fee = 0
+    deposit: int | None = None
+    key_money: int | None = None
     deposit_raw = key_money_raw = None
     payment = tree.css_first(_PAYMENT_INFO)
     if payment is not None:
@@ -472,16 +496,18 @@ def _parse_yen(raw: str) -> int:
     return int(match.group(1).replace(",", ""))
 
 
-def _parse_optional_yen(raw: str, label: str) -> int:
-    """Convert a deposit/key-money cell to yen, warning on non-convertible."""
-    if not raw or raw == "なし":
+def _parse_optional_yen(raw: str, label: str) -> int | None:
+    """Convert numeric upfront terms, preserving duration terms as ``None``."""
+    if not raw:
+        return None
+    if raw == "なし":
         return 0
     if "万円" in raw:
         return _parse_man_yen(raw)
     if "円" in raw:
         return _parse_yen(raw)
-    logger.warning("detail_parser: %s %r not convertible; recorded as 0", label, raw)
-    return 0
+    logger.debug("detail_parser: %s raw duration term=%r", label, raw)
+    return None
 
 
 def _parse_area(raw: str | None) -> float:

@@ -23,8 +23,12 @@ class PriceBreakdown(BaseModel):
 
     rent: int = Field(ge=0, description="Monthly rent in yen.")
     management_fee: int = Field(default=0, ge=0, description="Monthly management fee in yen.")
-    deposit: int = Field(default=0, ge=0, description="Upfront deposit in yen.")
-    key_money: int = Field(default=0, ge=0, description="Upfront key money in yen.")
+    deposit: int | None = Field(
+        default=None, ge=0, description="Upfront deposit in yen when numeric."
+    )
+    key_money: int | None = Field(
+        default=None, ge=0, description="Upfront key money in yen when numeric."
+    )
     # Raw deposit/key-money terms as displayed (e.g. ``1ヶ月``), preserved so a
     # month-based term is never indistinguishable from ``なし``/zero, which
     # cannot be converted to yen without the rent context. ``None`` when absent.
@@ -37,8 +41,8 @@ class PriceBreakdown(BaseModel):
 
     @property
     def total(self) -> int:
-        """Sum of all four components, used as the gross cost summary."""
-        return self.rent + self.management_fee + self.deposit + self.key_money
+        """Sum known yen components, excluding non-numeric raw terms."""
+        return self.rent + self.management_fee + (self.deposit or 0) + (self.key_money or 0)
 
 
 class ListingSummary(BaseModel):
@@ -64,10 +68,14 @@ class ListingSummary(BaseModel):
     age: float | None = Field(
         default=None,
         ge=0,
-        description=(
-            "Building age in years. A new build with an observed construction date "
-            "yields a value near zero; None only when no age/build date is exposed."
-        ),
+        description="Building age in years, rounded to one decimal place.",
+    )
+    age_raw: str | None = Field(default=None, description="Raw displayed age term.")
+    construction_date: str | None = Field(
+        default=None, description="Raw construction date when exposed."
+    )
+    age_display: str | None = Field(
+        default=None, description="Human-readable age such as '1 month old'."
     )
     price: PriceBreakdown = Field(description="Monetary breakdown for the unit.")
     floor_plan: str | None = Field(default=None, description="Layout descriptor (e.g. 1LDK).")
