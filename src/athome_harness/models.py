@@ -101,6 +101,14 @@ class ListingDetail(ListingSummary):
         default=None,
         description="Operator-safe reason detail hydration was incomplete or failed.",
     )
+    building_name: str | None = Field(default=None, description="Canonical building name.")
+    building_structure: str | None = Field(default=None, description="Building structure.")
+    total_units: str | None = Field(default=None, description="Displayed total unit count.")
+    contract_period: str | None = Field(default=None, description="Displayed contract period.")
+    pickup_features: list[str] = Field(
+        default_factory=list, description="Confirmed PICK UP feature labels."
+    )
+    remarks: str | None = Field(default=None, description="Raw detail remarks.")
     description: str = Field(
         default="", description="Full free-text description from the detail page."
     )

@@ -118,6 +118,9 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     floor_plan_image = _extract_floor_plan_image(tree)
     point_text, point_icons = _extract_usp(tree)
     facility_features, probable_negatives = _extract_facilities(tree)
+    pickup_features, pickup_negatives = _pickup_features(state)
+    facility_features = _dedupe(facility_features + pickup_features)
+    probable_negatives = _dedupe(probable_negatives + pickup_negatives)
     reference_date = ref_date or date.today()
     age, age_raw, construction_date, age_display = _age_metadata(
         _field(fields, AGE_LABELS), reference_date
@@ -127,6 +130,8 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     title = _field(fields, TITLE_LABELS) or _extract_h1_title(tree)
     address = (_field(fields, ADDRESS_LABELS) or "").removesuffix(_MAP_LINK_SUFFIX)
     station, walk = _parse_transport(_field(fields, TRANSPORT_LABELS) or "")
+    building_info = state.get("buildingInfo") if state else {}
+    other_info = state.get("otherPropertyInfo") if state else {}
 
     return ListingDetail(
         internal_id=athome_key,
@@ -142,6 +147,16 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
         age_raw=age_raw,
         construction_date=construction_date,
         age_display=age_display,
+        building_name=(
+            building_info.get("buildingNm") if isinstance(building_info, dict) else None
+        ),
+        building_structure=(
+            building_info.get("tatemonoKozo") if isinstance(building_info, dict) else None
+        ),
+        total_units=(building_info.get("sokosu") if isinstance(building_info, dict) else None),
+        contract_period=(other_info.get("contract") if isinstance(other_info, dict) else None),
+        pickup_features=pickup_features,
+        remarks=(building_info.get("biko") if isinstance(building_info, dict) else None),
         price=price,
         floor_plan=_field(fields, FLOOR_PLAN_LABELS),
         area_m2=_parse_area(_field(fields, AREA_LABELS)),
@@ -217,6 +232,30 @@ def _age_metadata(
     build_date = date(int(build_match.group(1)), int(build_match.group(2)), 1)
     years, age_raw, age_display = age_values(raw, ref_date, build_date)
     return years, age_raw, build_match.group(0), age_display
+
+
+def _pickup_features(state: dict[str, object] | None) -> tuple[list[str], list[str]]:
+    """Map structured pickup booleans into confirmed and probable features."""
+    if state is None:
+        return [], []
+    pickup = state.get("pickup")
+    if not isinstance(pickup, dict):
+        return [], []
+    labels = {
+        "isSeparateBath": "バス・トイレ別",
+        "hasBathDryer": "浴室乾燥機",
+        "hasAutoLock": "オートロック",
+        "hasMonitorIntercom": "モニター付インターホン",
+        "hasDeliveryBox": "宅配ボックス",
+        "isFreeInternet": "インターネット無料",
+        "isAbove2nd": "2階以上",
+        "isNewBuild": "築浅",
+        "hasPetSodan": "ペット相談",
+        "hasParking": "駐車場",
+    }
+    confirmed = [label for key, label in labels.items() if pickup.get(key) is True]
+    negatives = [label for key, label in labels.items() if pickup.get(key) is False]
+    return confirmed, negatives
 
 
 def _extract_age(fields: dict[str, str], ref_date: date) -> float | None:
