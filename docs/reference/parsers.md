@@ -50,9 +50,9 @@ ListingDetail` (`scraping/detail_parser.py`).
 
 Parses one AtHome property detail page. Identity comes from the `<title>`
 numeric suffix (`_extract_key`), falling back to the canonical URL; a page with
-no stable key is rejected with a warning. Data fields come from the
-`table.dataTbl` rows (label to value), the payment block, the photo gallery, and
-the facility tables.
+no stable key is rejected with a warning. Data fields come from legacy
+`table.dataTbl` rows or current `table.property-summary__list`/`dl.details` rows,
+plus the payment block, photo gallery, and facility tables.
 
 Behavior notes:
 

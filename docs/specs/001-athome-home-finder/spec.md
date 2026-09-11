@@ -111,33 +111,31 @@ Y presented with reasons so I can act without opening dozens of tabs.
 ## DOM Access Map (AtHome HTML contract)
 
 This access map is the maintenance reference for the rental list and detail parsers.
-Selectors and labels were verified against the captured Osaka fixtures on 2026-08-18.
-When AtHome changes markup, update this map and the corresponding fixture/parser tests
-in the same change. A challenge page is not a valid fixture and must be rejected before
-this map is applied.
+Selectors and labels were verified against the captured Osaka fixtures on 2026-08-18
+and the current live `property-card` page on 2026-09-10. The parser supports both the
+legacy building/unit DOM and the current card/room DOM. When AtHome changes markup,
+update this map and the corresponding fixture/parser tests in the same change. A
+challenge page is not a valid fixture and must be rejected before this map is applied.
 
 ### Property list page: building and unit access map
 
 | Output field | DOM access path | Scope | Requiredness and parsing rule |
 |---|---|---|---|
-| Building title | `div.p-property--building > h2.p-property__title--building` | Building | Required for identity context; warn if absent. |
-| Address | `div.p-property--building dl.p-property__information-hint dd:nth-of-type(1)` | Building | Optional text; preserve the displayed address. |
-| Station | Same hint list, `dd:nth-of-type(2)`, station text matching `「...」駅` | Building | Optional; warn or return `None` when transit text has no station. |
-| Walk minutes | Same transport hint, `徒歩N分` | Building | Optional numeric value in minutes. |
-| Building type | Same hint list, `dd:nth-of-type(3)` | Building | Extract the type label only, not floor count or construction date. |
-| Unit identity | `div.p-property__room--detailbox[data-bukken-no]` | Unit | Required; missing keys must warn and skip only that unit. |
-| Room/floor | `li.p-property__room-number` | Unit | Optional; detached houses may omit it and must emit a warning. |
-| Rent | `li.p-property__room-rent p.p-property__information-price b.p-property__information-rent` | Unit | Required for a usable rental summary; bare values are in 万円. |
-| Management fee | `p.p-property__information-price > span` within the rent row | Unit | Optional yen value; absent means unknown, not necessarily zero. |
-| Deposit | `li.p-property__room-keymoney > p` | Unit | Optional; `なし`, yen, 万円, and month terms must remain distinguishable. |
-| Key money | `li.p-property__room-keymoney > span` | Unit | Optional; `なし`, yen, 万円, and month terms must remain distinguishable. |
-| Floor plan | `li.p-property__room-floorplan div.p-property__floor` | Unit | Optional displayed layout. |
-| Area | `li.p-property__room-floorplan > span` | Unit | Optional numeric m² value. |
-| USP tags | `div.p-property__information-facility li` without the disabled class | Unit | Enabled facility text becomes `usp_tags`. |
-| Probable negatives | `div.p-property__information-facility li.p-property__information-facility_disabled-list` | Unit | Disabled facility text becomes `probable_negatives`. |
-| Photos | `img[src]` or `img[data-original]` under the unit block | Unit | Resolve absolute and root-relative URLs; ignore missing images. |
-| Detail URL | Unit link or `/chintai/{data-bukken-no}/` fallback | Unit | Preserve the actual flow URL when available; do not hardcode rental paths for purchase pages. |
-| Building age | Building hint or detail-derived age field when exposed | Building/Unit | Required by FR-9 when available; never silently default an observed age to `None`. |
+| Building title | Legacy: `div.p-property--building > h2.p-property__title--building`; current: `div.property-card h2.property-title` | Building | Required for identity context; warn if absent. |
+| Address | Legacy hint `dd:nth-of-type(1)`; current: `li.info-item--location` | Building | Optional text; preserve the displayed address. |
+| Station | Legacy hint `dd:nth-of-type(2)`; current: `li.info-item--station`, station text matching `「...」駅` | Building | Optional; return `None` when transit text has no station. |
+| Walk minutes | Transport hint or current station item, `徒歩N分` | Building | Optional numeric value in minutes. |
+| Building type | Legacy hint `dd:nth-of-type(3)`; current: `li.info-item--type` | Building | Extract the type label only, not floor count or construction date. |
+| Unit identity | Legacy: `div.p-property__room--detailbox[data-bukken-no]`; current: room link `a[href*='/chintai/']` under `div.room-info-section` | Unit | Required; missing IDs must skip only that unit. |
+| Room/floor | Legacy `li.p-property__room-number`; current `li.room-number` | Unit | Optional; detached houses may omit it. |
+| Rent | Legacy rent selector; current `.room-info-item.price .rent-value` | Unit | Required for a usable rental summary; bare values are in 万円. |
+| Management fee | Legacy price row; current second `.room-info-item__text` in `li.price` | Unit | Optional yen value; absent means zero in the model. |
+| Deposit / key money | Legacy key-money row; current `li.fees .room-info-item__text` first/second values | Unit | Preserve `なし`, yen, 万円, and month terms as displayed. |
+| Floor plan / area | Legacy room-floorplan selectors; current `li.layout-size` first/second text values | Unit | Optional displayed layout and numeric m² value. |
+| USP tags / probable negatives | Legacy facility selectors | Unit | Current cards do not expose equivalent facility lists; leave empty when absent. |
+| Photos | `img[src]` or `img[data-original]` under the unit/room block | Unit | Resolve absolute and root-relative URLs; ignore missing images. |
+| Detail URL | Unit link or `/chintai/{id}/` fallback | Unit | Use the canonical room ID from the current link path. |
+| Building age | Building hint or current type item construction date | Building/Unit | Required by FR-9 when available; never silently default an observed age to `None`. |
 
 ### Property detail page: access map
 

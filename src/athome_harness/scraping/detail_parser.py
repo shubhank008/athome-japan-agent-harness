@@ -32,7 +32,10 @@ logger = logging.getLogger(__name__)
 
 # Structural CSS selectors for the current AtHome detail-page DOM.
 _PAYMENT_INFO = "div.paymentInfo.typeChintai"
-_DATA_TBL = "table.dataTbl"
+_DATA_TBL = "table.dataTbl, table.property-summary__list"
+_CURRENT_SUMMARY = "table.property-summary__list"
+_CURRENT_DETAILS = "dl.details"
+_CURRENT_GALLERY = "div.swiper-slide__image img"
 _PHOTO_STRIP = "#detail-image_view ul.zoomList li.item"
 _PHOTO_NAME = "dt#subCategory"
 _POINT_DD = "#item-detai_basic__point dd"
@@ -102,6 +105,9 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     tree = HTMLParser(html)
     athome_key = _extract_key(tree, html)
     fields = _extract_data_fields(tree)
+    fields.update(
+        {key: value for key, value in _extract_current_detail_fields(tree).items() if value}
+    )
     price = _extract_price(tree)
     photos = _extract_photos(tree)
     floor_plan_image = _extract_floor_plan_image(tree)
@@ -110,7 +116,7 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     age = _extract_age(fields, ref_date or date.today())
 
     usp_tags = point_icons if point_icons else ([point_text] if point_text else [])
-    title = _field(fields, TITLE_LABELS) or ""
+    title = _field(fields, TITLE_LABELS) or _extract_h1_title(tree)
     address = (_field(fields, ADDRESS_LABELS) or "").removesuffix(_MAP_LINK_SUFFIX)
     station, walk = _parse_transport(_field(fields, TRANSPORT_LABELS) or "")
 
@@ -176,6 +182,12 @@ def _extract_key(tree: HTMLParser, html: str) -> str:
     return match.group(1)
 
 
+def _extract_h1_title(tree: HTMLParser) -> str:
+    """Return the current detail page heading when no table title exists."""
+    heading = tree.css_first("h1")
+    return heading.text(strip=True) if heading is not None else ""
+
+
 def _extract_data_fields(tree: HTMLParser) -> dict[str, str]:
     """Collect the first value for every label seen across all data tables.
 
@@ -185,13 +197,32 @@ def _extract_data_fields(tree: HTMLParser) -> dict[str, str]:
     fields: dict[str, str] = {}
     for table in tree.css(_DATA_TBL):
         for tr in table.css("tr"):
-            ths = tr.css("th")
-            tds = tr.css("td")
-            for th, td in zip(ths, tds, strict=False):
-                label = th.text(strip=True)
-                value = td.text(separator="", strip=True)
+            cells = tr.css("th, td")
+            labels = [cell.text(strip=True) for cell in cells if cell.tag == "th"]
+            values = [cell.text(separator="", strip=True) for cell in cells if cell.tag == "td"]
+            for label, value in zip(labels, values, strict=False):
                 if label and label not in fields:
                     fields[label] = value
+
+    return fields
+
+
+def _extract_current_detail_fields(tree: HTMLParser) -> dict[str, str]:
+    """Extract labels from current ``dl.details`` and summary tables."""
+    fields: dict[str, str] = {}
+    for dl in tree.css(_CURRENT_DETAILS):
+        titles = dl.css("dt.details__title")
+        values = dl.css("dd.details__data")
+        if titles and values:
+            for title, value in zip(titles, values, strict=False):
+                fields[title.text(strip=True)] = value.text(separator="", strip=True)
+    for table in tree.css(_CURRENT_SUMMARY):
+        for tr in table.css("tr"):
+            cells = tr.css("th, td")
+            labels = [cell for cell in cells if cell.tag == "th"]
+            values = [cell for cell in cells if cell.tag == "td"]
+            for label, value in zip(labels, values, strict=False):
+                fields.setdefault(label.text(strip=True), value.text(separator="", strip=True))
     return fields
 
 
@@ -223,6 +254,23 @@ def _extract_price(tree: HTMLParser) -> PriceBreakdown:
             elif "礼金" in label:
                 key_money = _parse_optional_yen(value, "key money")
                 key_money_raw = value
+    if rent == 0:
+        current = tree.css_first("div.rent-info__item dl.price dd.price__big")
+        if current is not None:
+            rent = _parse_man_yen(current.text(strip=True))
+        cost = tree.css_first("div.rent-info__item dl.price-cost")
+        if cost is not None:
+            terms = [node.text(strip=True) for node in cost.css("dd")]
+            labels = [node.text(strip=True) for node in cost.css("dt")]
+            for label, value in zip(labels, terms, strict=False):
+                if "管理費" in label:
+                    management_fee = _parse_yen(value)
+                elif "敷金" in label:
+                    deposit = _parse_optional_yen(value, "deposit")
+                    deposit_raw = value
+                elif "礼金" in label:
+                    key_money = _parse_optional_yen(value, "key money")
+                    key_money_raw = value
     return PriceBreakdown(
         rent=rent,
         management_fee=management_fee,
@@ -236,8 +284,10 @@ def _extract_price(tree: HTMLParser) -> PriceBreakdown:
 def _extract_photos(tree: HTMLParser) -> list[str]:
     """Return absolute URLs of every photo in the detail photo strip."""
     urls: list[str] = []
-    for item in tree.css(_PHOTO_STRIP):
-        img = item.css_first("img")
+    images: list[Node | None] = [item.css_first("img") for item in tree.css(_PHOTO_STRIP)]
+    if not images:
+        images = list(tree.css(_CURRENT_GALLERY))
+    for img in images:
         if img is None:
             continue
         src = _absolute_url(img.attributes.get("src") or img.attributes.get("data-original"))
