@@ -26,7 +26,7 @@ from athome_harness.store.sqlite_store import SqliteStore
 
 
 def _settings(**overrides: object) -> Settings:
-    return Settings(openrouter_api_key="sk-test", **overrides)
+    return Settings(openrouter_api_key="sk-test", _env_file=None, **overrides)
 
 
 def test_llm_defaults_to_openrouter() -> None:

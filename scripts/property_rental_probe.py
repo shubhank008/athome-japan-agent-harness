@@ -257,7 +257,9 @@ def _print_result(summary: ListingSummary, detail: ListingDetail | None) -> None
 
 def main(argv: list[str] | None = None) -> int:
     """Parse arguments, build settings, and run the selected probe mode."""
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s %(levelname)s:%(name)s:%(message)s"
+    )
     args = _parser().parse_args(argv)
     logger.debug("probe args redacted: %s", _redacted_args(args))
     debug_dir = args.debug_dir

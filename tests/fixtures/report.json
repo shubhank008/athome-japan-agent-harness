@@ -4,16 +4,25 @@
       "listing": {
         "address": "Osaka-shi, Kita-ku",
         "age": 3.0,
+        "age_display": null,
+        "age_raw": null,
         "area_m2": 30.0,
         "athome_key": "a",
+        "building_name": null,
+        "building_structure": null,
         "building_type": null,
+        "construction_date": null,
+        "contract_period": null,
         "description": "Bright corner unit.",
+        "detail_failure_reason": null,
         "facility_features": [],
         "floor_plan": "1DK",
         "floor_plan_image_url": null,
         "floors": null,
         "internal_id": "a",
+        "listing_detail": false,
         "photo_urls": [],
+        "pickup_features": [],
         "price": {
           "deposit": 100000,
           "deposit_raw": "1ヶ月",
@@ -25,8 +34,10 @@
         "probable_negatives": [
           "pet consultation"
         ],
+        "remarks": null,
         "station": "Umeda",
         "title": "Corner 1DK",
+        "total_units": null,
         "url": "https://www.athome.co.jp/chintai/a/",
         "usp_tags": [
           "system kitchen"
@@ -50,16 +61,25 @@
       "listing": {
         "address": "Osaka-shi, Kita-ku",
         "age": 3.0,
+        "age_display": null,
+        "age_raw": null,
         "area_m2": 30.0,
         "athome_key": "b",
+        "building_name": null,
+        "building_structure": null,
         "building_type": null,
+        "construction_date": null,
+        "contract_period": null,
         "description": "Bright corner unit.",
+        "detail_failure_reason": null,
         "facility_features": [],
         "floor_plan": "1DK",
         "floor_plan_image_url": null,
         "floors": null,
         "internal_id": "b",
+        "listing_detail": false,
         "photo_urls": [],
+        "pickup_features": [],
         "price": {
           "deposit": 100000,
           "deposit_raw": "1ヶ月",
@@ -71,8 +91,10 @@
         "probable_negatives": [
           "pet consultation"
         ],
+        "remarks": null,
         "station": "Umeda",
         "title": "Quiet 1K",
+        "total_units": null,
         "url": "https://www.athome.co.jp/chintai/b/",
         "usp_tags": [
           "system kitchen"

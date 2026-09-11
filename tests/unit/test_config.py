@@ -23,7 +23,7 @@ def clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.fixture()
 def settings(clean_env: None) -> Settings:
     """A Settings instance with no local .env file to avoid ambient interference."""
-    return Settings()
+    return Settings(_env_file=None)
 
 
 def test_defaults_load(settings: Settings) -> None:

@@ -138,6 +138,71 @@ def test_captured_month_based_key_money_preserves_raw_term() -> None:
         assert unit.price.key_money_raw == "1ヶ月"
 
 
+CURRENT_PROPERTY_CARD_HTML = """
+<html><body>
+<div class="property-card box-with-red-line">
+  <div class="property-card__details">
+    <h2 class="property-title">Ｓｉｅｒｒａ深江南 3階建</h2>
+    <ul class="info-list">
+      <li class="info-item info-item--location">大阪市東成区深江南１丁目</li>
+      <li class="info-item info-item--station"><p>地下鉄千日前線 「新深江」駅 徒歩3分</p></li>
+      <li class="info-item info-item--type">賃貸アパート 3階建<br>2026年8月</li>
+    </ul>
+  </div>
+  <div class="property-card__accordion">
+    <div class="room-info-section">
+      <input type="checkbox" value="1163698330">
+      <a href="/chintai/1163698330/?DOWN=1">
+        <div class="room-image"><img src="https://www.athome.co.jp/image_files/room.jpg"></div>
+        <ul class="room-info-list">
+          <li class="room-info-item room-number">
+            <span class="room-info-item__text">１０３</span>
+          </li>
+          <li class="room-info-item price">
+            <span class="room-info-item__text rent">
+              <span class="rent-value">7.6</span>万円
+            </span>
+            <span class="room-info-item__text">8,000円</span>
+          </li>
+          <li class="room-info-item fees">
+            <span class="room-info-item__text none">なし</span>
+            <span class="room-info-item__text">1ヶ月</span>
+          </li>
+          <li class="room-info-item layout-size">
+            <span class="room-info-item__text">1LDK</span>
+            <span class="room-info-item__text">30.55m²</span>
+          </li>
+        </ul>
+      </a>
+    </div>
+  </div>
+</div>
+</body></html>
+"""
+
+
+def test_current_property_card_dom_parses_listing() -> None:
+    """The current AtHome property-card markup yields a usable summary."""
+    summaries = parse_list_page(CURRENT_PROPERTY_CARD_HTML, ref_date=date(2026, 8, 1))
+    assert len(summaries) == 1
+    summary = summaries[0]
+    assert summary.internal_id == "1163698330"
+    assert summary.url == "https://www.athome.co.jp/chintai/1163698330/"
+    assert summary.title == "Ｓｉｅｒｒａ深江南 3階建"
+    assert summary.address == "大阪市東成区深江南１丁目"
+    assert summary.station == "新深江"
+    assert summary.walk_minutes == 3
+    assert summary.building_type == "賃貸アパート"
+    assert summary.age == pytest.approx(0)
+    assert summary.floors == "１０３"
+    assert summary.price.rent == 76_000
+    assert summary.price.management_fee == 8_000
+    assert summary.price.key_money_raw == "1ヶ月"
+    assert summary.floor_plan == "1LDK"
+    assert summary.area_m2 == pytest.approx(30.55)
+    assert summary.photo_urls == ["https://www.athome.co.jp/image_files/room.jpg"]
+
+
 # Synthetic edge cases. This DOM is hand-built (not from a live capture) purely
 # to exercise the missing-optional-field path: a detached house has no room
 # number, and rent/key-money cells are present while the management-fee span and

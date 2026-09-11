@@ -24,7 +24,9 @@ use and is never exercised by unit or e2e tests.
 
 from __future__ import annotations
 
+import json
 import logging
+import time
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -46,6 +48,7 @@ from athome_harness.models import (
     RunReport,
     SearchPlan,
 )
+from athome_harness.scraping.challenge import detect_athome_challenge
 from athome_harness.scraping.detail_parser import parse_detail_page
 from athome_harness.scraping.harvester import Harvester
 from athome_harness.scraping.list_parser import parse_list_page
@@ -78,6 +81,34 @@ class SessionDeps:
     clock: Callable[[], float] | None = None
     confirm_plan: Callable[[str, SearchPlan], bool] | None = None
     detail_parser: Callable[[str], ListingDetail] | None = None
+
+
+def _hydrate_detail(summary: ListingSummary, detail: ListingDetail) -> ListingDetail:
+    """Merge observed detail fields onto the original list-page summary."""
+    values = summary.model_dump()
+    detail_values = detail.model_dump()
+    for field_name in (
+        "title",
+        "address",
+        "station",
+        "walk_minutes",
+        "building_type",
+        "floors",
+        "age",
+        "price",
+        "floor_plan",
+        "area_m2",
+        "usp_tags",
+        "probable_negatives",
+        "photo_urls",
+        "description",
+        "floor_plan_image_url",
+        "facility_features",
+    ):
+        value = detail_values[field_name]
+        if value is not None and value != "" and value != []:
+            values[field_name] = value
+    return ListingDetail(**values, listing_detail=True, detail_failure_reason=None)
 
 
 @dataclass
@@ -152,7 +183,7 @@ class SearchSession:
         self._parser = QueryParser(deps.provider, deps.filter_map)
         self._shortlister = Shortlister(deps.provider)
         self._recommender = Recommender(deps.provider)
-        self._clock: Callable[[], float] = deps.clock or (lambda: 0.0)
+        self._clock: Callable[[], float] = deps.clock or time.monotonic
         self._confirm = deps.confirm_plan or (lambda query, plan: True)
         self._detail_parser = deps.detail_parser or (lambda html: parse_detail_page(html))
 
@@ -184,6 +215,7 @@ class SearchSession:
             return SearchOutcome(status="aborted", session_id=session_id)
 
         # Parse the natural-language query into a plan.
+        stage_started = time.monotonic()
         try:
             plan = self._parser.parse(query)
         except ClarificationNeeded as exc:
@@ -200,6 +232,9 @@ class SearchSession:
             len(plan.hard_filters),
             len(plan.soft_prefs),
         )
+        logger.info(
+            "[CLI_STEP] name=<query_parse> elapsed_s=<%.3f>", time.monotonic() - stage_started
+        )
 
         # Present the plan and let the user (or a test callback) confirm it.
         if not self._confirm(query, plan):
@@ -207,6 +242,7 @@ class SearchSession:
             return SearchOutcome(status="aborted", session_id=session_id)
 
         # Encode the plan to POST params (logs [FILTER_ENCODE] on success).
+        stage_started = time.monotonic()
         try:
             params = encode_plan(plan, self._deps.filter_map)
         except UnknownFilter as exc:
@@ -224,17 +260,28 @@ class SearchSession:
             logger.error("[UNKNOWN_FILTER_ENCODED] value=<%s>", exc)
             return SearchOutcome(status="aborted", session_id=session_id)
 
+        logger.info(
+            "[CLI_STEP] name=<filter_encode> elapsed_s=<%.3f>", time.monotonic() - stage_started
+        )
+
         # Harvest the results pages.
+        stage_started = time.monotonic()
         harvester = Harvester(
             fetch_page=self._deps.fetch,
             parse_page=parse_list_page,
-            build_page_url=lambda page: self._deps.build_list_url(params, page),
+            build_page_url=lambda page: _build_plan_list_url(plan, params, page),
             budgets=self._deps.budgets,
             clock=self._clock,
         )
         pre_seen = self._deps.store.seen_internal_ids()
         harvest = harvester.harvest()
         self.last_harvest = list(harvest.listings)
+        logger.info(
+            "[CLI_STEP] name=<harvest> elapsed_s=<%.3f> pages=%d listings=%d",
+            time.monotonic() - stage_started,
+            harvest.pages_scraped,
+            len(harvest.listings),
+        )
 
         # Persist harvested listings and record the search.
         for listing in harvest.listings:
@@ -242,47 +289,63 @@ class SearchSession:
         search_id = self._deps.store.record_search(query, plan)
 
         # Shortlist: top-X preview over non-rejected candidate listings.
+        stage_started = time.monotonic()
         candidates = [
             listing
             for listing in harvest.listings
             if listing.internal_id not in self._deps.store.rejected_internal_ids()
         ]
-        logger.info(
-            "[SHORTLIST_START] candidates=%d batch_size=%d",
-            len(candidates),
-            self._deps.budgets.shortlist_size,
-        )
         shortlisted = self._shortlister.shortlist(
             plan.soft_prefs,
             candidates,
             top_x=self._deps.budgets.shortlist_size,
         )
         logger.info(
-            "[SHORTLIST_DONE] shortlisted=%d tokens=%d",
+            "[SHORTLIST_DONE] shortlisted=%d tokens=%d elapsed_s=<%.3f>",
             len(shortlisted),
             self._deps.provider.total_tokens,
+            time.monotonic() - stage_started,
         )
         by_id = {listing.internal_id: listing for listing in harvest.listings}
         shortlist_summaries = [by_id[e.listing_id] for e in shortlisted if e.listing_id in by_id]
         self.last_shortlist = shortlist_summaries
 
         # Scrape the details of the shortlist targets.
+        stage_started = time.monotonic()
         logger.info("[DETAIL_START] targets=%d", len(shortlist_summaries))
         details, failed = self._scrape_details(shortlist_summaries)
-        logger.info("[DETAIL_DONE] scraped=%d failed=%d", len(details), failed)
+        logger.info(
+            "[DETAIL_DONE] scraped=%d failed=%d elapsed_s=<%.3f>",
+            len(details),
+            failed,
+            time.monotonic() - stage_started,
+        )
 
         # Rank the details into top-Y recommendations.
+        stage_started = time.monotonic()
         recommendations = self._recommender.recommend(
             details,
             plan,
             top_y=self._deps.budgets.recommendations_count,
         )
         self.last_recommendations = recommendations
+        logger.info(
+            "[CLI_STEP] name=<recommend> elapsed_s=<%.3f> recommendations=%d",
+            time.monotonic() - stage_started,
+            len(recommendations),
+        )
+
+        self.last_query = query
+        self.last_plan = plan
+        self.last_session_id = session_id
 
         # Render and persist the report files.
+        stage_started = time.monotonic()
         md_path, json_path = self._write_report(query, recommendations, session_id=session_id)
+        logger.info("[CLI_STEP] name=<report> elapsed_s=<%.3f>", time.monotonic() - stage_started)
 
         # Record recommendations and feedback-facing store state.
+        stage_started = time.monotonic()
         self._deps.store.record_recommendation(search_id, recommendations)
         seen = len(self._deps.store.seen_internal_ids())
         rejected_ids = self._deps.store.rejected_internal_ids()
@@ -290,7 +353,13 @@ class SearchSession:
         rejected_excluded = sum(
             1 for listing in harvest.listings if listing.internal_id in rejected_ids
         )
-        logger.info("[STORE] seen=%d new=%d rejected_excluded=%d", seen, new, rejected_excluded)
+        logger.info(
+            "[STORE] seen=%d new=%d rejected_excluded=%d elapsed_s=<%.3f>",
+            seen,
+            new,
+            rejected_excluded,
+            time.monotonic() - stage_started,
+        )
 
         report = RunReport(
             query=query,
@@ -378,19 +447,52 @@ class SearchSession:
     def _scrape_details(
         self, summaries: Sequence[ListingSummary]
     ) -> tuple[list[ListingDetail], int]:
-        """Fetch and parse the detail page of each summary.
-
-        Returns ``(details, failed)`` where failures are counted but never stop
-        the run, so partial detail failures stay bounded and useful.
-        """
+        """Hydrate summaries with detail data while preserving fallback values."""
         details: list[ListingDetail] = []
         failed = 0
+        debug_dir = self._deps.report_dir.parent / "debug"
         for summary in summaries:
+            detail_url = self._deps.build_detail_url(summary)
             try:
-                html = self._deps.fetch(self._deps.build_detail_url(summary))
-                details.append(self._detail_parser(html))
-            except Exception:  # noqa: BLE001 - a single detail failure degrades
+                html = self._deps.fetch(detail_url)
+                if detect_athome_challenge(html) is not None:
+                    raise ValueError("challenge page returned for detail")
+                if getattr(self._deps.fetch, "debug", False):
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    (debug_dir / "detail_last_success.html").write_text(html, encoding="utf-8")
+                parsed = self._detail_parser(html)
+                if parsed.internal_id != summary.internal_id or not parsed.title:
+                    raise ValueError("detail parser returned incomplete identity data")
+                details.append(_hydrate_detail(summary, parsed))
+            except Exception as exc:  # noqa: BLE001 - one detail failure degrades
                 failed += 1
+                reason = f"{type(exc).__name__}: {exc}"
+                logger.warning(
+                    "[DETAIL_FAILED] listing_id=<%s> reason=<%s>",
+                    summary.internal_id,
+                    reason,
+                )
+                if getattr(self._deps.fetch, "debug", False):
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    (debug_dir / "detail_last_failure.json").write_text(
+                        json.dumps(
+                            {
+                                "listing_id": summary.internal_id,
+                                "url": detail_url.split("?", 1)[0],
+                                "reason": reason,
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                        encoding="utf-8",
+                    )
+                details.append(
+                    ListingDetail(
+                        **summary.model_dump(),
+                        listing_detail=False,
+                        detail_failure_reason=reason,
+                    )
+                )
         return details, failed
 
     def _listing_at_rank(self, rank: int) -> ListingSummary | None:
@@ -412,7 +514,7 @@ class SearchSession:
         md = self._deps.report_dir / f"report-{sid}.md"
         js = self._deps.report_dir / f"report-{sid}.json"
         md.write_text(render_markdown(recommendations, query=query), encoding="utf-8")
-        js.write_text(render_json(recommendations), encoding="utf-8")
+        js.write_text(render_json(recommendations, plan=self.last_plan), encoding="utf-8")
         logger.info(
             "[REPORT] top_y=%d md=<%s> json=<%s>",
             len(recommendations),
@@ -447,6 +549,10 @@ def interactive() -> None:
     session alive so later commands (save/reject/more like/refine) operate on
     the last search. This is the entry point for ``python -m athome_harness.cli``.
     """
+    logging.basicConfig(
+        level=logging.DEBUG,
+        format="%(asctime)s %(levelname)s:%(name)s:%(message)s",
+    )
     from athome_harness.providers import (
         build_llm_provider,
         build_production_fetch,
@@ -472,35 +578,51 @@ def interactive() -> None:
     print(
         "AtHome home finder. Type a query, or save N / reject N / more like N / refine ... / quit."
     )
-    while True:
-        try:
-            line = input("> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-        command = parse_command(line)
-        if command.verb == "quit":
-            break
-        if command.verb == "search":
-            query = str(command.arg or "")
-            outcome = session.search(query)
-            _print_outcome(outcome)
-        elif command.verb == "save" and isinstance(command.arg, int):
-            session.save(command.arg)
-        elif command.verb == "reject" and isinstance(command.arg, int):
-            session.reject(command.arg)
-        elif command.verb == "more_like" and isinstance(command.arg, int):
-            recs = session.more_like(command.arg)
-            print(f"returned {len(recs)} more-like recommendations")
-        elif command.verb == "refine" and isinstance(command.arg, str):
-            _print_outcome(session.refine(command.arg))
-    store.close()
+    try:
+        while True:
+            try:
+                line = input("> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
+            command = parse_command(line)
+            if command.verb == "quit":
+                break
+            if command.verb == "search":
+                query = str(command.arg or "")
+                outcome = session.search(query)
+                _print_outcome(outcome)
+            elif command.verb == "save" and isinstance(command.arg, int):
+                session.save(command.arg)
+            elif command.verb == "reject" and isinstance(command.arg, int):
+                session.reject(command.arg)
+            elif command.verb == "more_like" and isinstance(command.arg, int):
+                recs = session.more_like(command.arg)
+                print(f"returned {len(recs)} more-like recommendations")
+            elif command.verb == "refine" and isinstance(command.arg, str):
+                _print_outcome(session.refine(command.arg))
+    finally:
+        close_fetch = getattr(deps.fetch, "close", None)
+        if close_fetch is not None:
+            close_fetch()
+        store.close()
 
 
 def _default_list_url(params: list[tuple[str, str]], page: int) -> str:
-    """Build an AtHome rental list URL carrying encoded params and page number."""
+    """Build the legacy Osaka rental URL for injected compatibility callers."""
+    return _build_plan_list_url(SearchPlan(flow="rent", prefecture="osaka"), params, page)
+
+
+def _build_plan_list_url(plan: SearchPlan, params: list[tuple[str, str]], page: int) -> str:
+    """Build an AtHome list URL from the resolved flow and prefecture."""
+    prefecture = plan.prefecture.strip().lower().replace(" ", "-")
+    if plan.flow == "rent":
+        base = f"https://www.athome.co.jp/chintai/{prefecture}/list/"
+    else:
+        base = f"https://www.athome.co.jp/mansion/{prefecture}/list/"
     query = "&".join(f"{name}={value}" for name, value in params)
-    return f"https://www.athome.co.jp/chintai/osaka/list/?{query}&PAGENO={page}"
+    separator = "&" if query else ""
+    return f"{base}?{query}{separator}PAGENO={page}"
 
 
 def _load_filter_map() -> FilterMap:

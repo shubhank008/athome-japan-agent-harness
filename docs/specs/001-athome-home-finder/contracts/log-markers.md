@@ -15,8 +15,10 @@ All values are examples; tests match on marker name and required keys, not exact
 [HARVEST_START] expected_pages=<n> max_pages=<n>
 [HARVEST_PAGE] page=<n> listings=<n> elapsed_s=<f> # repeats per page
 [HARVEST_DONE] pages=<n> listings=<n> partial=<true|false>
-[SHORTLIST_START] candidates=<n> batch_size=<n>
-[SHORTLIST_DONE] shortlisted=<n> tokens=<n>
+[SHORTLIST_START] candidates=<n> top_x=<n> max_batch_tokens=<n> estimated_batches=<n> max_workers=<n>
+[SHORTLIST_BATCH_DONE] batch=<n>/<n> actual_size=<n> estimated_prompt_tokens=<n> prompt_tokens=<n> completion_tokens=<n> elapsed_s=<f>
+[SHORTLIST_BATCH_FAILED] batch=<n>/<n> actual_size=<n> estimated_prompt_tokens=<n> elapsed_s=<f> error=<type>
+[SHORTLIST_DONE] shortlisted=<n> successful_batches=<n> failed_batches=<n> prompt_tokens=<n> completion_tokens=<n> elapsed_s=<f>
 [DETAIL_START] targets=<n>
 [DETAIL_DONE] scraped=<n> failed=<n>               # failed must be 0 on happy path
 [REPORT] top_y=<n> md=<path> json=<path>

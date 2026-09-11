@@ -117,14 +117,17 @@ def test_direct_first_then_farm_rebind_succeeds(
             return HttpDomAdapter(Budgets(), client=direct_session)
         return HttpDomAdapter(Budgets(), handoff=handoff, client=rebound_session)
 
-    async def farm() -> CookieHandoff:
+    async def farm(_url: str) -> CookieHandoff:
         handoff = _make_handoff(proxy_url="http://proxy.example:8080")
         farm_calls.append(handoff)
         return handoff
 
     async def run() -> str:
         refarmer = SessionRefarmer(build_adapter=build_adapter, farm=farm, max_refarms=1)
-        return await refarmer.fetch_html(URL)
+        try:
+            return await refarmer.fetch_html(URL)
+        finally:
+            refarmer.close()
 
     html = asyncio.run(run())
     assert html == RECOVERED_HTML
@@ -166,7 +169,7 @@ def test_rebound_still_blocked_is_bounded(caplog: pytest.LogCaptureFixture) -> N
             return HttpDomAdapter(Budgets(), client=direct_session)
         return HttpDomAdapter(Budgets(), handoff=handoff, client=rebound_session)
 
-    async def farm() -> CookieHandoff:
+    async def farm(_url: str) -> CookieHandoff:
         handoff = _make_handoff()
         farm_calls.append(handoff)
         return handoff

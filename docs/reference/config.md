@@ -29,6 +29,7 @@ The pydantic value object carrying the budget knobs. Every field is `ge=0`
 | `http_timeout_s` | `float` | `30.0` | `ATHOME_HTTP_TIMEOUT_S` | Per-request HTTP timeout. |
 | `proxy_retries` | `int` | `3` | `ATHOME_PROXY_RETRIES` | Proxy rotation budget. |
 | `prefetch_ttl_hours` | `float` | `48.0` | `ATHOME_PREFETCH_TTL_HOURS` | Prefetch cache TTL (post-MVP feature, not scheduled). |
+| `llm_timeout_s` | `float` | `30.0` | `ATHOME_LLM_TIMEOUT_S` | OpenAI-compatible LLM request timeout. |
 | `llm_temperature` | `float` | `0.0` | `ATHOME_LLM_TEMPERATURE` | LLM scoring temperature. |
 | `llm_max_tokens` | `int` | `2048` | `ATHOME_LLM_MAX_TOKENS` | LLM completion ceiling. |
 

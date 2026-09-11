@@ -61,6 +61,16 @@ def test_uses_injected_session_no_network() -> None:
     text, usage = provider.complete_text(system="sys", user="usr")
     assert text == '{"flow": "rent"}'
     assert usage == LLMUsage(prompt_tokens=12, completion_tokens=7)
+
+
+def test_request_uses_configured_timeout() -> None:
+    """The transport passes its configured timeout to curl-cffi."""
+    session = FakeSession([FakeResponse(200, _ok_body())])
+    provider = OpenRouterProvider("test-key", session=session, timeout_s=120.0)
+    provider.complete_text(system="sys", user="usr")
+    _, kwargs = session.calls[0]
+    assert kwargs["timeout"] == 120.0
+
     assert len(session.calls) == 1
 
 

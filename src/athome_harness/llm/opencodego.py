@@ -7,11 +7,15 @@ identical to OpenRouter, so the implementation is a thin declaration over the
 shared :class:`OpenAICompatibleProvider` base: it pins the OpencodeGo endpoint,
 the ``OPENCODEGO_API_KEY`` environment variable, and the error label.
 
-The model identifier uses the ``opencode-go/<model-id>`` format OpenCode expects
-in its config, for example ``opencode-go/deepseek-v4-flash``.
+The provider requires a stable ``x-opencode-session`` header for its lifetime
+and an application-specific ``User-Agent`` so requests can be routed and cached
+as coding-agent traffic. The current endpoint accepts unprefixed model names,
+for example ``deepseek-v4-flash``.
 """
 
 from __future__ import annotations
+
+from uuid import uuid4
 
 from athome_harness.config import DEFAULT_OPENCODEGO_MODEL, DEFAULT_OPENCODEGO_URL
 from athome_harness.llm.openai_compat import ChatSession, OpenAICompatibleProvider
@@ -40,6 +44,7 @@ class OpenCodeGoProvider(OpenAICompatibleProvider):
         session: ChatSession | None = None,
         base_url: str | None = None,
         max_tokens: int | None = None,
+        timeout_s: float = 30.0,
     ) -> None:
         """Configure an OpencodeGo transport.
 
@@ -56,4 +61,17 @@ class OpenCodeGoProvider(OpenAICompatibleProvider):
             session=session,
             base_url=base_url,
             max_tokens=max_tokens,
+            timeout_s=timeout_s,
         )
+        self._session_id = str(uuid4())
+
+    def _request_headers(self) -> dict[str, str]:
+        """Identify this coding-agent conversation to the OpenCodeGo endpoint."""
+        headers = super()._request_headers()
+        headers.update(
+            {
+                "User-Agent": "athome-japan-agent-harness/0.1.0",
+                "x-opencode-session": self._session_id,
+            }
+        )
+        return headers

@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from pathlib import Path
 
 from athome_harness.config import (
     LLM_PROVIDER_OPENCODEGO,
@@ -60,6 +61,7 @@ def build_llm_provider(settings: Settings) -> BaseLLMProvider:
             api_key=settings.openrouter_api_key,
             model=settings.general_model,
             max_tokens=settings.llm_max_tokens,
+            timeout_s=settings.llm_timeout_s,
         )
     if provider == LLM_PROVIDER_OPENCODEGO:
         from athome_harness.llm.opencodego import OpenCodeGoProvider
@@ -69,6 +71,7 @@ def build_llm_provider(settings: Settings) -> BaseLLMProvider:
             model=settings.opencodego_model,
             base_url=settings.opencodego_base_url,
             max_tokens=settings.llm_max_tokens,
+            timeout_s=settings.llm_timeout_s,
         )
     raise ValueError(
         f"Unknown LLM provider '{settings.llm_provider}'. "
@@ -124,13 +127,28 @@ def build_production_fetch(
             budgets=budgets,
             proxy_provider=proxy,
             handoff=handoff,
+            debug=settings.debug,
         )
 
-    refarmer = SessionRefarmer(build_adapter=build_adapter, farm=PlaywrightCookieFetcher().farm)
+    async def farm(url: str) -> CookieHandoff:
+        return await PlaywrightCookieFetcher(url=url).farm()
+
+    refarmer = SessionRefarmer(
+        build_adapter=build_adapter,
+        farm=farm,
+        debug=settings.debug,
+        debug_dir=Path("debug"),
+    )
 
     def fetch(url: str) -> str:
+        """Fetch one page through the cached refarmer lifecycle."""
         return asyncio.run(refarmer.fetch_html(url))
 
+    def close() -> None:
+        refarmer.close()
+
+    fetch.close = close  # type: ignore[attr-defined]
+    fetch.debug = settings.debug  # type: ignore[attr-defined]
     return fetch
 
 

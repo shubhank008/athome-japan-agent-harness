@@ -158,8 +158,10 @@ the adapter to that handoff, and retries once.
 | Parameter | Type | Default | Meaning |
 |-----------|------|---------|---------|
 | `build_adapter` | `Callable[[CookieHandoff \| None], object]` | required | Build a sync scraper from a handoff (`None` = direct). |
-| `farm` | `Callable[[], Awaitable[CookieHandoff]]` | required | Produce a fresh handoff. |
+| `farm` | `Callable[[str], Awaitable[CookieHandoff]]` | required | Produce a fresh handoff; receives the blocked URL. |
 | `max_refarms` | `int` | `1` | How many times a block may trigger a refarm before giving up. |
+| `debug` | `bool` | `False` | Capture safe HTML/metadata diagnostics under `debug_dir`. |
+| `debug_dir` | `Path` | `debug` | Directory for debug artifact overwrites. |
 
 Public methods `fetch_html(url) -> str` and `fetch_binary(url) -> bytes` are
 async and run the loop below.
@@ -168,13 +170,15 @@ async and run the loop below.
 
 ```mermaid
 flowchart TD
-    A[fetch_html url] --> B[build_adapter None: direct adapter]
-    B --> C{call fetch}
-    C -->|success| Z[return HTML]
+    A[fetch_html url] --> B{active adapter cached?}
+    B -->|no| BA[build_adapter handoff or None]
+    B -->|yes| C
+    BA --> C[call fetch]
+    C -->|success| Z[return result]
     C -->|BlockDetected| D["log REHANDOFF_TRIGGERED"]
     D --> E{refarms remaining?}
-    E -->|no| R[re-raise first BlockDetected]
-    E -->|yes| F[await farm: fresh CookieHandoff]
+    E -->|no| R[close active, re-raise first BlockDetected]
+    E -->|yes| F["await farm(url): fresh CookieHandoff"]
     F --> G["log REHANDOFF_FARMED"]
     G --> H[build_adapter handoff: rebound adapter]
     H --> I[close previous adapter]
@@ -182,14 +186,16 @@ flowchart TD
     J -->|success| Z
     J -->|BlockDetected| K["log REHANDOFF_STILL_BLOCKED"]
     K --> E
-    Z --> CZ[finally: close active adapter]
-    R --> CZ
+    Z --> OK[return result, adapter cached]
+    R --> DONE[active=None, handoff=None]
 ```
 
-Every adapter the loop creates is closed exactly once: the previous adapter is
-closed when a rebound one replaces it, and the `finally` closes whichever
-adapter is active on exit. This is the cleanup pattern PR #10 hardened; do not
-regress it.
+The adapter is cached after a successful fetch or a successful rebound; subsequent
+`fetch_html`/`fetch_binary` calls reuse it without rebuilding. The owner must
+call `close()` when the refarmer lifecycle ends to release the cached adapter.
+On a non-`BlockDetected` exception, `close()` is called automatically. On
+exhausted refarms, the active adapter is closed, the cache is cleared, and the
+original `BlockDetected` is re-raised.
 
 ## Harvester
 

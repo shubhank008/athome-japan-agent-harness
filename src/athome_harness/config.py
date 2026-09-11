@@ -69,6 +69,9 @@ class Budgets(BaseModel):
     # Prefetch cache freshness (post-MVP feature gate).
     prefetch_ttl_hours: float = Field(default=48.0, ge=0)
 
+    # Separate LLM transport timeout from scraper request timeout.
+    llm_timeout_s: float = Field(default=30.0, ge=0)
+
     # Determinism: LLM scoring is always temperature 0 (SPEC section 5).
     llm_temperature: float = Field(default=0.0, ge=0)
 
@@ -87,6 +90,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
+    debug: bool = Field(default=False, validation_alias="DEBUG")
     openrouter_api_key: str = Field(description="OpenRouter API key (required).")
     webshare_proxy_user: str | None = Field(
         default=None, description="Webshare proxy username (optional)."
@@ -167,6 +171,7 @@ class Settings(BaseSettings):
     http_timeout_s: float = Field(default=30.0, validation_alias="ATHOME_HTTP_TIMEOUT_S")
     proxy_retries: int = Field(default=3, validation_alias="ATHOME_PROXY_RETRIES")
     prefetch_ttl_hours: float = Field(default=48.0, validation_alias="ATHOME_PREFETCH_TTL_HOURS")
+    llm_timeout_s: float = Field(default=30.0, validation_alias="ATHOME_LLM_TIMEOUT_S")
     llm_temperature: float = Field(default=0.0, validation_alias="ATHOME_LLM_TEMPERATURE")
     llm_max_tokens: int = Field(default=2048, validation_alias="ATHOME_LLM_MAX_TOKENS")
 
@@ -185,6 +190,7 @@ class Settings(BaseSettings):
             http_timeout_s=self.http_timeout_s,
             proxy_retries=self.proxy_retries,
             prefetch_ttl_hours=self.prefetch_ttl_hours,
+            llm_timeout_s=self.llm_timeout_s,
             llm_temperature=self.llm_temperature,
             llm_max_tokens=self.llm_max_tokens,
         )

@@ -27,12 +27,17 @@ from datetime import date
 from selectolax.parser import HTMLParser, Node
 
 from athome_harness.models import ListingDetail, PriceBreakdown
+from athome_harness.scraping.age import age_values
+from athome_harness.scraping.server_app_state import extract_server_app_detail
 
 logger = logging.getLogger(__name__)
 
 # Structural CSS selectors for the current AtHome detail-page DOM.
 _PAYMENT_INFO = "div.paymentInfo.typeChintai"
-_DATA_TBL = "table.dataTbl"
+_DATA_TBL = "table.dataTbl, table.property-summary__list"
+_CURRENT_SUMMARY = "table.property-summary__list"
+_CURRENT_DETAILS = "dl.details"
+_CURRENT_GALLERY = "div.swiper-slide__image img"
 _PHOTO_STRIP = "#detail-image_view ul.zoomList li.item"
 _PHOTO_NAME = "dt#subCategory"
 _POINT_DD = "#item-detai_basic__point dd"
@@ -101,18 +106,32 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     """
     tree = HTMLParser(html)
     athome_key = _extract_key(tree, html)
+    state = extract_server_app_detail(html, athome_key)
     fields = _extract_data_fields(tree)
-    price = _extract_price(tree)
+    fields.update(
+        {key: value for key, value in _extract_current_detail_fields(tree).items() if value}
+    )
+    if state is not None:
+        fields.update(_fields_from_server_state(state))
+    price = _price_from_server_state(state) if state is not None else _extract_price(tree)
     photos = _extract_photos(tree)
     floor_plan_image = _extract_floor_plan_image(tree)
     point_text, point_icons = _extract_usp(tree)
     facility_features, probable_negatives = _extract_facilities(tree)
-    age = _extract_age(fields, ref_date or date.today())
+    pickup_features, pickup_negatives = _pickup_features(state)
+    facility_features = _dedupe(facility_features + pickup_features)
+    probable_negatives = _dedupe(probable_negatives + pickup_negatives)
+    reference_date = ref_date or date.today()
+    age, age_raw, construction_date, age_display = _age_metadata(
+        _field(fields, AGE_LABELS), reference_date
+    )
 
     usp_tags = point_icons if point_icons else ([point_text] if point_text else [])
-    title = _field(fields, TITLE_LABELS) or ""
+    title = _field(fields, TITLE_LABELS) or _extract_h1_title(tree)
     address = (_field(fields, ADDRESS_LABELS) or "").removesuffix(_MAP_LINK_SUFFIX)
     station, walk = _parse_transport(_field(fields, TRANSPORT_LABELS) or "")
+    building_info = state.get("buildingInfo") if state else {}
+    other_info = state.get("otherPropertyInfo") if state else {}
 
     return ListingDetail(
         internal_id=athome_key,
@@ -125,6 +144,19 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
         building_type=_field(fields, BUILDING_TYPE_LABELS),
         floors=_field(fields, FLOORS_LABELS),
         age=age,
+        age_raw=age_raw,
+        construction_date=construction_date,
+        age_display=age_display,
+        building_name=(
+            building_info.get("buildingNm") if isinstance(building_info, dict) else None
+        ),
+        building_structure=(
+            building_info.get("tatemonoKozo") if isinstance(building_info, dict) else None
+        ),
+        total_units=(building_info.get("sokosu") if isinstance(building_info, dict) else None),
+        contract_period=(other_info.get("contract") if isinstance(other_info, dict) else None),
+        pickup_features=pickup_features,
+        remarks=(building_info.get("biko") if isinstance(building_info, dict) else None),
         price=price,
         floor_plan=_field(fields, FLOOR_PLAN_LABELS),
         area_m2=_parse_area(_field(fields, AREA_LABELS)),
@@ -135,6 +167,100 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
         floor_plan_image_url=floor_plan_image,
         facility_features=facility_features,
     )
+
+
+def _fields_from_server_state(state: dict[str, object]) -> dict[str, str]:
+    """Map validated ``rentInfo`` state into the parser's field labels."""
+    fields: dict[str, str] = {}
+    building = state.get("buildingInfo")
+    if isinstance(building, dict):
+        mapping = {
+            "buildingNm": "建物名・部屋番号",
+            "chikunengetsu": "築年月",
+            "tatemonoKozo": "物件構造・工法",
+            "madori": "間取り",
+            "biko": "備考",
+        }
+        for source, label in mapping.items():
+            value = building.get(source)
+            if isinstance(value, str) and value.strip():
+                fields[label] = value
+    mapping = {
+        "address": "住所",
+        "kaidateKai": "階建 / 階",
+        "stationNm": "交通",
+        "syumokuNm": "物件種目",
+    }
+    for source, label in mapping.items():
+        value = state.get(source)
+        if isinstance(value, str) and value.strip():
+            fields[label] = value
+    line = state.get("lineNm")
+    station = state.get("stationNm")
+    if isinstance(line, str) and isinstance(station, str):
+        fields["交通"] = f"{line} / {station}駅"
+    return fields
+
+
+def _price_from_server_state(state: dict[str, object]) -> PriceBreakdown:
+    """Build a price breakdown from validated structured state strings."""
+    raw_price = str(state.get("price", ""))
+    rent = _parse_man_yen(raw_price)
+    if rent == 0:
+        try:
+            rent = round(float(raw_price.replace(",", "")) * 10_000)
+        except ValueError:
+            rent = 0
+    management = _parse_yen(str(state.get("managementFee", "")))
+    deposit_raw = str(state.get("deposit", "")) or None
+    key_money_raw = str(state.get("keyMoney", "")) or None
+    return PriceBreakdown(
+        rent=rent,
+        management_fee=management,
+        deposit=_parse_optional_yen(deposit_raw or "", "deposit"),
+        key_money=_parse_optional_yen(key_money_raw or "", "key money"),
+        deposit_raw=deposit_raw,
+        key_money_raw=key_money_raw,
+    )
+
+
+def _age_metadata(
+    raw: str | None, ref_date: date
+) -> tuple[float | None, str | None, str | None, str | None]:
+    """Convert an observed construction term to consistent age metadata."""
+    if not raw:
+        return None, None, None, None
+    build_match = _RE_BUILD_DATE.search(raw)
+    if build_match is None:
+        years_match = _RE_AGE_YEARS.search(raw)
+        return (float(years_match.group(1)) if years_match else None), raw, None, None
+    build_date = date(int(build_match.group(1)), int(build_match.group(2)), 1)
+    years, age_raw, age_display = age_values(raw, ref_date, build_date)
+    return years, age_raw, build_match.group(0), age_display
+
+
+def _pickup_features(state: dict[str, object] | None) -> tuple[list[str], list[str]]:
+    """Map structured pickup booleans into confirmed and probable features."""
+    if state is None:
+        return [], []
+    pickup = state.get("pickup")
+    if not isinstance(pickup, dict):
+        return [], []
+    labels = {
+        "isSeparateBath": "バス・トイレ別",
+        "hasBathDryer": "浴室乾燥機",
+        "hasAutoLock": "オートロック",
+        "hasMonitorIntercom": "モニター付インターホン",
+        "hasDeliveryBox": "宅配ボックス",
+        "isFreeInternet": "インターネット無料",
+        "isAbove2nd": "2階以上",
+        "isNewBuild": "築浅",
+        "hasPetSodan": "ペット相談",
+        "hasParking": "駐車場",
+    }
+    confirmed = [label for key, label in labels.items() if pickup.get(key) is True]
+    negatives = [label for key, label in labels.items() if pickup.get(key) is False]
+    return confirmed, negatives
 
 
 def _extract_age(fields: dict[str, str], ref_date: date) -> float | None:
@@ -176,6 +302,12 @@ def _extract_key(tree: HTMLParser, html: str) -> str:
     return match.group(1)
 
 
+def _extract_h1_title(tree: HTMLParser) -> str:
+    """Return the current detail page heading when no table title exists."""
+    heading = tree.css_first("h1")
+    return heading.text(strip=True) if heading is not None else ""
+
+
 def _extract_data_fields(tree: HTMLParser) -> dict[str, str]:
     """Collect the first value for every label seen across all data tables.
 
@@ -185,13 +317,32 @@ def _extract_data_fields(tree: HTMLParser) -> dict[str, str]:
     fields: dict[str, str] = {}
     for table in tree.css(_DATA_TBL):
         for tr in table.css("tr"):
-            ths = tr.css("th")
-            tds = tr.css("td")
-            for th, td in zip(ths, tds, strict=False):
-                label = th.text(strip=True)
-                value = td.text(separator="", strip=True)
+            cells = tr.css("th, td")
+            labels = [cell.text(strip=True) for cell in cells if cell.tag == "th"]
+            values = [cell.text(separator="", strip=True) for cell in cells if cell.tag == "td"]
+            for label, value in zip(labels, values, strict=False):
                 if label and label not in fields:
                     fields[label] = value
+
+    return fields
+
+
+def _extract_current_detail_fields(tree: HTMLParser) -> dict[str, str]:
+    """Extract labels from current ``dl.details`` and summary tables."""
+    fields: dict[str, str] = {}
+    for dl in tree.css(_CURRENT_DETAILS):
+        titles = dl.css("dt.details__title")
+        values = dl.css("dd.details__data")
+        if titles and values:
+            for title, value in zip(titles, values, strict=False):
+                fields[title.text(strip=True)] = value.text(separator="", strip=True)
+    for table in tree.css(_CURRENT_SUMMARY):
+        for tr in table.css("tr"):
+            cells = tr.css("th, td")
+            labels = [cell for cell in cells if cell.tag == "th"]
+            values = [cell for cell in cells if cell.tag == "td"]
+            for label, value in zip(labels, values, strict=False):
+                fields.setdefault(label.text(strip=True), value.text(separator="", strip=True))
     return fields
 
 
@@ -202,7 +353,9 @@ def _extract_price(tree: HTMLParser) -> PriceBreakdown:
     ``1ヶ月``, ...) alongside the numeric yen value, so a month-based term is
     never indistinguishable from zero.
     """
-    rent = management_fee = deposit = key_money = 0
+    rent = management_fee = 0
+    deposit: int | None = None
+    key_money: int | None = None
     deposit_raw = key_money_raw = None
     payment = tree.css_first(_PAYMENT_INFO)
     if payment is not None:
@@ -223,6 +376,23 @@ def _extract_price(tree: HTMLParser) -> PriceBreakdown:
             elif "礼金" in label:
                 key_money = _parse_optional_yen(value, "key money")
                 key_money_raw = value
+    if rent == 0:
+        current = tree.css_first("div.rent-info__item dl.price dd.price__big")
+        if current is not None:
+            rent = _parse_man_yen(current.text(strip=True))
+        cost = tree.css_first("div.rent-info__item dl.price-cost")
+        if cost is not None:
+            terms = [node.text(strip=True) for node in cost.css("dd")]
+            labels = [node.text(strip=True) for node in cost.css("dt")]
+            for label, value in zip(labels, terms, strict=False):
+                if "管理費" in label:
+                    management_fee = _parse_yen(value)
+                elif "敷金" in label:
+                    deposit = _parse_optional_yen(value, "deposit")
+                    deposit_raw = value
+                elif "礼金" in label:
+                    key_money = _parse_optional_yen(value, "key money")
+                    key_money_raw = value
     return PriceBreakdown(
         rent=rent,
         management_fee=management_fee,
@@ -236,8 +406,10 @@ def _extract_price(tree: HTMLParser) -> PriceBreakdown:
 def _extract_photos(tree: HTMLParser) -> list[str]:
     """Return absolute URLs of every photo in the detail photo strip."""
     urls: list[str] = []
-    for item in tree.css(_PHOTO_STRIP):
-        img = item.css_first("img")
+    images: list[Node | None] = [item.css_first("img") for item in tree.css(_PHOTO_STRIP)]
+    if not images:
+        images = list(tree.css(_CURRENT_GALLERY))
+    for img in images:
         if img is None:
             continue
         src = _absolute_url(img.attributes.get("src") or img.attributes.get("data-original"))
@@ -368,16 +540,18 @@ def _parse_yen(raw: str) -> int:
     return int(match.group(1).replace(",", ""))
 
 
-def _parse_optional_yen(raw: str, label: str) -> int:
-    """Convert a deposit/key-money cell to yen, warning on non-convertible."""
-    if not raw or raw == "なし":
+def _parse_optional_yen(raw: str, label: str) -> int | None:
+    """Convert numeric upfront terms, preserving duration terms as ``None``."""
+    if not raw:
+        return None
+    if raw == "なし":
         return 0
     if "万円" in raw:
         return _parse_man_yen(raw)
     if "円" in raw:
         return _parse_yen(raw)
-    logger.warning("detail_parser: %s %r not convertible; recorded as 0", label, raw)
-    return 0
+    logger.debug("detail_parser: %s raw duration term=%r", label, raw)
+    return None
 
 
 def _parse_area(raw: str | None) -> float:

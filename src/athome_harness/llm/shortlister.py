@@ -25,6 +25,9 @@ from __future__ import annotations
 import json
 import logging
 import math
+import time
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 from pydantic import BaseModel, Field
 
@@ -38,7 +41,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_CHARS_PER_TOKEN = 4
 
 # Default ceiling for one scoring batch prompt, in estimated tokens.
-DEFAULT_MAX_BATCH_TOKENS = 4000
+DEFAULT_MAX_BATCH_TOKENS = 6000
+DEFAULT_MAX_WORKERS = 2
 DEFAULT_TOP_X = 20
 
 _SYSTEM_PROMPT = (
@@ -83,10 +87,14 @@ class Shortlister:
         *,
         chars_per_token: int = DEFAULT_CHARS_PER_TOKEN,
         max_batch_tokens: int = DEFAULT_MAX_BATCH_TOKENS,
+        max_workers: int = DEFAULT_MAX_WORKERS,
+        example_path: Path = Path("debug/shortlist_example.json"),
     ) -> None:
         self._provider = provider
         self._chars_per_token = max(1, chars_per_token)
         self._max_batch_tokens = max(1, max_batch_tokens)
+        self._max_workers = max(1, max_workers)
+        self._example_path = example_path
 
     def shortlist(
         self,
@@ -108,17 +116,106 @@ class Shortlister:
         if top == 0:
             return []
         source_ids = {listing.internal_id for listing in listings}
+        batches = self._pack_batches(prefs, listings)
+        self._write_example(batches[0])
+        logger.info(
+            "[SHORTLIST_START] candidates=%d top_x=%d max_batch_tokens=%d "
+            "estimated_batches=%d max_workers=%d",
+            len(listings),
+            top,
+            self._max_batch_tokens,
+            len(batches),
+            self._max_workers,
+        )
         best_by_id: dict[str, ShortlistEntry] = {}
-        for batch_listings in self._pack_batches(prefs, listings):
-            for entry in self._score_batch(prefs, batch_listings, temperature):
-                if entry.listing_id not in source_ids:
-                    logger.warning("shortlister referenced unknown listing %s", entry.listing_id)
+        successes = failures = 0
+        prompt_tokens = completion_tokens = 0
+        shortlist_started = time.monotonic()
+        with ThreadPoolExecutor(max_workers=self._max_workers) as executor:
+            futures: dict[
+                Future[tuple[list[ShortlistEntry], int, int]],
+                tuple[int, list[ListingSummary], int, float],
+            ] = {}
+            for index, batch in enumerate(batches, start=1):
+                estimated = self._estimate_batch_tokens(prefs, batch)
+                logger.debug(
+                    "[SHORTLIST_BATCH_START] batch=%d/%d actual_size=%d estimated_prompt_tokens=%d",
+                    index,
+                    len(batches),
+                    len(batch),
+                    estimated,
+                )
+                submitted = time.monotonic()
+                future = executor.submit(self._score_batch, prefs, batch, temperature)
+                futures[future] = (index, batch, estimated, submitted)
+            for future in as_completed(futures):
+                index, batch, estimated, submitted = futures[future]
+                try:
+                    entries, batch_prompt_tokens, batch_completion_tokens = future.result()
+                except Exception as exc:  # noqa: BLE001 - one batch must not lose others
+                    failures += 1
+                    logger.warning(
+                        "[SHORTLIST_BATCH_FAILED] batch=%d/%d actual_size=%d "
+                        "estimated_prompt_tokens=%d elapsed_s=<%.3f> error=<%s>",
+                        index,
+                        len(batches),
+                        len(batch),
+                        estimated,
+                        time.monotonic() - submitted,
+                        type(exc).__name__,
+                    )
                     continue
-                previous = best_by_id.get(entry.listing_id)
-                if previous is None or entry.score > previous.score:
-                    best_by_id[entry.listing_id] = entry
+                successes += 1
+                prompt_tokens += batch_prompt_tokens
+                completion_tokens += batch_completion_tokens
+                logger.info(
+                    "[SHORTLIST_BATCH_DONE] batch=%d/%d actual_size=%d "
+                    "estimated_prompt_tokens=%d prompt_tokens=%d completion_tokens=%d "
+                    "elapsed_s=<%.3f>",
+                    index,
+                    len(batches),
+                    len(batch),
+                    estimated,
+                    batch_prompt_tokens,
+                    batch_completion_tokens,
+                    time.monotonic() - submitted,
+                )
+                for entry in entries:
+                    if entry.listing_id not in source_ids:
+                        logger.warning(
+                            "shortlister referenced unknown listing %s", entry.listing_id
+                        )
+                        continue
+                    previous = best_by_id.get(entry.listing_id)
+                    if previous is None or entry.score > previous.score:
+                        best_by_id[entry.listing_id] = entry
+        logger.info(
+            "[SHORTLIST_DONE] shortlisted=%d successful_batches=%d failed_batches=%d "
+            "prompt_tokens=%d completion_tokens=%d elapsed_s=<%.3f>",
+            min(top, len(best_by_id)),
+            successes,
+            failures,
+            prompt_tokens,
+            completion_tokens,
+            time.monotonic() - shortlist_started,
+        )
         merged = sorted(best_by_id.values(), key=lambda e: (-e.score, e.listing_id))
         return merged[:top]
+
+    def _estimate_batch_tokens(self, prefs: list[str], batch: list[ListingSummary]) -> int:
+        """Estimate the complete prompt token count for one scoring batch."""
+        fixed = self._estimate_tokens(json.dumps(prefs, ensure_ascii=False))
+        return fixed + sum(self._estimate_tokens(self._serialize(item)) for item in batch)
+
+    def _write_example(self, batch: list[ListingSummary]) -> None:
+        """Write one local example for operator payload review."""
+        if self._example_path.exists():
+            return
+        self._example_path.parent.mkdir(parents=True, exist_ok=True)
+        self._example_path.write_text(
+            json.dumps(batch[0].model_dump(), ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
 
     def _pack_batches(
         self, prefs: list[str], listings: list[ListingSummary]
@@ -150,7 +247,7 @@ class Shortlister:
 
     def _score_batch(
         self, prefs: list[str], batch: list[ListingSummary], temperature: float
-    ) -> list[ShortlistEntry]:
+    ) -> tuple[list[ShortlistEntry], int, int]:
         """Score one batch against the preferences and return its entries."""
         serialized = "\n".join(self._serialize(item) for item in batch)
         user = (
@@ -170,7 +267,7 @@ class Shortlister:
             usage.prompt_tokens,
             usage.completion_tokens,
         )
-        return output.entries
+        return output.entries, usage.prompt_tokens, usage.completion_tokens
 
     def _estimate_tokens(self, text: str) -> int:
         """Estimate the token cost of ``text`` for budget packing."""

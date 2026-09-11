@@ -69,6 +69,40 @@ def test_authorization_header_carries_key() -> None:
     assert headers["Authorization"] == "Bearer go-secret"
 
 
+
+def test_coding_agent_headers_use_one_stable_session_id() -> None:
+    """OpenCodeGo identifies the app and reuses one UUID per provider instance."""
+    session = _FakeSession([_FakeResponse(200, _ok_body()), _FakeResponse(200, _ok_body())])
+    provider = OpenCodeGoProvider("go-secret", session=session)
+
+    provider.complete_text(system="sys", user="first")
+    provider.complete_text(system="sys", user="second")
+
+    first_headers = session.calls[0][1]["headers"]
+    second_headers = session.calls[1][1]["headers"]
+    assert isinstance(first_headers, dict)
+    assert isinstance(second_headers, dict)
+    assert first_headers["User-Agent"] == "athome-japan-agent-harness/0.1.0"
+    assert first_headers["x-opencode-session"] == second_headers["x-opencode-session"]
+
+
+def test_provider_instances_use_distinct_session_ids() -> None:
+    """Separate OpenCodeGo conversations must not share a routing session ID."""
+    first_session = _FakeSession([_FakeResponse(200, _ok_body())])
+    second_session = _FakeSession([_FakeResponse(200, _ok_body())])
+    first_provider = OpenCodeGoProvider("k", session=first_session)
+    second_provider = OpenCodeGoProvider("k", session=second_session)
+
+    first_provider.complete_text(system="sys", user="usr")
+    second_provider.complete_text(system="sys", user="usr")
+
+    first_headers = first_session.calls[0][1]["headers"]
+    second_headers = second_session.calls[0][1]["headers"]
+    assert isinstance(first_headers, dict)
+    assert isinstance(second_headers, dict)
+    assert first_headers["x-opencode-session"] != second_headers["x-opencode-session"]
+
+
 def test_returns_parsed_content() -> None:
     """Complete_text returns the parsed assistant content."""
     session = _FakeSession([_FakeResponse(200, _ok_body())])

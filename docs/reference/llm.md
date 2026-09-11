@@ -79,6 +79,12 @@ Thin declarations over the shared base:
 | `OpenRouterProvider` (`llm/openrouter.py`) | `OPENROUTER_API_KEY` | `deepseek/deepseek-v4-flash-0731` | `https://openrouter.ai/api/v1/chat/completions` |
 | `OpenCodeGoProvider` (`llm/opencodego.py`) | `OPENCODEGO_API_KEY` | `opencode-go/deepseek-v4-flash` | `https://opencode.ai/zen/go/v1/chat/completions` |
 
+OpenCodeGo additionally sends `User-Agent: athome-japan-agent-harness/0.1.0`
+and a generated `x-opencode-session` UUID. The UUID is created once per provider
+instance and reused for every completion in that conversation; it is never
+logged, persisted, or shared across application processes. OpenRouter keeps the
+shared authorization and content-type headers only.
+
 Selection is config-driven (`ATHOME_LLM_PROVIDER`) through
 [`build_llm_provider`](providers.md); both transports use the same shared base
 so switching is a config change, not a code change.
@@ -112,16 +118,18 @@ summarized into the prompt so the model can only emit canonical filter names.
 preferences and returns an ordered top-X shortlist.
 
 `__init__(provider: BaseLLMProvider, *, chars_per_token: int = 4,
-max_batch_tokens: int = 4000)`.
+max_batch_tokens: int = 6000, max_workers: int = 2)`.
+
 
 `shortlist(prefs: list[str], listings: list[ListingSummary], *,
 top_x: int | None = None, temperature: float = 0.0) -> list[ShortlistEntry]`:
 
 1. Serializes every listing to compact text (`_serialize`) and estimates tokens
    (`len(text) / chars_per_token`).
-2. Packs listings into batches bounded by `max_batch_tokens` (default 4000) so
+2. Packs listings into batches bounded by `max_batch_tokens` (default 6000) so
    one prompt never exceeds the budget.
-3. Scores each batch through `complete_json` against `ShortlistBatch`.
+3. Scores up to two batches concurrently through `complete_json` against
+   `ShortlistBatch`; failed batches are logged and omitted while other results are retained.
 4. Merges entries, sorts by score descending, and returns the top X
    (`DEFAULT_TOP_X` = 20 when `top_x` is `None`; the session passes
    `Budgets.shortlist_size`).

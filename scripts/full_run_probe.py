@@ -274,7 +274,9 @@ def _run_session(query: str, deps: SessionDeps, store: SqliteStore | None) -> in
 
 def main(argv: list[str] | None = None) -> int:
     """Parse arguments, build deps, run the funnel, and clean up outputs."""
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s %(levelname)s:%(name)s:%(message)s"
+    )
     args = _parser().parse_args(argv)
     work_dir = args.work_dir.resolve()
     if work_dir.exists():

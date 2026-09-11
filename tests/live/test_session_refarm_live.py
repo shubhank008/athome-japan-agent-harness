@@ -55,7 +55,7 @@ def _build_refarmer(debug_dir: Path) -> SessionRefarmer:
     def build_adapter(handoff: CookieHandoff | None) -> HttpDomAdapter:
         return HttpDomAdapter(budgets, handoff=handoff)
 
-    async def farm() -> CookieHandoff:
+    async def farm(_url: str) -> CookieHandoff:
         return await PlaywrightCookieFetcher(
             url=BROAD_SEARCH_URL,
             debug_dir=debug_dir,
@@ -88,7 +88,7 @@ async def test_refarmer_recovers_after_forced_block(tmp_path: Path) -> None:
     def build_adapter(handoff: object) -> HttpDomAdapter:
         return _BlockOnceAdapter(Budgets(http_timeout_s=LIVE_TIMEOUT_S), handoff=handoff)  # type: ignore[arg-type]
 
-    async def farm() -> CookieHandoff:
+    async def farm(_url: str) -> CookieHandoff:
         return await PlaywrightCookieFetcher(url=BROAD_SEARCH_URL, debug_dir=tmp_path).farm()
 
     forced_refarmer = SessionRefarmer(build_adapter=build_adapter, farm=farm)
