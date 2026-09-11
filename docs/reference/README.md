@@ -28,6 +28,7 @@ dependencies and dependents at the top.
 | [filters.md](filters.md) | `FilterMap` schema, `FieldCondition`, `encode` | Filters |
 | [scraping.md](scraping.md) | `BaseScraper`, `HttpDomAdapter`, `PlaywrightCookieFetcher`, `SessionRefarmer`, `Harvester`, `CookieHandoff`, `ProxyProvider`, `WebshareProxyProvider` | Scraping |
 | [parsers.md](parsers.md) | `parse_list_page`, `parse_detail_page`, DOM access map | Parsing |
+| [server-app-state.md](server-app-state.md) | `script#serverApp-state`, structured detail payload | Detail payload contract |
 | [store.md](store.md) | `BaseDataStore`, `SqliteStore` | Persistence |
 | [providers.md](providers.md) | `build_llm_provider`, `build_store`, `build_production_fetch`, `build_proxy_provider` | Factory |
 | [probes.md](probes.md) | `property_rental_probe`, `llm_probe`, `full_run_probe`, `probe_common` | Operator tooling |
