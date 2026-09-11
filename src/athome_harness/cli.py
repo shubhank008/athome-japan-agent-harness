@@ -24,6 +24,7 @@ use and is never exercised by unit or e2e tests.
 
 from __future__ import annotations
 
+import json
 import logging
 import time
 import uuid
@@ -446,32 +447,46 @@ class SearchSession:
         details: list[ListingDetail] = []
         failed = 0
         debug_dir = self._deps.report_dir.parent / "debug"
-        for index, summary in enumerate(summaries, start=1):
+        for summary in summaries:
+            detail_url = self._deps.build_detail_url(summary)
             try:
-                html = self._deps.fetch(self._deps.build_detail_url(summary))
+                html = self._deps.fetch(detail_url)
                 if detect_athome_challenge(html) is not None:
                     raise ValueError("challenge page returned for detail")
                 if getattr(self._deps.fetch, "debug", False):
                     debug_dir.mkdir(parents=True, exist_ok=True)
-                    (debug_dir / f"detail_{index:02d}_{summary.internal_id}.html").write_text(
-                        html, encoding="utf-8"
-                    )
+                    (debug_dir / "detail_last_success.html").write_text(html, encoding="utf-8")
                 parsed = self._detail_parser(html)
                 if parsed.internal_id != summary.internal_id or not parsed.title:
                     raise ValueError("detail parser returned incomplete identity data")
                 details.append(_hydrate_detail(summary, parsed))
             except Exception as exc:  # noqa: BLE001 - one detail failure degrades
                 failed += 1
+                reason = f"{type(exc).__name__}: {exc}"
                 logger.warning(
                     "[DETAIL_FAILED] listing_id=<%s> reason=<%s>",
                     summary.internal_id,
-                    type(exc).__name__,
+                    reason,
                 )
+                if getattr(self._deps.fetch, "debug", False):
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    (debug_dir / "detail_last_failure.json").write_text(
+                        json.dumps(
+                            {
+                                "listing_id": summary.internal_id,
+                                "url": detail_url.split("?", 1)[0],
+                                "reason": reason,
+                            },
+                            ensure_ascii=False,
+                            indent=2,
+                        ),
+                        encoding="utf-8",
+                    )
                 details.append(
                     ListingDetail(
                         **summary.model_dump(),
                         listing_detail=False,
-                        detail_failure_reason=type(exc).__name__,
+                        detail_failure_reason=reason,
                     )
                 )
         return details, failed

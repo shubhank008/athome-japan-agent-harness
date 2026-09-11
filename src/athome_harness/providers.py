@@ -127,33 +127,22 @@ def build_production_fetch(
             budgets=budgets,
             proxy_provider=proxy,
             handoff=handoff,
+            debug=settings.debug,
         )
 
     async def farm(url: str) -> CookieHandoff:
         return await PlaywrightCookieFetcher(url=url).farm()
 
-    refarmer = SessionRefarmer(build_adapter=build_adapter, farm=farm)
+    refarmer = SessionRefarmer(
+        build_adapter=build_adapter,
+        farm=farm,
+        debug=settings.debug,
+        debug_dir=Path("debug"),
+    )
 
     def fetch(url: str) -> str:
-        try:
-            html = asyncio.run(refarmer.fetch_html(url))
-        except Exception as exc:
-            if settings.debug:
-                debug_dir = Path("debug")
-                debug_dir.mkdir(parents=True, exist_ok=True)
-                (debug_dir / "live_fetch_failure.txt").write_text(
-                    f"url={url.split('?', 1)[0]}\nerror={type(exc).__name__}\n",
-                    encoding="utf-8",
-                )
-            raise
-        if settings.debug:
-            from athome_harness.scraping.challenge import detect_athome_challenge
-
-            if detect_athome_challenge(html) is None:
-                debug_dir = Path("debug")
-                debug_dir.mkdir(parents=True, exist_ok=True)
-                (debug_dir / "live_last_success.html").write_text(html, encoding="utf-8")
-        return html
+        """Fetch one page through the cached refarmer lifecycle."""
+        return asyncio.run(refarmer.fetch_html(url))
 
     def close() -> None:
         refarmer.close()

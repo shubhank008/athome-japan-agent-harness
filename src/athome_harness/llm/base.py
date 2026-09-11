@@ -21,7 +21,6 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from datetime import UTC, datetime
 from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError
@@ -162,6 +161,11 @@ class BaseLLMProvider(ABC):
         when it happens, the repair call.
         """
         text, usage = self.complete_text(system=system, user=user, temperature=temperature)
+        self._debug_dump("llm_last_input.json", {"system": system, "user": user})
+        self._debug_dump(
+            "llm_last_output.json",
+            {"stage": "initial", "text": text, "usage": usage.model_dump()},
+        )
         self._record_usage(usage)
         try:
             return _extract_json(text, schema), usage
@@ -181,23 +185,15 @@ class BaseLLMProvider(ABC):
         try:
             return _extract_json(repaired, schema), merged_usage
         except (ValidationError, json.JSONDecodeError) as second_error:
-            if os.getenv("DEBUG", "").lower() in {"1", "true", "yes", "on"}:
-                debug_dir = Path("debug")
-                debug_dir.mkdir(parents=True, exist_ok=True)
-                stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-                (debug_dir / f"llm_invalid_{stamp}.json").write_text(
-                    json.dumps(
-                        {
-                            "schema": schema.__name__,
-                            "invalid_completion": text[:10000],
-                            "repair_completion": repaired[:10000],
-                            "error": type(second_error).__name__,
-                        },
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    encoding="utf-8",
-                )
+            self._debug_dump(
+                "llm_last_invalid.json",
+                {
+                    "schema": schema.__name__,
+                    "invalid_completion": text[:10000],
+                    "repair_completion": repaired[:10000],
+                    "error": type(second_error).__name__,
+                },
+            )
             logger.error(
                 "[%s] JSON invalid after repair: %s",
                 LLM_JSON_INVALID_MARKER,
@@ -206,3 +202,15 @@ class BaseLLMProvider(ABC):
             raise LLMJSONInvalidError(
                 f"LLM produced no schema-valid JSON after a repair retry (schema={schema.__name__})"
             ) from second_error
+
+    @staticmethod
+    def _debug_dump(filename: str, payload: dict[str, object]) -> None:
+        """Overwrite a local DEBUG diagnostic file when enabled."""
+        if os.getenv("DEBUG", "").lower() not in {"1", "true", "yes", "on"}:
+            return
+        debug_dir = Path("debug")
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        (debug_dir / filename).write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
