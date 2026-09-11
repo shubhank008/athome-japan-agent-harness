@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
+from pathlib import Path
 
 from athome_harness.config import (
     LLM_PROVIDER_OPENCODEGO,
@@ -60,6 +61,7 @@ def build_llm_provider(settings: Settings) -> BaseLLMProvider:
             api_key=settings.openrouter_api_key,
             model=settings.general_model,
             max_tokens=settings.llm_max_tokens,
+            timeout_s=settings.llm_timeout_s,
         )
     if provider == LLM_PROVIDER_OPENCODEGO:
         from athome_harness.llm.opencodego import OpenCodeGoProvider
@@ -69,6 +71,7 @@ def build_llm_provider(settings: Settings) -> BaseLLMProvider:
             model=settings.opencodego_model,
             base_url=settings.opencodego_base_url,
             max_tokens=settings.llm_max_tokens,
+            timeout_s=settings.llm_timeout_s,
         )
     raise ValueError(
         f"Unknown LLM provider '{settings.llm_provider}'. "
@@ -126,11 +129,37 @@ def build_production_fetch(
             handoff=handoff,
         )
 
-    refarmer = SessionRefarmer(build_adapter=build_adapter, farm=PlaywrightCookieFetcher().farm)
+    async def farm(url: str) -> CookieHandoff:
+        return await PlaywrightCookieFetcher(url=url).farm()
+
+    refarmer = SessionRefarmer(build_adapter=build_adapter, farm=farm)
 
     def fetch(url: str) -> str:
-        return asyncio.run(refarmer.fetch_html(url))
+        try:
+            html = asyncio.run(refarmer.fetch_html(url))
+        except Exception as exc:
+            if settings.debug:
+                debug_dir = Path("debug")
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                (debug_dir / "live_fetch_failure.txt").write_text(
+                    f"url={url.split('?', 1)[0]}\nerror={type(exc).__name__}\n",
+                    encoding="utf-8",
+                )
+            raise
+        if settings.debug:
+            from athome_harness.scraping.challenge import detect_athome_challenge
 
+            if detect_athome_challenge(html) is None:
+                debug_dir = Path("debug")
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                (debug_dir / "live_last_success.html").write_text(html, encoding="utf-8")
+        return html
+
+    def close() -> None:
+        refarmer.close()
+
+    fetch.close = close  # type: ignore[attr-defined]
+    fetch.debug = settings.debug  # type: ignore[attr-defined]
     return fetch
 
 

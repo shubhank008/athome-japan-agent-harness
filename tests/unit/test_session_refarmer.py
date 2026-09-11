@@ -55,9 +55,11 @@ def test_direct_success_never_farms() -> None:
     async def run() -> str:
         refarmer = SessionRefarmer(
             build_adapter=lambda _: direct,
-            farm=lambda: _completed_handoff(farm_calls),
+            farm=lambda _url: _completed_handoff(farm_calls),
         )
-        return await refarmer.fetch_html("https://www.athome.co.jp/")
+        html = await refarmer.fetch_html("https://www.athome.co.jp/")
+        refarmer.close()
+        return html
 
     html = asyncio.run(run())
     assert html == "<h1>ok</h1>"
@@ -84,9 +86,11 @@ def test_block_triggers_farm_and_rebound_succeeds() -> None:
     async def run() -> str:
         refarmer = SessionRefarmer(
             build_adapter=build,
-            farm=lambda: _completed_handoff(farm_calls),
+            farm=lambda _url: _completed_handoff(farm_calls),
         )
-        return await refarmer.fetch_html("https://www.athome.co.jp/")
+        html = await refarmer.fetch_html("https://www.athome.co.jp/")
+        refarmer.close()
+        return html
 
     html = asyncio.run(run())
     assert html == "<html>recovered</html>"
@@ -107,12 +111,41 @@ def test_block_persisting_is_re_raised() -> None:
     async def run() -> None:
         refarmer = SessionRefarmer(
             build_adapter=build,
-            farm=lambda: _completed_handoff(farm_calls),
+            farm=lambda _url: _completed_handoff(farm_calls),
         )
-        await refarmer.fetch_html("https://www.athome.co.jp/")
+        try:
+            await refarmer.fetch_html("https://www.athome.co.jp/")
+        finally:
+            refarmer.close()
 
     with pytest.raises(BlockDetected):
         asyncio.run(run())
+    assert len(farm_calls) == 1
+    assert rebound.closed
+
+
+def test_farmed_handoff_is_reused_for_later_fetches() -> None:
+    """A successful handoff serves subsequent URLs without another farm."""
+    direct = FakeScraper(html="blocked", binary=b"blocked", on_block=True)
+    rebound = FakeScraper(html="<html>reused</html>", binary=b"ok", on_block=False)
+    farm_calls: list[CookieHandoff] = []
+
+    def build(handoff: CookieHandoff | None) -> FakeScraper:
+        return direct if handoff is None else rebound
+
+    async def run() -> tuple[str, str]:
+        refarmer = SessionRefarmer(
+            build_adapter=build,
+            farm=lambda _url: _completed_handoff(farm_calls),
+        )
+        first = await refarmer.fetch_html("https://www.athome.co.jp/first")
+        second = await refarmer.fetch_html("https://www.athome.co.jp/second")
+        refarmer.close()
+        return first, second
+
+    first, second = asyncio.run(run())
+    assert first == "<html>reused</html>"
+    assert second == "<html>reused</html>"
     assert len(farm_calls) == 1
     assert rebound.closed
 
@@ -129,7 +162,7 @@ def test_fetch_binary_recovery_path() -> None:
     async def run() -> bytes:
         refarmer = SessionRefarmer(
             build_adapter=build,
-            farm=lambda: _completed_handoff(farm_calls),
+            farm=lambda _url: _completed_handoff(farm_calls),
         )
         return await refarmer.fetch_binary("https://www.athome.co.jp/")
 
@@ -158,10 +191,12 @@ def test_multiple_refarms_close_intermediate_adapters() -> None:
     async def run() -> str:
         refarmer = SessionRefarmer(
             build_adapter=build,
-            farm=lambda: _completed_handoff(farm_calls),
+            farm=lambda _url: _completed_handoff(farm_calls),
             max_refarms=2,
         )
-        return await refarmer.fetch_html("https://www.athome.co.jp/")
+        html = await refarmer.fetch_html("https://www.athome.co.jp/")
+        refarmer.close()
+        return html
 
     html = asyncio.run(run())
     assert html == "<html>recovered</html>"
@@ -179,7 +214,7 @@ def test_zero_refarms_disables_recovery() -> None:
     async def run() -> None:
         refarmer = SessionRefarmer(
             build_adapter=lambda _: direct,
-            farm=lambda: _completed_handoff(farm_calls),
+            farm=lambda _url: _completed_handoff(farm_calls),
             max_refarms=0,
         )
         await refarmer.fetch_html("https://www.athome.co.jp/")

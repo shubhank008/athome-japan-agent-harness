@@ -103,7 +103,9 @@ async def _build_adapter_and_run(args: argparse.Namespace) -> None:
 
 def main() -> int:
     """Parse arguments and run the headed manual probe."""
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s %(levelname)s:%(name)s:%(message)s"
+    )
     try:
         asyncio.run(_build_adapter_and_run(_parser().parse_args()))
     except (KeyboardInterrupt, SystemExit):

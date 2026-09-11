@@ -27,8 +27,10 @@ from patchright.async_api import ElementHandle, Page, Route
 logger = logging.getLogger(__name__)
 
 # --- Selectors for waiting on either main content or WAF challenge load ---
+# AtHome's current server-rendered list uses .property-card; the older
+# container selectors remain for compatibility with archived pages.
 CHALLENGE_SELECTOR: Final = "#captcha-box"
-LISTING_SELECTOR: Final = "#container, .maincontents"
+LISTING_SELECTOR: Final = "#container, .maincontents, .property-card"
 COMBINED_TARGET: Final = f"{CHALLENGE_SELECTOR}, {LISTING_SELECTOR}"
 
 DEFAULT_SELECTOR_TIMEOUT_MS: Final = 30_000

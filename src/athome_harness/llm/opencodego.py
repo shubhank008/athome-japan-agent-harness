@@ -44,6 +44,7 @@ class OpenCodeGoProvider(OpenAICompatibleProvider):
         session: ChatSession | None = None,
         base_url: str | None = None,
         max_tokens: int | None = None,
+        timeout_s: float = 30.0,
     ) -> None:
         """Configure an OpencodeGo transport.
 
@@ -60,6 +61,7 @@ class OpenCodeGoProvider(OpenAICompatibleProvider):
             session=session,
             base_url=base_url,
             max_tokens=max_tokens,
+            timeout_s=timeout_s,
         )
         self._session_id = str(uuid4())
 

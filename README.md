@@ -189,8 +189,9 @@ Every schema-validated LLM call goes through `BaseLLMProvider.complete_json`:
   `LLMJSONInvalidError` (contract marker `LLM_JSON_INVALID`).
 - Prompt and completion tokens are summed across the original and any repair call
   into the returned `LLMUsage` and reported by the probe.
-- Long harvests are scored in token-bounded batches (max ~4000 estimated tokens per
-  batch) so prompt size stays bounded regardless of harvest size.
+- Long harvests are scored in token-bounded batches (max ~6000 estimated prompt tokens per
+  batch), with up to two batches in flight and failed batches omitted without losing
+  successful scores.
 
 ### Mermaid architecture
 

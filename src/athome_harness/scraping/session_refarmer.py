@@ -45,14 +45,15 @@ class SessionRefarmer:
     any captcha marker), the refarmer farms a new browser session, rebinds the
     HTTP adapter to that handoff, and retries the same URL once. Handing the
     rebound handoff to curl-cffi replays the exact headers and cookies the
-    browser session just established.
+    browser session just established. The bound adapter is retained for later
+    fetches in the same lifecycle and must be closed by the owner.
     """
 
     def __init__(
         self,
         *,
         build_adapter: Callable[[CookieHandoff | None], object],
-        farm: Callable[[], Awaitable[CookieHandoff]],
+        farm: Callable[[str], Awaitable[CookieHandoff]],
         max_refarms: int = 1,
     ) -> None:
         """Configure the fallback loop around an adapter factory and farmer.
@@ -67,6 +68,8 @@ class SessionRefarmer:
         self._build_adapter = build_adapter
         self._farm = farm
         self._max_refarms = max_refarms
+        self._active: object | None = None
+        self._handoff: CookieHandoff | None = None
 
     async def fetch_html(self, url: str) -> str:
         """Fetch ``url``, refarming a browser session on block, and return HTML."""
@@ -77,41 +80,50 @@ class SessionRefarmer:
         return await self._fetch(url, kind="binary")  # type: ignore[return-value]
 
     async def _fetch(self, url: str, *, kind: str) -> object:
-        """Run a direct fetch, then refarm and retry when the site blocks."""
-        active = self._build_adapter(None)
+        """Fetch through the cached adapter, farming only after a block."""
+        if self._active is None:
+            self._active = self._build_adapter(self._handoff)
         try:
-            try:
-                return self._call(active, url, kind)
-            except BlockDetected as first_block:
+            return self._call(self._active, url, kind)
+        except BlockDetected as first_block:
+            logger.warning(
+                "[REHANDOFF_TRIGGERED] url=<%s> signature=<%s> refarms=<%d>",
+                redact_url(url),
+                first_block.signature,
+                self._max_refarms,
+            )
+            for _ in range(self._max_refarms):
+                handoff = await self._farm(url)
                 logger.warning(
-                    "[REHANDOFF_TRIGGERED] url=<%s> signature=<%s> refarms=<%d>",
-                    redact_url(url),
-                    first_block.signature,
-                    self._max_refarms,
+                    "[REHANDOFF_FARMED] proxy=<%s> cookies=<%d>",
+                    handoff.proxy_identity,
+                    len(handoff.cookies),
                 )
-                for _ in range(self._max_refarms):
-                    handoff = await self._farm()
+                rebound = self._build_adapter(handoff)
+                self._close_adapter(self._active)
+                self._active = rebound
+                self._handoff = handoff
+                try:
+                    return self._call(rebound, url, kind)
+                except BlockDetected as block:
                     logger.warning(
-                        "[REHANDOFF_FARMED] proxy=<%s> cookies=<%d>",
-                        handoff.proxy_identity,
-                        len(handoff.cookies),
+                        "[REHANDOFF_STILL_BLOCKED] url=<%s> signature=<%s>",
+                        redact_url(url),
+                        block.signature,
                     )
-                    rebound = self._build_adapter(handoff)
-                    close_prev = getattr(active, "close", None)
-                    if close_prev is not None:
-                        close_prev()
-                    active = rebound
-                    try:
-                        return self._call(rebound, url, kind)
-                    except BlockDetected as block:
-                        logger.warning(
-                            "[REHANDOFF_STILL_BLOCKED] url=<%s> signature=<%s>",
-                            redact_url(url),
-                            block.signature,
-                        )
-                raise first_block
-        finally:
-            close = getattr(active, "close", None)
+            raise first_block
+
+    def close(self) -> None:
+        """Close the cached adapter and discard its handoff for this lifecycle."""
+        self._close_adapter(self._active)
+        self._active = None
+        self._handoff = None
+
+    @staticmethod
+    def _close_adapter(adapter: object | None) -> None:
+        """Close an adapter when it exposes the scraper close contract."""
+        if adapter is not None:
+            close = getattr(adapter, "close", None)
             if close is not None:
                 close()
 

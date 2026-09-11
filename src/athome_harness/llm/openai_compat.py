@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from typing import Protocol, cast
 
 from curl_cffi import requests as curl_requests
@@ -89,6 +90,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         session: ChatSession | None = None,
         base_url: str | None = None,
         max_tokens: int | None = None,
+        timeout_s: float = 30.0,
     ) -> None:
         """Configure an OpenAI-compatible transport.
 
@@ -108,7 +110,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             raise LLMProviderError(f"{self.provider_name} base URL is required")
         self._model = model
         self._base_url = resolved_base_url
+        if timeout_s < 0:
+            raise ValueError("timeout_s must not be negative")
         self._max_tokens = max_tokens
+        self._timeout_s = timeout_s
         self._session_owned = session is None
         self._session: ChatSession = session or self._build_session()
         # Stored solely to seed the Authorization header; never logged.
@@ -155,22 +160,35 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         }
         if self._max_tokens is not None:
             payload["max_tokens"] = self._max_tokens
+        started = time.monotonic()
         try:
             response = self._session.post(
                 self._base_url,
                 json=payload,
                 headers=self._request_headers(),
+                timeout=self._timeout_s,
             )
         except Exception as exc:  # transport-level failure (network, DNS, TLS)
+            logger.warning(
+                "[LLM_CALL] provider=<%s> status=<error> elapsed_s=<%.3f> timeout_s=<%.3f>",
+                self.provider_name,
+                time.monotonic() - started,
+                self._timeout_s,
+            )
             raise LLMProviderError(
                 f"{self.provider_name} transport error: {type(exc).__name__}"
             ) from exc
+        logger.info(
+            "[LLM_CALL] provider=<%s> status=<http_%d> elapsed_s=<%.3f> timeout_s=<%.3f>",
+            self.provider_name,
+            response.status_code,
+            time.monotonic() - started,
+            self._timeout_s,
+        )
         if not 200 <= response.status_code < 300:
             # API errors often carry a JSON body; surface status only, never body
             # which may embed secrets.
-            raise LLMProviderError(
-                f"{self.provider_name} returned HTTP {response.status_code}"
-            )
+            raise LLMProviderError(f"{self.provider_name} returned HTTP {response.status_code}")
         body = self._parse_body(response)
         content = self._extract_content(body)
         usage = self._extract_usage(body)

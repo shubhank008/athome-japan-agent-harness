@@ -143,7 +143,9 @@ def _model_label(provider: BaseLLMProvider, args: argparse.Namespace) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     """Parse arguments, build the provider, and run one schema-validated call."""
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(
+        level=logging.DEBUG, format="%(asctime)s %(levelname)s:%(name)s:%(message)s"
+    )
     args = _parser().parse_args(argv)
     system = (
         "You infer a rental flow, prefecture, and a one-line summary from a "
