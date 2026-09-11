@@ -35,8 +35,8 @@ Behavior notes:
 
 * Prices are stated in 万円 (ten-thousand yen) on the page and converted to yen.
 * Month-based deposit/key-money terms (`1ヶ月`) are preserved in
-  `deposit_raw` / `key_money_raw`; the yen value is recorded as `0` with a
-  warning (never silently conflated with "no deposit").
+  `deposit_raw` / `key_money_raw`; the numeric field is `None` (never silently
+  conflated with "no deposit").
 * Enabled facility items become `usp_tags`; items carrying the disabled class
   become `probable_negatives`.
 * Photos are the inline thumbnails of the unit block (about 6 per unit); the
@@ -51,8 +51,8 @@ ListingDetail` (`scraping/detail_parser.py`).
 Parses one AtHome property detail page. Identity comes from the `<title>`
 numeric suffix (`_extract_key`), falling back to the canonical URL; a page with
 no stable key is rejected with a warning. Data fields come from legacy
-`table.dataTbl` rows or current `table.property-summary__list`/`dl.details` rows,
-plus the payment block, photo gallery, and facility tables.
+`table.dataTbl` rows or current `dl.details` and `table.property-summary__list`
+rows, plus the payment block, photo gallery, and facility tables.
 
 Behavior notes:
 
@@ -86,10 +86,13 @@ together. The map covers:
 * List page: building heading and hint list, unit detail box
   (`div.p-property__room--detailbox[data-bukken-no]`), rent row, deposit and
   key money, floor plan and area, facility lists, photos, and detail URL
-  construction.
-* Detail page: `table.dataTbl` label rows, the payment block
-  (`div.paymentInfo.typeChintai dl.data`), the gallery
-  (`#detail-image_view ul.zoomList`), USP points, and facility categories.
+  construction. Current list markup uses `div.property-card` with room
+  `div.room-info-section` sub-blocks.
+* Detail page: legacy `table.dataTbl` label rows, current
+  `dl.details` / `table.property-summary__list` rows, the payment block
+  (`div.paymentInfo.typeChintai dl.data` and current `div.rent-info__item`),
+  the gallery (`#detail-image_view ul.zoomList` and current
+  `div.detail-gallery img`), USP points, and facility categories.
 
 ## Fixtures
 

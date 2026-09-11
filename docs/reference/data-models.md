@@ -17,9 +17,11 @@ or direct construction, never by copying a valid one.
 
 ## PriceBreakdown
 
-Monetary breakdown for one unit. All yen amounts are integers; month-based
-upfront terms are preserved as raw text so they are never indistinguishable
-from zero.
+Monetary breakdown for one unit. Rent and management fee are always integers in
+yen. Deposit and key money are nullable: when the term is directly convertible to
+yen (e.g. `なし` maps to `0`), the integer field is populated; when the term is a
+duration (e.g. `1ヶ月`), the integer field is `None` and the raw text is
+preserved so a month-based term is never indistinguishable from zero.
 
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
@@ -31,10 +33,10 @@ from zero.
 | `key_money_raw` | `str \| None` | `None` | Raw key-money term when it is not a plain yen value. |
 
 The `*_raw` fields exist because AtHome expresses some deposits and key money as
-a count of months (`1ヶ月`) rather than a yen figure. The parser records the yen
-value as `0` and keeps the raw term so a month-based term is never mistaken for
-"no deposit". Converting a month term to yen requires the unit's rent, which the
-parser does not assume.
+a count of months (`1ヶ月`) rather than a yen figure. Duration terms leave the
+numeric field as `None` and are recorded in the raw field so they are never
+mistaken for "no deposit". Converting a month term to yen requires the unit's
+rent, which the parser does not assume.
 
 ## ListingSummary
 

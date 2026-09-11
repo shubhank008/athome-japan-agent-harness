@@ -290,11 +290,14 @@ async def fetch_with_refarm(url: str, proxy_url: str | None = None) -> str:
     def build_adapter(handoff):
         return HttpDomAdapter(Budgets(), handoff=handoff)
 
-    async def farm():
+    async def farm(url: str):
         return await PlaywrightCookieFetcher(proxy_url=proxy_url).farm()
 
     refarmer = SessionRefarmer(build_adapter=build_adapter, farm=farm)
-    return await refarmer.fetch_html(url)
+    try:
+        return await refarmer.fetch_html(url)
+    finally:
+        refarmer.close()
 ```
 
 The default curl-cffi profile is `chrome`; `safari_ios` is also supported for

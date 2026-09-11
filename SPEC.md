@@ -193,11 +193,11 @@ commit per task.
 
 ### Diagnostics and observability
 
-- Add stable DEBUG overwrite artifacts for last successful list/detail HTML, last
+- ~~Add stable DEBUG overwrite artifacts for last successful list/detail HTML, last
   post-handoff challenge HTML, last failed request metadata, and raw LLM inputs,
-  outputs, repairs, and invalid responses.
-- Add per-target detail failure metadata with redacted URL, listing ID, stage,
-  exception type, and meaningful message.
+  outputs, repairs, and invalid responses.~~ Completed in `2fb98e6`.
+- ~~Add per-target detail failure metadata with redacted URL, listing ID, stage,
+  exception type, and meaningful message.~~ Completed in `b58f981`.
 - Keep direct challenge bodies excluded by default. A post-farmed challenge capture
   is allowed only under explicit `DEBUG=true` and ignored local paths.
 - Future roadmap: dated debug directories with 14-day cleanup, log rotation, and
@@ -205,10 +205,10 @@ commit per task.
 
 ### Data contract and aggregation
 
-- Represent deposit and key-money durations as raw terms with nullable numeric yen
-  fields; only direct yen/万円 terms may populate numeric values.
-- Preserve construction date/raw age and expose rounded numeric and human-readable age.
-- Prefer validated `serverApp-state` detail data and fall back to DOM parsing.
+- ~~Represent deposit and key-money durations as raw terms with nullable numeric yen
+  fields; only direct yen/万円 terms may populate numeric values.~~ Completed in `b727bd4`.
+- ~~Preserve construction date/raw age and expose rounded numeric and human-readable age.~~ Completed in `b727bd4`.
+- ~~Prefer validated `serverApp-state` detail data and fall back to DOM parsing.~~ Completed in `5528fe6`.
 - Add a conservative post-detail `Building` aggregate containing shared metadata and
   a list of unit entities preserving floor, rent, area, contract, and availability.
 - Never deduplicate units by title alone; retain every unit for saves, rejects, and URLs.
@@ -219,13 +219,13 @@ commit per task.
 - Resolve parsed city/area names to verified AtHome slugs and encode geography in
   requests when an exact mapping exists.
 - Verify authorized rental and purchase smoke paths for Osaka, Tokyo, and Sapporo.
-- Include the complete parsed query plan, hard filters, soft preferences, and encoded
-  parameter summary in persisted JSON reports.
+- ~~Include the complete parsed query plan, hard filters, soft preferences, and encoded
+  parameter summary in persisted JSON reports.~~ Completed in `50592c8`.
 
 ### Performance and LLM quality
 
-- Use monotonic clocks for every production stage and request duration marker.
-- Keep current detail selectors in the browser settle race and measure timeout rates.
+- ~~Use monotonic clocks for every production stage and request duration marker.~~ Completed in `f85c94e`.
+- ~~Keep current detail selectors in the browser settle race and measure timeout rates.~~ Completed in `f85c94e`.
 - Keep OpenCodeGo static system/schema prompt prefixes stable; put dynamic listing
   data after the prefix and never put timestamps or UUIDs in cacheable prefixes.
 - Measure prompt caching from provider evidence; a stable session ID alone does not
@@ -239,8 +239,8 @@ commit per task.
 
 ### Test and maintenance quality
 
-- Prevent tests from loading an operator `.env` by default; pass `_env_file=None`
-  in settings test factories and preserve deterministic provider defaults.
+- ~~Prevent tests from loading an operator `.env` by default; pass `_env_file=None`
+  in settings test factories and preserve deterministic provider defaults.~~ Completed in `b6201b1`.
 - Keep validated current list/detail captures, selector maps, and parser tests in
   one change whenever AtHome markup changes.
 - Require full lint, type, unit, e2e fixture, and documentation gates before
