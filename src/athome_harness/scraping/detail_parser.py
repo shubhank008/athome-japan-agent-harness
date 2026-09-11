@@ -205,7 +205,12 @@ def _fields_from_server_state(state: dict[str, object]) -> dict[str, str]:
 def _price_from_server_state(state: dict[str, object]) -> PriceBreakdown:
     """Build a price breakdown from validated structured state strings."""
     raw_price = str(state.get("price", ""))
-    rent = _parse_man_yen(raw_price) or round(float(raw_price.replace(",", "")) * 10_000)
+    rent = _parse_man_yen(raw_price)
+    if rent == 0:
+        try:
+            rent = round(float(raw_price.replace(",", "")) * 10_000)
+        except ValueError:
+            rent = 0
     management = _parse_yen(str(state.get("managementFee", "")))
     deposit_raw = str(state.get("deposit", "")) or None
     key_money_raw = str(state.get("keyMoney", "")) or None
