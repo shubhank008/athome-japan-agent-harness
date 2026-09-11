@@ -202,8 +202,8 @@ def render_markdown(recommendations: list[Recommendation], query: str = "") -> s
     return "\n".join(lines).rstrip() + "\n"
 
 
-def render_json(recommendations: list[Recommendation]) -> str:
-    """Render recommendations as a structured JSON document.
+def render_json(recommendations: list[Recommendation], plan: SearchPlan | None = None) -> str:
+    """Render recommendations and optionally the executed search plan as JSON.
 
     Each entry embeds the source listing data so the JSON is self-contained for
     downstream consumers. Output is deterministic (sorted keys, compact separators).
@@ -220,5 +220,7 @@ def render_json(recommendations: list[Recommendation]) -> str:
             "listing": rec.listing.model_dump(mode="json") if rec.listing is not None else None,
         }
 
-    payload = {"recommendations": [_entry(rec) for rec in recommendations]}
+    payload: dict[str, Any] = {"recommendations": [_entry(rec) for rec in recommendations]}
+    if plan is not None:
+        payload["plan"] = plan.model_dump(mode="json")
     return json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n"

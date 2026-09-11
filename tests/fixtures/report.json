@@ -8,8 +8,11 @@
         "age_raw": null,
         "area_m2": 30.0,
         "athome_key": "a",
+        "building_name": null,
+        "building_structure": null,
         "building_type": null,
         "construction_date": null,
+        "contract_period": null,
         "description": "Bright corner unit.",
         "detail_failure_reason": null,
         "facility_features": [],
@@ -19,6 +22,7 @@
         "internal_id": "a",
         "listing_detail": false,
         "photo_urls": [],
+        "pickup_features": [],
         "price": {
           "deposit": 100000,
           "deposit_raw": "1ヶ月",
@@ -30,8 +34,10 @@
         "probable_negatives": [
           "pet consultation"
         ],
+        "remarks": null,
         "station": "Umeda",
         "title": "Corner 1DK",
+        "total_units": null,
         "url": "https://www.athome.co.jp/chintai/a/",
         "usp_tags": [
           "system kitchen"
@@ -59,8 +65,11 @@
         "age_raw": null,
         "area_m2": 30.0,
         "athome_key": "b",
+        "building_name": null,
+        "building_structure": null,
         "building_type": null,
         "construction_date": null,
+        "contract_period": null,
         "description": "Bright corner unit.",
         "detail_failure_reason": null,
         "facility_features": [],
@@ -70,6 +79,7 @@
         "internal_id": "b",
         "listing_detail": false,
         "photo_urls": [],
+        "pickup_features": [],
         "price": {
           "deposit": 100000,
           "deposit_raw": "1ヶ月",
@@ -81,8 +91,10 @@
         "probable_negatives": [
           "pet consultation"
         ],
+        "remarks": null,
         "station": "Umeda",
         "title": "Quiet 1K",
+        "total_units": null,
         "url": "https://www.athome.co.jp/chintai/b/",
         "usp_tags": [
           "system kitchen"

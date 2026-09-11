@@ -269,7 +269,7 @@ class SearchSession:
         harvester = Harvester(
             fetch_page=self._deps.fetch,
             parse_page=parse_list_page,
-            build_page_url=lambda page: self._deps.build_list_url(params, page),
+            build_page_url=lambda page: _build_plan_list_url(plan, params, page),
             budgets=self._deps.budgets,
             clock=self._clock,
         )
@@ -334,6 +334,10 @@ class SearchSession:
             time.monotonic() - stage_started,
             len(recommendations),
         )
+
+        self.last_query = query
+        self.last_plan = plan
+        self.last_session_id = session_id
 
         # Render and persist the report files.
         stage_started = time.monotonic()
@@ -510,7 +514,7 @@ class SearchSession:
         md = self._deps.report_dir / f"report-{sid}.md"
         js = self._deps.report_dir / f"report-{sid}.json"
         md.write_text(render_markdown(recommendations, query=query), encoding="utf-8")
-        js.write_text(render_json(recommendations), encoding="utf-8")
+        js.write_text(render_json(recommendations, plan=self.last_plan), encoding="utf-8")
         logger.info(
             "[REPORT] top_y=%d md=<%s> json=<%s>",
             len(recommendations),
@@ -605,9 +609,20 @@ def interactive() -> None:
 
 
 def _default_list_url(params: list[tuple[str, str]], page: int) -> str:
-    """Build an AtHome rental list URL carrying encoded params and page number."""
+    """Build the legacy Osaka rental URL for injected compatibility callers."""
+    return _build_plan_list_url(SearchPlan(flow="rent", prefecture="osaka"), params, page)
+
+
+def _build_plan_list_url(plan: SearchPlan, params: list[tuple[str, str]], page: int) -> str:
+    """Build an AtHome list URL from the resolved flow and prefecture."""
+    prefecture = plan.prefecture.strip().lower().replace(" ", "-")
+    if plan.flow == "rent":
+        base = f"https://www.athome.co.jp/chintai/{prefecture}/list/"
+    else:
+        base = f"https://www.athome.co.jp/mansion/{prefecture}/list/"
     query = "&".join(f"{name}={value}" for name, value in params)
-    return f"https://www.athome.co.jp/chintai/osaka/list/?{query}&PAGENO={page}"
+    separator = "&" if query else ""
+    return f"{base}?{query}{separator}PAGENO={page}"
 
 
 def _load_filter_map() -> FilterMap:
