@@ -183,7 +183,7 @@ class SearchSession:
         self._parser = QueryParser(deps.provider, deps.filter_map)
         self._shortlister = Shortlister(deps.provider)
         self._recommender = Recommender(deps.provider)
-        self._clock: Callable[[], float] = deps.clock or (lambda: 0.0)
+        self._clock: Callable[[], float] = deps.clock or time.monotonic
         self._confirm = deps.confirm_plan or (lambda query, plan: True)
         self._detail_parser = deps.detail_parser or (lambda html: parse_detail_page(html))
 

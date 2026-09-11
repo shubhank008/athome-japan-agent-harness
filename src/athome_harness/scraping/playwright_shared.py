@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 # AtHome's current server-rendered list uses .property-card; the older
 # container selectors remain for compatibility with archived pages.
 CHALLENGE_SELECTOR: Final = "#captcha-box"
-LISTING_SELECTOR: Final = "#container, .maincontents, .property-card"
+LISTING_SELECTOR: Final = (
+    "#container, .maincontents, .property-card, #item-detail_top, #item-detail.main-area"
+)
 COMBINED_TARGET: Final = f"{CHALLENGE_SELECTOR}, {LISTING_SELECTOR}"
 
 DEFAULT_SELECTOR_TIMEOUT_MS: Final = 30_000
