@@ -142,20 +142,20 @@ challenge page is not a valid fixture and must be rejected before this map is ap
 | Output field | DOM access path | Requiredness and parsing rule |
 |---|---|---|
 | AtHome key | `<title>` numeric `[N]` suffix, with canonical URL as fallback | Required identity; warn and reject if no stable key can be found. |
-| Title | `table.dataTbl` row whose `<th>` is `建物名・部屋番号` | Required display field when present. |
-| Address | `table.dataTbl` row `<th>` `住所` or `所在地` | Optional text; remove only the `地図で見る` UI suffix. |
-| Station and walk minutes | `table.dataTbl` row `<th>` `交通`, matching station and `徒歩N分` | Optional independently parsed values. |
-| Building type | `table.dataTbl` row `<th>` `物件種目` or `種目` | Optional display category. |
-| Floor plan | `table.dataTbl` row `<th>` `間取り` | Optional layout. |
-| Area | `table.dataTbl` row `<th>` `専有面積` or `面積` | Optional numeric m² value. |
-| Building age | `table.dataTbl` row `<th>` `築年月` or `築年数` | Required for FR-9 when exposed; normalize to the model's age representation. |
-| Floors | `table.dataTbl` row `<th>` `階建 / 階` | Optional raw floor/building text. |
-| Description | `table.dataTbl` row `<th>` `備考` | Optional free text. |
-| Rent | `div.paymentInfo.typeChintai dl.data` with `<dt>` containing `賃料` | Required for rental details; parse 万円 to yen. |
-| Management fee | Same payment block, `<dt>` containing `管理費` | Optional yen value. |
-| Deposit | Same payment block, `<dt>` `敷金` | Optional; preserve month-based terms distinctly from zero. |
-| Key money | Same payment block, `<dt>` `礼金` | Optional; preserve month-based terms distinctly from zero. |
-| Photo URLs | `#detail-image_view ul.zoomList li.item img[src|data-original]` | Optional; resolve absolute and root-relative URLs. |
+| Title | Legacy: `table.dataTbl` row whose `<th>` is `建物名・部屋番号`; current: `dl.details` or `table.property-summary__list` with the same label, or `h1` heading | Required display field when present. |
+| Address | Legacy: `table.dataTbl` row `<th>` `住所` or `所在地`; current: `dl.details` or `table.property-summary__list` with the same label | Optional text; remove only the `地図で見る` UI suffix. |
+| Station and walk minutes | Legacy: `table.dataTbl` row `<th>` `交通`, matching station and `徒歩N分`; current: `dl.details` or `table.property-summary__list` with the same label | Optional independently parsed values. |
+| Building type | Legacy: `table.dataTbl` row `<th>` `物件種目` or `種目`; current: `dl.details` or `table.property-summary__list` with the same label | Optional display category. |
+| Floor plan | Legacy: `table.dataTbl` row `<th>` `間取り`; current: `dl.details` or `table.property-summary__list` with the same label | Optional layout. |
+| Area | Legacy: `table.dataTbl` row `<th>` `専有面積` or `面積`; current: `dl.details` or `table.property-summary__list` with the same label | Optional numeric m² value. |
+| Building age | Legacy: `table.dataTbl` row `<th>` `築年月` or `築年数`; current: `dl.details` or `table.property-summary__list` with the same label | Required for FR-9 when exposed; normalize to the model's age representation. |
+| Floors | Legacy: `table.dataTbl` row `<th>` `階建 / 階`; current: `dl.details` or `table.property-summary__list` with the same label | Optional raw floor/building text. |
+| Description | Legacy: `table.dataTbl` row `<th>` `備考`; current: `dl.details` or `table.property-summary__list` with the same label | Optional free text. |
+| Rent | Legacy: `div.paymentInfo.typeChintai dl.data` with `<dt>` containing `賃料`; current: `div.rent-info__item dl.price dd.price__big` | Required for rental details; parse 万円 to yen. |
+| Management fee | Legacy: same payment block, `<dt>` containing `管理費`; current: `div.rent-info__item dl.price-cost` `<dt>` `管理費` | Optional yen value. |
+| Deposit | Legacy: same payment block, `<dt>` `敷金`; current: `div.rent-info__item dl.price-cost` `<dt>` `敷金` | Optional; preserve month-based terms distinctly from zero. |
+| Key money | Legacy: same payment block, `<dt>` `礼金`; current: `div.rent-info__item dl.price-cost` `<dt>` `礼金` | Optional; preserve month-based terms distinctly from zero. |
+| Photo URLs | Legacy: `#detail-image_view ul.zoomList li.item img[src|data-original]`; current: `div.swiper-slide__image img` | Optional; resolve absolute and root-relative URLs. |
 | Floor-plan image | Same photo item whose `dt#subCategory` is `間取図` | Optional URL and must also be present in `photo_urls` when available. |
 | USP tags | `#item-detai_basic__point dd` and `div.pointList ul.typeInline li img[alt]` | Prefer meaningful icon alt labels, otherwise use point text. |
 | Facility features | `table.dataTbl` rows with category `<th>` such as `バス・トイレ`, `キッチン`, `収納`, `設備・サービス`, `TV・通信`, `その他` | Enabled items become `facility_features`. |

@@ -92,7 +92,7 @@ together. The map covers:
   `dl.details` / `table.property-summary__list` rows, the payment block
   (`div.paymentInfo.typeChintai dl.data` and current `div.rent-info__item`),
   the gallery (`#detail-image_view ul.zoomList` and current
-  `div.detail-gallery img`), USP points, and facility categories.
+  `div.swiper-slide__image img`), USP points, and facility categories.
 
 ## Fixtures
 
