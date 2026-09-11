@@ -83,12 +83,16 @@ class ListingSummary(BaseModel):
 
 
 class ListingDetail(ListingSummary):
-    """A fully scraped listing detail page (SPEC section 3).
+    """A listing summary hydrated with detail-page data and status metadata."""
 
-    Extends :class:`ListingSummary` with the full text fields, the complete photo set,
-    and the floor-plan image URL.
-    """
-
+    listing_detail: bool = Field(
+        default=False,
+        description="True when the detail page supplied usable listing data.",
+    )
+    detail_failure_reason: str | None = Field(
+        default=None,
+        description="Operator-safe reason detail hydration was incomplete or failed.",
+    )
     description: str = Field(
         default="", description="Full free-text description from the detail page."
     )

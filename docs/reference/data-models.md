@@ -87,6 +87,8 @@ field; the fields below are the additions and overrides.
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
 | `photo_urls` | `list[str]` | (override) | Full detail-gallery photo set, replacing the summary thumbnails. |
+| `listing_detail` | `bool` | `False` | True when usable detail data was hydrated successfully. |
+| `detail_failure_reason` | `str \| None` | `None` | Operator-safe detail hydration failure reason. |
 | `description` | `str` | `""` | Free-text description (`備考`). |
 | `floor_plan_image_url` | `str \| None` | `None` | URL of the floor-plan image (`間取図`), also present in `photo_urls`. |
 | `facility_features` | `list[str]` | `[]` | Enabled facility features grouped by category. |
