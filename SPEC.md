@@ -124,6 +124,33 @@ note in the reference).
 - `RunReport`: query, plan, counts, shortlist, recommendations, budgets consumed,
   partial flag.
 
+### 3.1 Current detail payload and hydration contract
+
+AtHome detail pages currently expose a structured SSR payload in
+`script#serverApp-state` with `type="application/json"`. The preferred extraction
+path is `first-view-ITEMS.propertyData.rentInfo`; it is validated against the
+requested listing ID and required identity/price fields before use. When the
+script, wrapper, or required fields are missing, detail parsing falls back to the
+current DOM selectors. The payload schema and sanitized example live in
+`docs/reference/server-app-state.md`.
+
+`ListingSummary` values from the broad result page are the hydration base. A
+successful detail parse overrides only observed detail fields. A failed or
+incomplete detail parse preserves the summary values and sets
+`ListingDetail.listing_detail=false` plus an operator-safe
+`detail_failure_reason`. Duration terms such as `1ヶ月` remain raw strings and
+are not coerced into yen.
+
+### 3.2 Current detail fields
+
+The detail contract includes contract period, building name, building structure,
+total units, construction date/raw age/display age, remarks, facility features,
+PICK UP feature labels, probable negatives, price terms, transport, unit floor,
+full images, and floor-plan image. Current DOM selectors and the structured-state
+mapping must be updated together with fixtures and regression tests when AtHome
+changes markup.
+
+
 ## 4. Abstract interfaces (Abstract First)
 
 - `BaseScraper`: fetch_html / fetch_binary; raises `BlockDetected` (signature: 403/429/
@@ -158,6 +185,66 @@ note in the reference).
 | Proxy retries | 3 | DESIGN-FRESH |
 | Prefetch cache TTL | 48h | DESIGN-FRESH |
 | LLM scoring temperature | 0 | DESIGN-FRESH |
+
+## 5.1 Next implementation phases
+
+The following work is intentionally granular and should be delivered as one focused
+commit per task.
+
+### Diagnostics and observability
+
+- Add stable DEBUG overwrite artifacts for last successful list/detail HTML, last
+  post-handoff challenge HTML, last failed request metadata, and raw LLM inputs,
+  outputs, repairs, and invalid responses.
+- Add per-target detail failure metadata with redacted URL, listing ID, stage,
+  exception type, and meaningful message.
+- Keep direct challenge bodies excluded by default. A post-farmed challenge capture
+  is allowed only under explicit `DEBUG=true` and ignored local paths.
+- Future roadmap: dated debug directories with 14-day cleanup, log rotation, and
+  an opt-in remote analysis sink requiring explicit authorization.
+
+### Data contract and aggregation
+
+- Represent deposit and key-money durations as raw terms with nullable numeric yen
+  fields; only direct yen/万円 terms may populate numeric values.
+- Preserve construction date/raw age and expose rounded numeric and human-readable age.
+- Prefer validated `serverApp-state` detail data and fall back to DOM parsing.
+- Add a conservative post-detail `Building` aggregate containing shared metadata and
+  a list of unit entities preserving floor, rent, area, contract, and availability.
+- Never deduplicate units by title alone; retain every unit for saves, rejects, and URLs.
+
+### Geography and filters
+
+- Route list URLs from parsed flow and prefecture rather than hard-coded Osaka.
+- Resolve parsed city/area names to verified AtHome slugs and encode geography in
+  requests when an exact mapping exists.
+- Verify authorized rental and purchase smoke paths for Osaka, Tokyo, and Sapporo.
+- Include the complete parsed query plan, hard filters, soft preferences, and encoded
+  parameter summary in persisted JSON reports.
+
+### Performance and LLM quality
+
+- Use monotonic clocks for every production stage and request duration marker.
+- Keep current detail selectors in the browser settle race and measure timeout rates.
+- Keep OpenCodeGo static system/schema prompt prefixes stable; put dynamic listing
+  data after the prefix and never put timestamps or UUIDs in cacheable prefixes.
+- Measure prompt caching from provider evidence; a stable session ID alone does not
+  guarantee cache hits.
+- Evaluate compact shortlist and recommender projections against the full model,
+  preserving fields required for ranking quality.
+- Constrain recommendation reasons and constraint arrays; add a recommendation
+  output budget distinct from the per-request timeout.
+- Benchmark bounded shortlist concurrency, provider throttling, repair frequency,
+  latency, and total wall time before raising worker counts.
+
+### Test and maintenance quality
+
+- Prevent tests from loading an operator `.env` by default; pass `_env_file=None`
+  in settings test factories and preserve deterministic provider defaults.
+- Keep validated current list/detail captures, selector maps, and parser tests in
+  one change whenever AtHome markup changes.
+- Require full lint, type, unit, e2e fixture, and documentation gates before
+  publication.
 
 ## 6. Configuration
 

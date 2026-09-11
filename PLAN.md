@@ -5,8 +5,11 @@ Live project plan. Updated after every feature or update, per AGENTS.md.
 ## Current state
 
 M0 (project skeleton + hygiene), M1 (scraper core), M2 (filter map), M3 (parsing),
-M4 (LLM layer), M5 (store), M6 (orchestration + CLI), and M7 (maintenance
-surfaces) implemented and verified.
+M4 (LLM layer), M5 (store), M6 (orchestration + CLI), M7 (maintenance
+surfaces), current live DOM migration, structured server-state parsing, runtime
+DEBUG diagnostics, money/age semantics, detail metadata enrichment, geography-aware
+routing, building/unit design, and production timing improvements are implemented
+locally and committed. Publication and final no-mistakes verification remain pending.
 M0: `config.py` (strict env parser + `Budgets`), `models.py` (pydantic data models),
 `pyproject.toml` + exact-pinned `requirements.txt`. M1: `scraping/base.py`
 (`BaseScraper`, `BlockDetected`, `ProxyProvider`), `scraping/rate_limiter.py`
@@ -93,6 +96,96 @@ revalidation, vision A/B benchmarks.
   coverage for unfiltered exploration is delegated to the optional prefetch cache
   (freshness-sorted), not to live searches. Rationale: 300k-listing prefectures make
   percentage-of-everything live scraping multi-hour and rate-limit hostile.
+
+## Next implementation phases
+
+These phases are intentionally split into one focused commit per task. They are the
+next planned work after the current parser/runtime foundation and are not yet
+implemented unless marked otherwise.
+
+### Phase A: Diagnostics and observability
+
+- **A1: Stable DEBUG artifact contract**: make list/detail/LLM artifacts overwrite
+  fixed local paths; add per-target failure metadata; capture a post-handoff
+  challenge body only when `DEBUG=true`; never persist direct challenge bodies by
+  default. Add tests for redaction and overwrite behavior.
+- **A2: LLM payload inspection**: dump the last shortlist/recommender input and raw
+  output under DEBUG, including schema and token metadata; keep prompts and outputs
+  local and ignored. Add retention guidance for future remote observability.
+- **A3: Diagnostic retention roadmap**: design dated debug subdirectories, 14-day
+  cleanup, and an optional remote log/analysis sink. Do not upload local captures
+  without explicit operator authorization.
+
+### Phase B: Detail data contract
+
+- **B1: Structured server-state parser**: validate
+  `script#serverApp-state -> first-view-ITEMS.propertyData.rentInfo`, map fields,
+  and fall back to current DOM parsing. Completed in commit `5528fe6`.
+- **B2: Financial and age semantics**: keep raw duration terms, make numeric deposit
+  fields nullable for non-yen values, preserve construction date and age raw text,
+  and expose rounded/human-friendly age. Completed in `b727bd4`.
+- **B3: Detail metadata enrichment**: map contract period, building structure,
+  total units, remarks, and structured PICK UP enabled/disabled features. Completed
+  in `215dc47`; expand fixture coverage for missing/changed state keys.
+- **B4: Detail validation and hydration**: validate meaningful identity and price
+  fields, merge valid detail values onto list summaries, preserve summary values on
+  failure, and expose `listing_detail` plus a meaningful failure reason. Completed
+  in `b58f981`; add field-level failure diagnostics.
+
+### Phase C: Building-aware domain model
+
+- **C1: Building identity normalization**: define conservative identity keys from
+  structured building ID when available, otherwise normalized building name/address.
+  Add collision and missing-identity tests.
+- **C2: Building and unit models**: introduce aggregate models while retaining every
+  unit's room, floor, price, area, contract, and URL fields.
+- **C3: Post-detail grouping**: group only after detail hydration; preserve units
+  and expose representative-unit selection without discarding alternatives.
+- **C4: Building-aware shortlist/report**: decide whether ranking occurs per unit or
+  building, show unit alternatives, and update store persistence without breaking
+  save/reject URLs.
+
+### Phase D: Geography and query execution
+
+- **D1: Query-plan reporting**: persist flow, prefecture, cities, hard filters, and
+  soft preferences in JSON reports. Implemented in `50592c8`.
+- **D2: Prefecture route resolver**: replace hard-coded Osaka paths with validated
+  flow/prefecture route mappings; reject unsupported combinations explicitly.
+- **D3: City/area route resolver**: resolve parser city labels to AtHome slugs and
+  encode city context into list requests; add Tokyo, Sapporo, and Osaka tests.
+- **D4: Multi-region live smoke checks**: run authorized bounded checks for one rent
+  and one buy route per supported region; never claim a region is live without
+  parser and filter-map evidence.
+
+### Phase E: Performance and correctness
+
+- **E1: Monotonic timing**: use a real production monotonic clock for harvest and
+  stage duration logs. Implemented in `f85c94e`.
+- **E2: Detail settle selectors**: include `#item-detail_top` and
+  `#item-detail.main-area` in the browser signal race; measure timeout reduction.
+  Implemented in `f85c94e`.
+- **E3: Shortlist payload reduction**: evaluate a compact scoring projection and
+  compare token/latency/quality evidence against the full summary projection.
+- **E4: Recommender optimization**: constrain reason/constraint output lengths,
+  add a recommendation-specific token budget, and consider deterministic ranking
+  after shortlist where product quality permits.
+- **E5: OpenCodeGo cache-prefix evaluation**: keep system/schema instructions
+  static, put dynamic listing data after the static prefix, avoid timestamps or
+  UUIDs in prompt prefixes, and measure cache/latency evidence from provider
+  responses rather than assuming session IDs guarantee caching.
+- **E6: Bounded concurrency tuning**: benchmark two-worker shortlist calls, provider
+  throttling, repair frequency, and total wall time before considering higher
+  concurrency or larger batches.
+
+### Phase F: Quality gates and maintenance
+
+- **F1: Isolate tests from operator `.env`**: disable dotenv loading in settings
+  unit helpers so provider-default tests are deterministic.
+- **F2: Current DOM fixture refresh**: maintain validated list/detail captures and
+  update the DOM access map plus regression tests together.
+- **F3: Full no-mistakes run**: run lint, mypy, tests, documentation review, and
+  publication only after each focused phase is committed.
+
 - 2026-07-08: robots.txt is honored in spirit (rate limits, session scope) not
   mechanically; user decision, on record.
 - 2026-07-08: Filter map is context-keyed by (flow, filter name) because `kcXXX` codes
@@ -127,6 +220,7 @@ revalidation, vision A/B benchmarks.
   ignored `debug/` paths.
 - 2026-07-08: Challenge diagnostics (browser trace, WebM, screenshots, JSONL events)
   live exclusively in the operator probe; the production farmer is lean (spec 006) and
+
   persists only the handoff and session_state. Automated verification is limited to one
   frame-aware semantic press-hold click; puzzle sliders are not dragged or solved
   programmatically.
@@ -146,3 +240,16 @@ revalidation, vision A/B benchmarks.
   boundary with a fake curl session and fake async farmer. Only the external
   transport and farmer are faked; all orchestration is real code, matching the
   existing unit-test style.
+
+- 2026-09-11: Validated `script#serverApp-state` is the preferred current detail source;
+  parse `first-view-ITEMS.propertyData.rentInfo`, validate identity and required fields,
+  and fall back to DOM parsing when wrappers or fields change.
+- 2026-09-11: Deposit/key-money duration terms remain raw strings with nullable numeric
+  yen values; `なし` may map to zero, while `1ヶ月`, `0.5ヶ月`, and `15日` do not.
+- 2026-09-11: Building aggregation is post-detail and conservative. It must preserve
+  every unit because floor, rent, layout, area, availability, and contract can differ.
+- 2026-09-11: OpenCodeGo prompt prefixes must remain static. Session IDs support routing
+  but do not guarantee cache hits; dynamic listing data belongs after static instructions.
+- 2026-09-11: Live debug captures overwrite fixed ignored files. Challenge bodies remain
+  excluded before farm and may be captured only after a valid farmed session with
+  explicit `DEBUG=true`; future remote observability requires explicit authorization.
