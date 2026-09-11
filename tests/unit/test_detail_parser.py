@@ -36,6 +36,35 @@ def _load_detail_1122949022() -> str:
     return DETAIL_FIXTURE_1122949022.read_text(encoding="utf-8")
 
 
+def test_current_server_app_state_supplies_structured_detail_data() -> None:
+    """The current SSR state supplies price, transport, and building fields."""
+    html = """
+    <html><head><title>Example [1234567890]</title></head><body>
+      <script id="serverApp-state" type="application/json">
+      {"first-view-ITEMS":{"propertyData":{"rentInfo":{
+        "buildingNm":"Example building 2階 1K",
+        "price":"7.8", "deposit":"1ヶ月", "keyMoney":"なし",
+        "managementFee":"7,200円", "kaidateKai":"15階建 / 2階",
+        "address":"大阪府大阪市中央区谷町５丁目",
+        "lineNm":"地下鉄長堀鶴見緑地線", "stationNm":"谷町六丁目",
+        "buildingInfo": {"buildingNm": "Example building", "chikunengetsu": "2026年8月",
+          "tatemonoKozo": "ＲＣ", "madori": "１K"},
+        "otherPropertyInfo":{"bukkenNo":"1234567890","contract":"2年"}
+      }}}}
+      </script>
+    </body></html>
+    """
+    detail = parse_detail_page(html, ref_date=date(2026, 9, 11))
+    assert detail.title == "Example building"
+    assert detail.price.rent == 78_000
+    assert detail.price.management_fee == 7_200
+    assert detail.price.deposit_raw == "1ヶ月"
+    assert detail.station == "谷町六丁目"
+    assert detail.walk_minutes is None
+    assert detail.floor_plan == "１K"
+    assert detail.area_m2 == 0
+
+
 def test_captured_detail_identity() -> None:
     """Key, canonical URL, title, and address come off the captured page."""
     detail = parse_detail_page(_load_detail())

@@ -27,6 +27,7 @@ from datetime import date
 from selectolax.parser import HTMLParser, Node
 
 from athome_harness.models import ListingDetail, PriceBreakdown
+from athome_harness.scraping.server_app_state import extract_server_app_detail
 
 logger = logging.getLogger(__name__)
 
@@ -104,11 +105,14 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     """
     tree = HTMLParser(html)
     athome_key = _extract_key(tree, html)
+    state = extract_server_app_detail(html, athome_key)
     fields = _extract_data_fields(tree)
     fields.update(
         {key: value for key, value in _extract_current_detail_fields(tree).items() if value}
     )
-    price = _extract_price(tree)
+    if state is not None:
+        fields.update(_fields_from_server_state(state))
+    price = _price_from_server_state(state) if state is not None else _extract_price(tree)
     photos = _extract_photos(tree)
     floor_plan_image = _extract_floor_plan_image(tree)
     point_text, point_icons = _extract_usp(tree)
@@ -140,6 +144,56 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
         description=_field(fields, DESCRIPTION_LABELS) or "",
         floor_plan_image_url=floor_plan_image,
         facility_features=facility_features,
+    )
+
+
+def _fields_from_server_state(state: dict[str, object]) -> dict[str, str]:
+    """Map validated ``rentInfo`` state into the parser's field labels."""
+    fields: dict[str, str] = {}
+    building = state.get("buildingInfo")
+    if isinstance(building, dict):
+        mapping = {
+            "buildingNm": "建物名・部屋番号",
+            "chikunengetsu": "築年月",
+            "tatemonoKozo": "物件構造・工法",
+            "madori": "間取り",
+            "biko": "備考",
+        }
+        for source, label in mapping.items():
+            value = building.get(source)
+            if isinstance(value, str) and value.strip():
+                fields[label] = value
+    mapping = {
+        "address": "住所",
+        "kaidateKai": "階建 / 階",
+        "stationNm": "交通",
+        "syumokuNm": "物件種目",
+    }
+    for source, label in mapping.items():
+        value = state.get(source)
+        if isinstance(value, str) and value.strip():
+            fields[label] = value
+    line = state.get("lineNm")
+    station = state.get("stationNm")
+    if isinstance(line, str) and isinstance(station, str):
+        fields["交通"] = f"{line} / {station}駅"
+    return fields
+
+
+def _price_from_server_state(state: dict[str, object]) -> PriceBreakdown:
+    """Build a price breakdown from validated structured state strings."""
+    raw_price = str(state.get("price", ""))
+    rent = _parse_man_yen(raw_price) or round(float(raw_price.replace(",", "")) * 10_000)
+    management = _parse_yen(str(state.get("managementFee", "")))
+    deposit_raw = str(state.get("deposit", "")) or None
+    key_money_raw = str(state.get("keyMoney", "")) or None
+    return PriceBreakdown(
+        rent=rent,
+        management_fee=management,
+        deposit=_parse_optional_yen(deposit_raw or "", "deposit"),
+        key_money=_parse_optional_yen(key_money_raw or "", "key money"),
+        deposit_raw=deposit_raw,
+        key_money_raw=key_money_raw,
     )
 
 
