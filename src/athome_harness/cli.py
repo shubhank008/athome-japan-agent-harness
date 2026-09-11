@@ -106,7 +106,7 @@ def _hydrate_detail(summary: ListingSummary, detail: ListingDetail) -> ListingDe
         "facility_features",
     ):
         value = detail_values[field_name]
-        if value is not None and value != "":
+        if value is not None and value != "" and value != []:
             values[field_name] = value
     return ListingDetail(**values, listing_detail=True, detail_failure_reason=None)
 

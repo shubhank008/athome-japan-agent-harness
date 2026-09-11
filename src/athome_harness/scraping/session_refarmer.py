@@ -133,7 +133,12 @@ class SessionRefarmer:
                             (self._debug_dir / "live_last_handoff_challenge.html").write_text(
                                 raw.text, encoding="utf-8"
                             )
+            self._close_adapter(self._active)
+            self._active = None
             raise first_block
+        except Exception:
+            self.close()
+            raise
 
     def close(self) -> None:
         """Close the cached adapter and discard its handoff for this lifecycle."""
