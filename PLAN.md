@@ -109,7 +109,7 @@ implemented unless marked otherwise.
   backoff for transient LLM transport failures, including the final recommender
   call. Dump the recommender's raw request payload before transport, and its raw
   response after transport, under stable DEBUG paths. Keep JSON/schema repair retry
-  behavior distinct from transport retry behavior. **Next task.**
+  behavior distinct from transport retry behavior. **Completed in `3282db2`.**
 - **A2: Stable DEBUG artifact contract**: retain fixed overwrite paths for
   list/detail/LLM artifacts; capture a post-handoff challenge body only when
   `DEBUG=true`; never persist direct challenge bodies by default. Add tests for
