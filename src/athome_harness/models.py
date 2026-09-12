@@ -56,20 +56,78 @@ class ListingCompleteness(StrEnum):
 
 
 class Agency(BaseModel):
-    """AtHome agency record keyed by the ``kaiinNo`` member number.
-
-    The selected fields are deliberately tolerant because AtHome may omit or rename
-    optional agency attributes between pages. Raw ``kaiinInfo`` parsing belongs to a
-    later ingestion task.
-    """
+    """AtHome agency record keyed by the ``kaiinNo`` member number."""
 
     kaiin_no: str = Field(description="AtHome agency member number (kaiinNo).")
+    kaiin_link_no: str | None = Field(default=None, description="AtHome agency link number.")
     name: str | None = Field(default=None, description="Agency display name.")
     postal_code: str | None = Field(default=None, description="Agency postal code.")
     address: str | None = Field(default=None, description="Agency address.")
-    phone: str | None = Field(default=None, description="Agency telephone number.")
-    url: str | None = Field(default=None, description="Agency page URL, when supplied.")
+    phone: str | None = Field(default=None, description="Agency telephone or fax text.")
+    url: str | None = Field(default=None, description="Agency detail URL, when supplied.")
     representative: str | None = Field(default=None, description="Agency representative name.")
+    domain: str | None = Field(default=None, description="Agency web domain.")
+    access: str | None = Field(default=None, description="Agency station access text.")
+    business_hours: str | None = Field(default=None, description="Agency operating hours.")
+    holidays: str | None = Field(default=None, description="Agency regular holidays.")
+    features: str | None = Field(default=None, description="Raw agency feature text.")
+    associations: str | None = Field(default=None, description="Raw association membership text.")
+    license_number: str | None = Field(default=None, description="Agency license text.")
+    raw: dict[str, object] = Field(
+        default_factory=dict, description="Unmapped raw kaiinInfo values."
+    )
+
+
+class ImageRecord(BaseModel):
+    """One structured detail image, retaining source metadata."""
+
+    url: str = Field(description="Source image URL or path.")
+    title: str | None = None
+    category: str | None = None
+    raw: dict[str, object] = Field(default_factory=dict)
+
+
+class AccessRecord(BaseModel):
+    """One structured transit/access option."""
+
+    line_name: str | None = None
+    station_name: str | None = None
+    walk_time: str | None = None
+    raw: dict[str, object] = Field(default_factory=dict)
+
+
+class FacilityRecord(BaseModel):
+    """One nearby facility with distance and source metadata."""
+
+    title: str
+    category: str | None = None
+    distance: str | None = None
+    image_url: str | None = None
+    raw: dict[str, object] = Field(default_factory=dict)
+
+
+class FeatureGroup(BaseModel):
+    """One categorized facility feature group."""
+
+    title: str
+    text: str
+    raw: dict[str, object] = Field(default_factory=dict)
+
+
+class StructuredDetail(BaseModel):
+    """Rich server-state data retained separately from the LLM projection."""
+
+    raw: dict[str, object] = Field(default_factory=dict)
+    romanized: dict[str, str] = Field(default_factory=dict)
+    access: list[AccessRecord] = Field(default_factory=list)
+    images: list[ImageRecord] = Field(default_factory=list)
+    nearby_facilities: list[FacilityRecord] = Field(default_factory=list)
+    feature_groups: list[FeatureGroup] = Field(default_factory=list)
+    surrounding_info: dict[str, object] = Field(default_factory=dict)
+    cost_info: dict[str, object] = Field(default_factory=dict)
+    appeal_point: str | None = None
+    building_info: dict[str, object] = Field(default_factory=dict)
+    other_property_info: dict[str, object] = Field(default_factory=dict)
 
 
 class ListingSummary(BaseModel):
@@ -90,9 +148,7 @@ class ListingSummary(BaseModel):
     detail_fresh_until: datetime | None = Field(
         default=None, description="UTC timestamp through which fetched detail is fresh."
     )
-    agency: Agency | None = Field(
-        default=None, description="Persisted listing agency, when known."
-    )
+    agency: Agency | None = Field(default=None, description="Persisted listing agency, when known.")
 
     @model_validator(mode="after")
     def validate_detail_freshness(self) -> ListingSummary:
@@ -104,6 +160,7 @@ class ListingSummary(BaseModel):
         if fetched_at is not None and fresh_until is not None and fresh_until < fetched_at:
             raise ValueError("detail_fresh_until must not precede detail_fetched_at")
         return self
+
     athome_key: str = Field(description="AtHome BKLISTID listing key.")
     url: str = Field(description="Canonical AtHome listing URL.")
     title: str = Field(description="Human-readable listing title.")
@@ -167,6 +224,7 @@ class ListingDetail(ListingSummary):
         ):
             self.completeness = ListingCompleteness.DETAIL_COMPLETE
         return self
+
     building_name: str | None = Field(default=None, description="Canonical building name.")
     building_structure: str | None = Field(default=None, description="Building structure.")
     total_units: str | None = Field(default=None, description="Displayed total unit count.")
@@ -183,6 +241,9 @@ class ListingDetail(ListingSummary):
     )
     facility_features: list[str] = Field(
         default_factory=list, description="Additional facility features listed in detail."
+    )
+    structured_detail: StructuredDetail | None = Field(
+        default=None, description="Rich server-state detail retained for persistence."
     )
 
 

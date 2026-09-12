@@ -125,9 +125,7 @@ def migrate(connection: sqlite3.Connection) -> int:
         # Schema v1 stored lifecycle state only inside the JSON payload. These
         # nullable columns make freshness and agency links queryable without
         # invalidating existing rows or payloads.
-        columns = {
-            str(row[1]) for row in connection.execute("PRAGMA table_info(listings)")
-        }
+        columns = {str(row[1]) for row in connection.execute("PRAGMA table_info(listings)")}
         if "completeness" not in columns:
             _exec(
                 connection,
@@ -163,9 +161,7 @@ def _read_version(connection: sqlite3.Connection) -> int | None:
     return int(row[0])
 
 
-def _exec(
-    connection: sqlite3.Connection, sql: str, params: tuple[object, ...] = ()
-) -> None:
+def _exec(connection: sqlite3.Connection, sql: str, params: tuple[object, ...] = ()) -> None:
     """Execute ``sql`` with ``params`` on ``connection``."""
     connection.execute(sql, params)
 
@@ -190,6 +186,38 @@ def _deserialize_listing(payload: str) -> ListingSummary:
 def _serialize_cache_value(value: str | int | float) -> str:
     """Serialize a cache_meta value with an explicit type tag."""
     return json.dumps({"t": type(value).__name__, "v": value})
+
+
+def _merge_optional(existing: object, incoming: object) -> object:
+    """Prefer a meaningful incoming value while retaining richer existing data."""
+    if incoming is None or incoming == "" or incoming == [] or incoming == {}:
+        return existing
+    return incoming
+
+
+def _merge_agency(existing: Agency | None, incoming: Agency) -> Agency:
+    """Merge an agency update without allowing sparse state to erase fields."""
+    if existing is None:
+        return incoming
+    values = existing.model_dump()
+    for name, value in incoming.model_dump().items():
+        values[name] = _merge_optional(values.get(name), value)
+    return Agency.model_validate(values)
+
+
+def _merge_listing(existing: ListingSummary, incoming: ListingSummary) -> ListingSummary:
+    """Merge listing detail updates while preserving richer prior fields."""
+    values = existing.model_dump()
+    for name, value in incoming.model_dump().items():
+        values[name] = _merge_optional(values.get(name), value)
+    values["completeness"] = incoming.completeness
+    values["detail_fetched_at"] = incoming.detail_fetched_at or existing.detail_fetched_at
+    values["detail_fresh_until"] = incoming.detail_fresh_until or existing.detail_fresh_until
+    if incoming.agency is not None:
+        values["agency"] = incoming.agency
+    if isinstance(existing, ListingDetail) or isinstance(incoming, ListingDetail):
+        return ListingDetail.model_validate(values)
+    return ListingSummary.model_validate(values)
 
 
 def _deserialize_cache_value(payload: str) -> str | int | float:
@@ -256,11 +284,13 @@ class SqliteStore(BaseDataStore):
             self.upsert_agency(listing.agency)
         # Resolve dedupe against existing athome_key or url.
         existing = conn.execute(
-            "SELECT internal_id FROM listings WHERE athome_key = ? OR url = ?",
+            "SELECT internal_id, payload FROM listings WHERE athome_key = ? OR url = ?",
             (listing.athome_key, listing.url),
         ).fetchone()
         if existing is not None:
             canonical = str(existing["internal_id"])
+            previous = _deserialize_listing(str(existing["payload"]))
+            listing = _merge_listing(previous, listing)
             try:
                 conn.execute(
                     "UPDATE listings SET athome_key = ?, url = ?, payload = ?, completeness = ?, "
@@ -382,19 +412,20 @@ class SqliteStore(BaseDataStore):
         assert last_id is not None  # an INSERT always fills lastrowid
         return int(last_id)
 
-
     def upsert_agency(self, agency: Agency) -> str:
-        """Insert or update an agency keyed by its AtHome member number."""
+        """Insert or merge an agency keyed by its AtHome member number."""
         conn = self._conn
         now = _now()
+        current = self.get_agency(agency.kaiin_no)
+        merged = _merge_agency(current, agency)
         conn.execute(
             "INSERT INTO agencies (kaiin_no, payload, created_at, updated_at) VALUES (?, ?, ?, ?) "
             "ON CONFLICT (kaiin_no) DO UPDATE SET payload = excluded.payload, "
             "updated_at = excluded.updated_at",
-            (agency.kaiin_no, agency.model_dump_json(), now, now),
+            (merged.kaiin_no, merged.model_dump_json(), now, now),
         )
         conn.commit()
-        return agency.kaiin_no
+        return merged.kaiin_no
 
     def get_agency(self, kaiin_no: str) -> Agency | None:
         """Return an agency by AtHome member number, or ``None`` if absent."""

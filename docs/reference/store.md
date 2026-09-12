@@ -53,12 +53,13 @@ inherits the full contract test surface for free.
 `SqliteStore(path: str | Path)` implements the contract over a single SQLite
 database file (default `athome.db`, configurable via `ATHOME_STORE_PATH`).
 
-* **Schema versioning:** `SCHEMA_VERSION = 1`; `migrate(connection)` creates or
+* **Schema versioning:** `SCHEMA_VERSION = 2`; `migrate(connection)` creates or
   upgrades the schema idempotently and `_read_version` reads the current
   version, so opening an older file upgrades in place.
 * **Listing storage:** listings are serialized to JSON and upserted keyed by
-  `internal_id`, with the AtHome `BKLISTID` and URL stored alongside for
-  dedupe.
+  `internal_id`, with the AtHome `BKLISTID` and URL stored alongside for dedupe.
+  Rich detail fields are merged non-destructively, and agencies are stored
+  separately by `kaiin_no` and linked through the listing row.
 * **Feedback:** one feedback row per listing (`save` or `reject`); the last
   action wins and `clear_feedback` removes it.
 * **Cache meta:** a small key-value table reserved for post-MVP cache bookkeeping;

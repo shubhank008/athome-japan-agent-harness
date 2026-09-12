@@ -150,6 +150,7 @@ class Recommender:
         """Serialize one detail to a compact JSON line for the prompt."""
         data = detail.model_dump()
         data.pop("photo_urls", None)
+        data.pop("structured_detail", None)
         return json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
 
 
@@ -210,7 +211,13 @@ def _report_listing(listing: ListingSummary | None) -> dict[str, Any] | None:
     if listing is None:
         return None
     data = listing.model_dump(mode="json")
-    for field_name in ("completeness", "detail_fetched_at", "detail_fresh_until", "agency"):
+    for field_name in (
+        "completeness",
+        "detail_fetched_at",
+        "detail_fresh_until",
+        "agency",
+        "structured_detail",
+    ):
         data.pop(field_name, None)
     return data
 

@@ -28,7 +28,10 @@ from selectolax.parser import HTMLParser, Node
 
 from athome_harness.models import ListingDetail, PriceBreakdown
 from athome_harness.scraping.age import age_values
-from athome_harness.scraping.server_app_state import extract_server_app_detail
+from athome_harness.scraping.server_app_state import (
+    extract_server_app_detail,
+    extract_server_app_rich_detail,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +110,9 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
     tree = HTMLParser(html)
     athome_key = _extract_key(tree, html)
     state = extract_server_app_detail(html, athome_key)
+    rich_result = extract_server_app_rich_detail(html, athome_key)
+    structured_detail = rich_result[0] if rich_result is not None else None
+    agency = rich_result[1] if rich_result is not None else None
     fields = _extract_data_fields(tree)
     fields.update(
         {key: value for key, value in _extract_current_detail_fields(tree).items() if value}
@@ -166,6 +172,8 @@ def parse_detail_page(html: str, ref_date: date | None = None) -> ListingDetail:
         description=_field(fields, DESCRIPTION_LABELS) or "",
         floor_plan_image_url=floor_plan_image,
         facility_features=facility_features,
+        agency=agency,
+        structured_detail=structured_detail,
     )
 
 

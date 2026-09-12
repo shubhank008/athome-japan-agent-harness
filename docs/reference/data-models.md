@@ -47,9 +47,12 @@ payloads default to `summary_partial`; `ListingDetail` defaults to
 
 ## Agency
 
-`Agency` is keyed by the AtHome `kaiin_no` member number and carries selected
-optional contact fields (`name`, `postal_code`, `address`, `phone`, `url`, and
-`representative`). Parsing `kaiinInfo` is intentionally outside this contract.
+`Agency` is keyed by the AtHome `kaiin_no` member number and carries contact and
+operational fields from `kaiinInfo`, plus a `raw` map for unmapped source values.
+`StructuredDetail` is retained only on `ListingDetail`; it contains typed access,
+image, nearby-facility, and feature records plus raw surrounding, cost, appeal,
+building, and other-property values. It is deliberately not sent to the LLM
+projection.
 
 ## ListingSummary
 
