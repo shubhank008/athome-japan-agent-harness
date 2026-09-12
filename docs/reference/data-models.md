@@ -195,3 +195,7 @@ The final report produced by a [`SearchSession`](architecture.md) run.
 | `recommendations` | `list[Recommendation]` | `[]` | The ranked recommendations. |
 | `budgets_consumed` | `Budgets \| None` | `None` | Budgets actually consumed. |
 | `partial` | `bool` | `False` | True when the run was cut short by a budget or a block. |
+
+## Hydration queue models
+
+`HydrationStatus` has `queued`, `leased`, `succeeded`, `skipped`, `failed`, and `cancelled` states. `HydrationJob` carries the durable job ID, AtHome listing key, canonical URL, internal listing ID, attempt/max-attempt counters, UTC timestamps, lease token/expiry, and categorized last error fields. Queue defaults are three attempts and a five-minute lease (`DESIGN-FRESH`); T33 owns consumption and detail fetching.

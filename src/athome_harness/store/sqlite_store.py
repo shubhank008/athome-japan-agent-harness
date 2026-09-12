@@ -1,6 +1,6 @@
 """SQLite persistence backend (milestone M5, T23).
 
-Implements :class:`BaseDataStore` over a SQLite database using schema version 1.
+Implements :class:`BaseDataStore` over a SQLite database using schema version 3.
 Listings are stored keyed by an internal property ID while the AtHome
 ``BKLISTID`` and canonical URL are deduplicated through unique constraints, so
 the same property never appears twice across searches (US-005). Searches,
@@ -18,12 +18,16 @@ from __future__ import annotations
 
 import json
 import sqlite3
-from datetime import UTC, datetime
+import uuid
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import cast
 
 from athome_harness.models import (
     Agency,
+    HydrationIntent,
+    HydrationJob,
+    HydrationStatus,
     ListingCompleteness,
     ListingDetail,
     ListingSummary,
@@ -40,7 +44,7 @@ from athome_harness.store.base import (
 
 # Current on-disk schema version. Bump this (and add a step to `migrate`) when
 # the table DDL changes.
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # The full set of cache_meta value types the store preserves and returns.
 _CacheValue = str | int | float
@@ -102,6 +106,25 @@ CREATE TABLE IF NOT EXISTS cache_meta (
 CREATE TABLE IF NOT EXISTS schema_version (
     version  INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS hydration_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    athome_key TEXT NOT NULL UNIQUE,
+    url TEXT NOT NULL,
+    internal_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN (
+        'queued', 'leased', 'succeeded', 'skipped', 'failed', 'cancelled'
+    )),
+    attempts INTEGER NOT NULL DEFAULT 0,
+    max_attempts INTEGER NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    lease_token TEXT,
+    lease_until TEXT,
+    last_error TEXT,
+    last_error_category TEXT
+);
+CREATE INDEX IF NOT EXISTS hydration_jobs_eligible_idx ON hydration_jobs (status, created_at);
 """
 
 
@@ -146,6 +169,24 @@ def migrate(connection: sqlite3.Connection) -> int:
             "created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
         )
         version = 2
+    if version < 3:
+        _exec(
+            connection,
+            "CREATE TABLE IF NOT EXISTS hydration_jobs ("
+            "id INTEGER PRIMARY KEY AUTOINCREMENT, athome_key TEXT NOT NULL UNIQUE, "
+            "url TEXT NOT NULL, internal_id TEXT NOT NULL, "
+            "status TEXT NOT NULL CHECK (status IN ("
+            "'queued', 'leased', 'succeeded', 'skipped', 'failed', 'cancelled')), "
+            "attempts INTEGER NOT NULL DEFAULT 0, max_attempts INTEGER NOT NULL, "
+            "created_at TEXT NOT NULL, updated_at TEXT NOT NULL, lease_token TEXT, "
+            "lease_until TEXT, last_error TEXT, last_error_category TEXT)",
+        )
+        _exec(
+            connection,
+            "CREATE INDEX IF NOT EXISTS hydration_jobs_eligible_idx "
+            "ON hydration_jobs (status, created_at)",
+        )
+        version = 3
     if version < SCHEMA_VERSION:
         _exec(connection, "UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
     return SCHEMA_VERSION
@@ -237,6 +278,30 @@ def _merge_listing(existing: ListingSummary, incoming: ListingSummary) -> Listin
     if isinstance(existing, ListingDetail) or isinstance(incoming, ListingDetail):
         return ListingDetail.model_validate(values)
     return ListingSummary.model_validate(values)
+
+
+def _parse_time(value: str | None) -> datetime | None:
+    """Parse a stored UTC timestamp, preserving nullable lease fields."""
+    return datetime.fromisoformat(value) if value is not None else None
+
+
+def _job_from_row(row: sqlite3.Row) -> HydrationJob:
+    """Convert a hydration row into its public typed model."""
+    return HydrationJob(
+        job_id=int(row["id"]),
+        athome_key=str(row["athome_key"]),
+        url=str(row["url"]),
+        internal_id=str(row["internal_id"]),
+        status=HydrationStatus(str(row["status"])),
+        attempts=int(row["attempts"]),
+        max_attempts=int(row["max_attempts"]),
+        created_at=_parse_time(str(row["created_at"])) or datetime.now(UTC),
+        updated_at=_parse_time(str(row["updated_at"])) or datetime.now(UTC),
+        lease_token=row["lease_token"],
+        lease_until=_parse_time(str(row["lease_until"])) if row["lease_until"] else None,
+        last_error=row["last_error"],
+        last_error_category=row["last_error_category"],
+    )
 
 
 def _deserialize_cache_value(payload: str) -> str | int | float:
@@ -415,6 +480,156 @@ class SqliteStore(BaseDataStore):
             if agency is not None:
                 listing = listing.model_copy(update={"agency": agency})
         return listing
+
+    # -- Detail hydration queue ---------------------------------------------
+
+    def _fresh_detail(self, internal_id: str, now: str) -> bool:
+        """Return whether stored detail is fresh at the supplied instant."""
+        row = self._conn.execute(
+            "SELECT detail_fresh_until FROM listings WHERE internal_id = ?", (internal_id,)
+        ).fetchone()
+        return (
+            row is not None
+            and row["detail_fresh_until"] is not None
+            and str(row["detail_fresh_until"]) > now
+        )
+
+    def get_hydration_job(self, athome_key: str) -> HydrationJob | None:
+        """Return one durable job by its AtHome listing ID."""
+        row = self._conn.execute(
+            "SELECT * FROM hydration_jobs WHERE athome_key = ?", (athome_key,)
+        ).fetchone()
+        return _job_from_row(row) if row is not None else None
+
+    def enqueue_hydration(
+        self, intent: HydrationIntent, max_attempts: int = 3
+    ) -> HydrationJob | None:
+        """Insert one FIFO job unless its detail is already fresh."""
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be positive")
+        now = _now()
+        existing = self.get_hydration_job(intent.athome_key)
+        if self._fresh_detail(intent.internal_id, now):
+            if existing is None:
+                return None
+            if existing.status in {HydrationStatus.QUEUED, HydrationStatus.LEASED}:
+                self._conn.execute(
+                    "UPDATE hydration_jobs SET status = 'skipped', lease_token = NULL, "
+                    "lease_until = NULL, updated_at = ? WHERE athome_key = ?",
+                    (now, intent.athome_key),
+                )
+                self._conn.commit()
+            return self.get_hydration_job(intent.athome_key)
+        if existing is not None:
+            return existing
+        self._conn.execute(
+            "INSERT INTO hydration_jobs (athome_key, url, internal_id, status, attempts, "
+            "max_attempts, created_at, updated_at) VALUES (?, ?, ?, 'queued', 0, ?, ?, ?)",
+            (intent.athome_key, intent.url, intent.internal_id, max_attempts, now, now),
+        )
+        self._conn.commit()
+        return self.get_hydration_job(intent.athome_key)
+
+    def claim_hydration(self, lease_seconds: int = 300) -> HydrationJob | None:
+        """Atomically claim the oldest queued or expired leased job."""
+        if lease_seconds < 1:
+            raise ValueError("lease_seconds must be positive")
+        conn = self._conn
+        now_dt = datetime.now(UTC)
+        now = now_dt.isoformat()
+        conn.execute("BEGIN IMMEDIATE")
+        try:
+            row = conn.execute(
+                "SELECT * FROM hydration_jobs WHERE status = 'queued' OR "
+                "(status = 'leased' AND lease_until <= ?) ORDER BY created_at, id LIMIT 1",
+                (now,),
+            ).fetchone()
+            if row is None:
+                conn.commit()
+                return None
+            if self._fresh_detail(str(row["internal_id"]), now):
+                conn.execute(
+                    "UPDATE hydration_jobs SET status = 'skipped', lease_token = NULL, "
+                    "lease_until = NULL, updated_at = ? WHERE id = ?",
+                    (now, row["id"]),
+                )
+                conn.commit()
+                return None
+            token = str(uuid.uuid4())
+            lease_until = (now_dt + timedelta(seconds=lease_seconds)).isoformat()
+            conn.execute(
+                "UPDATE hydration_jobs SET status = 'leased', attempts = attempts + 1, "
+                "lease_token = ?, lease_until = ?, updated_at = ? WHERE id = ?",
+                (token, lease_until, now, row["id"]),
+            )
+            conn.commit()
+            return self.get_hydration_job(str(row["athome_key"]))
+        except Exception:
+            conn.rollback()
+            raise
+
+    def _transition_claimed(
+        self, athome_key: str, token: str, status: HydrationStatus, **values: object
+    ) -> HydrationJob:
+        """Apply a guarded transition to a job held by the supplied lease."""
+        conn = self._conn
+        row = conn.execute(
+            "SELECT id FROM hydration_jobs WHERE athome_key = ? AND status = 'leased' "
+            "AND lease_token = ?",
+            (athome_key, token),
+        ).fetchone()
+        if row is None:
+            raise ValueError("hydration lease is missing or expired")
+        assignments = ["status = ?", "updated_at = ?", "lease_token = NULL", "lease_until = NULL"]
+        params: list[object] = [status.value, _now()]
+        for name, value in values.items():
+            assignments.append(f"{name} = ?")
+            params.append(value)
+        params.append(row["id"])
+        conn.execute(f"UPDATE hydration_jobs SET {', '.join(assignments)} WHERE id = ?", params)
+        conn.commit()
+        result = self.get_hydration_job(athome_key)
+        assert result is not None
+        return result
+
+    def acknowledge_hydration_success(self, athome_key: str, lease_token: str) -> HydrationJob:
+        """Acknowledge a successfully hydrated listing."""
+        return self._transition_claimed(athome_key, lease_token, HydrationStatus.SUCCEEDED)
+
+    def record_hydration_failure(
+        self, athome_key: str, lease_token: str, category: str, error: str
+    ) -> HydrationJob:
+        """Record a categorized retryable or terminal failure."""
+        current = self.get_hydration_job(athome_key)
+        if (
+            current is None
+            or current.lease_token != lease_token
+            or current.status is not HydrationStatus.LEASED
+        ):
+            raise ValueError("hydration lease is missing or expired")
+        status = (
+            HydrationStatus.QUEUED
+            if current.attempts < current.max_attempts
+            else HydrationStatus.FAILED
+        )
+        return self._transition_claimed(
+            athome_key, lease_token, status, last_error_category=category, last_error=error
+        )
+
+    def cancel_hydration(self, athome_key: str, reason: str) -> HydrationJob:
+        """Explicitly cancel a job for a positively unavailable listing."""
+        conn = self._conn
+        conn.execute(
+            "UPDATE hydration_jobs SET status = 'cancelled', last_error_category = 'unavailable', "
+            "last_error = ?, lease_token = NULL, lease_until = NULL, updated_at = ? "
+            "WHERE athome_key = ?",
+            (reason, _now(), athome_key),
+        )
+        conn.commit()
+        result = self.get_hydration_job(athome_key)
+        if result is None:
+            raise KeyError(athome_key)
+        return result
 
     # -- Searches ------------------------------------------------------------
 

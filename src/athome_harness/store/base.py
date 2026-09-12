@@ -22,7 +22,14 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from athome_harness.models import Agency, ListingSummary, PriceBreakdown, Recommendation, SearchPlan
+from athome_harness.models import (
+    HydrationIntent,
+    HydrationJob,
+    ListingSummary,
+    PriceBreakdown,
+    Recommendation,
+    SearchPlan,
+)
 
 __all__ = [
     "BaseDataStore",
@@ -105,17 +112,35 @@ class BaseDataStore(ABC):
     def list_listings(self) -> list[ListingSummary]:
         """Return every persisted listing in insertion order."""
 
-    @abstractmethod
-    def upsert_agency(self, agency: Agency) -> str:
-        """Persist an agency and return its canonical AtHome member number."""
+    # -- Detail hydration queue ---------------------------------------------
 
     @abstractmethod
-    def get_agency(self, kaiin_no: str) -> Agency | None:
-        """Return an agency by AtHome member number, or ``None`` if absent."""
+    def enqueue_hydration(
+        self, intent: HydrationIntent, max_attempts: int = 3
+    ) -> HydrationJob | None:
+        """Idempotently enqueue detail work unless the listing is fresh."""
 
     @abstractmethod
-    def link_listing_agency(self, internal_id: str, kaiin_no: str | None) -> None:
-        """Link a listing to an agency, or clear the link when ``None`` is passed."""
+    def claim_hydration(self, lease_seconds: int = 300) -> HydrationJob | None:
+        """Atomically lease the oldest eligible hydration job."""
+
+    @abstractmethod
+    def acknowledge_hydration_success(self, athome_key: str, lease_token: str) -> HydrationJob:
+        """Mark a claimed job successful, validating its lease token."""
+
+    @abstractmethod
+    def record_hydration_failure(
+        self, athome_key: str, lease_token: str, category: str, error: str
+    ) -> HydrationJob:
+        """Record a categorized failure and requeue until attempts are exhausted."""
+
+    @abstractmethod
+    def cancel_hydration(self, athome_key: str, reason: str) -> HydrationJob:
+        """Explicitly cancel a job after positive unavailable detection."""
+
+    @abstractmethod
+    def get_hydration_job(self, athome_key: str) -> HydrationJob | None:
+        """Return the durable hydration job for an AtHome listing."""
 
     # -- Searches ------------------------------------------------------------
 

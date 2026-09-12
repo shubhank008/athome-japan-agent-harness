@@ -148,6 +148,33 @@ class HydrationIntent(BaseModel):
     url: str = Field(description="Canonical detail URL.")
 
 
+class HydrationStatus(StrEnum):
+    """Durable lifecycle states for one detail-hydration job."""
+
+    QUEUED = "queued"
+    LEASED = "leased"
+    SUCCEEDED = "succeeded"
+    SKIPPED = "skipped"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+
+class HydrationJob(BaseModel):
+    """One durable FIFO detail-hydration job and its retry state."""
+
+    job_id: int
+    athome_key: str
+    url: str
+    internal_id: str
+    status: HydrationStatus
+    attempts: int = Field(ge=0)
+    max_attempts: int = Field(ge=1)
+    created_at: datetime
+    updated_at: datetime
+    lease_token: str | None = None
+    lease_until: datetime | None = None
+    last_error: str | None = None
+    last_error_category: str | None = None
 
 
 class ListingSummary(BaseModel):
