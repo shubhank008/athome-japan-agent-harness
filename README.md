@@ -121,6 +121,48 @@ anything live, know these boundaries:
 ATHOME_LIVE_TEST=1 pytest -m live tests/live/test_playwright_curl_live.py
 ```
 
+## Background detail hydration worker
+
+A successful detail-page run stores the target listing, normalizes its recommendation
+cards as `summary_complete`, and enqueues missing or stale candidate details in SQLite.
+The live LLM path remains independent: it uses fresh `detail_complete` data or fetches
+directly when necessary. The background worker is an optimization and never blocks a
+live search.
+
+The worker is disabled by default. Enable it explicitly and point it at the same
+`ATHOME_STORE_PATH` used by the producer:
+
+```bash
+ATHOME_HYDRATION_WORKER_ENABLED=true \
+PYTHONPATH=src python scripts/detail_hydration_worker.py
+```
+
+The default invocation claims at most one job. A bounded loop can process configured
+jobs with a sleep between polls:
+
+```bash
+ATHOME_HYDRATION_WORKER_ENABLED=true \
+ATHOME_HYDRATION_WORKER_MAX_JOBS=10 \
+ATHOME_HYDRATION_WORKER_SLEEP_S=30 \
+PYTHONPATH=src python scripts/detail_hydration_worker.py --loop
+```
+
+Workers are intentionally lean and stateless. Each process claims jobs transactionally,
+rechecks freshness, fetches and validates one detail page, persists it, and acknowledges
+the job. Multiple worker processes may share the same SQLite database when the database
+filesystem supports SQLite locking, but start conservatively and monitor lock contention.
+For container deployments, package the same command as one worker container per process
+and coordinate a global request budget. Scaling containers or hosts must never be used to
+continue around an AtHome challenge or block. A challenge/block pauses the affected
+worker pool for operator review; it is not a signal to add IPs or bypass controls.
+
+The durable queue is FIFO for now. `summary_partial` records come from broad result
+pages, `summary_complete` records come from recommendation cards, and successful detail
+fetches become `detail_complete` for 14 days. A verified unavailable marker is the only
+worker deletion path; challenge, timeout, parser, and transport failures remain retryable.
+See [the store reference](docs/reference/store.md), [the server-state reference](docs/reference/server-app-state.md),
+and [the queue specification](docs/specs/010-durable-detail-hydration-queue/spec.md).
+
 ## Architecture
 
 The harness is organized around abstract interfaces so concrete backends are
