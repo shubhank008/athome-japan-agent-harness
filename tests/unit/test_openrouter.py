@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import pytest
 
+import athome_harness.llm.openai_compat as openai_compat
 from athome_harness.llm.base import LLMProviderError, LLMUsage
 from athome_harness.llm.openrouter import OpenRouterProvider
 
@@ -148,6 +149,50 @@ def test_temperature_can_be_configured() -> None:
     provider.complete_text(system="sys", user="usr", temperature=0.7)
     _, kwargs = session.calls[0]
     assert kwargs["json"]["temperature"] == 0.7  # type: ignore[index]
+
+
+def test_transport_error_retries_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A transient transport error gets one bounded retry."""
+    monkeypatch.setattr(openai_compat.time, "sleep", lambda _: None)
+
+    class _RetrySession:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def post(self, url: str, **kwargs: object) -> FakeResponse:
+            self.calls += 1
+            if self.calls == 1:
+                raise TimeoutError("timed out")
+            return FakeResponse(200, _ok_body())
+
+        def close(self) -> None:
+            pass
+
+    session = _RetrySession()
+    provider = OpenRouterProvider("k", session=session)  # type: ignore[arg-type]
+    text, _ = provider.complete_text(system="sys", user="usr")
+    assert text == '{"flow": "rent"}'
+    assert session.calls == 2
+
+
+def test_server_error_retries_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A transient HTTP 5xx response gets one bounded retry."""
+    monkeypatch.setattr(openai_compat.time, "sleep", lambda _: None)
+    session = FakeSession([FakeResponse(503, {}), FakeResponse(200, _ok_body())])
+    provider = OpenRouterProvider("k", session=session)
+    text, _ = provider.complete_text(system="sys", user="usr")
+    assert text == '{"flow": "rent"}'
+    assert len(session.calls) == 2
+
+
+def test_persistent_server_error_stays_terminal(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A persistent HTTP 5xx response fails after the bounded retry."""
+    monkeypatch.setattr(openai_compat.time, "sleep", lambda _: None)
+    session = FakeSession([FakeResponse(500, {}), FakeResponse(500, {})])
+    provider = OpenRouterProvider("k", session=session)
+    with pytest.raises(LLMProviderError, match="HTTP 500"):
+        provider.complete_text(system="sys", user="usr")
+    assert len(session.calls) == 2
 
 
 def test_max_tokens_appears_in_payload_when_configured() -> None:

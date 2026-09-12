@@ -33,6 +33,9 @@ from athome_harness.llm.base import BaseLLMProvider, LLMProviderError, LLMUsage
 
 logger = logging.getLogger(__name__)
 
+_MAX_TRANSPORT_ATTEMPTS = 2
+_TRANSPORT_RETRY_DELAY_S = 1.0
+
 # The chat system role label the endpoint expects.
 _SYSTEM_ROLE = "system"
 _USER_ROLE = "user"
@@ -161,23 +164,53 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         if self._max_tokens is not None:
             payload["max_tokens"] = self._max_tokens
         started = time.monotonic()
-        try:
-            response = self._session.post(
-                self._base_url,
-                json=payload,
-                headers=self._request_headers(),
-                timeout=self._timeout_s,
-            )
-        except Exception as exc:  # transport-level failure (network, DNS, TLS)
-            logger.warning(
-                "[LLM_CALL] provider=<%s> status=<error> elapsed_s=<%.3f> timeout_s=<%.3f>",
-                self.provider_name,
-                time.monotonic() - started,
-                self._timeout_s,
-            )
-            raise LLMProviderError(
-                f"{self.provider_name} transport error: {type(exc).__name__}"
-            ) from exc
+        response: ChatResponse | None = None
+        for attempt in range(1, _MAX_TRANSPORT_ATTEMPTS + 1):
+            try:
+                response = self._session.post(
+                    self._base_url,
+                    json=payload,
+                    headers=self._request_headers(),
+                    timeout=self._timeout_s,
+                )
+            except Exception as exc:  # transport-level failure (network, DNS, TLS)
+                if attempt < _MAX_TRANSPORT_ATTEMPTS:
+                    logger.warning(
+                        "[LLM_TRANSPORT_RETRY] provider=<%s> attempt=<%d> reason=<%s>",
+                        self.provider_name,
+                        attempt,
+                        type(exc).__name__,
+                    )
+                    time.sleep(_TRANSPORT_RETRY_DELAY_S)
+                    continue
+                logger.warning(
+                    "[LLM_CALL] provider=<%s> status=<error> elapsed_s=<%.3f> timeout_s=<%.3f>",
+                    self.provider_name,
+                    time.monotonic() - started,
+                    self._timeout_s,
+                )
+                logger.error(
+                    "[LLM_TRANSPORT_FAILED] provider=<%s> attempts=<%d> reason=<%s>",
+                    self.provider_name,
+                    attempt,
+                    type(exc).__name__,
+                )
+                raise LLMProviderError(
+                    f"{self.provider_name} transport error: {type(exc).__name__}"
+                ) from exc
+            if response.status_code < 500 or response.status_code >= 600:
+                break
+            if attempt < _MAX_TRANSPORT_ATTEMPTS:
+                logger.warning(
+                    "[LLM_TRANSPORT_RETRY] provider=<%s> attempt=<%d> reason=<HTTP_%d>",
+                    self.provider_name,
+                    attempt,
+                    response.status_code,
+                )
+                time.sleep(_TRANSPORT_RETRY_DELAY_S)
+
+        if response is None:
+            raise LLMProviderError(f"{self.provider_name} transport returned no response")
         logger.info(
             "[LLM_CALL] provider=<%s> status=<http_%d> elapsed_s=<%.3f> timeout_s=<%.3f>",
             self.provider_name,
@@ -188,6 +221,13 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         if not 200 <= response.status_code < 300:
             # API errors often carry a JSON body; surface status only, never body
             # which may embed secrets.
+            if response.status_code >= 500:
+                logger.error(
+                    "[LLM_TRANSPORT_FAILED] provider=<%s> attempts=<%d> reason=<HTTP_%d>",
+                    self.provider_name,
+                    _MAX_TRANSPORT_ATTEMPTS,
+                    response.status_code,
+                )
             raise LLMProviderError(f"{self.provider_name} returned HTTP {response.status_code}")
         body = self._parse_body(response)
         content = self._extract_content(body)

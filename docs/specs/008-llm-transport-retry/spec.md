@@ -16,20 +16,20 @@ timeout. The existing retry handles only invalid JSON, not transport failures.
 single timeout does not discard an otherwise successful search.
 
 **Acceptance Criteria:**
-- [ ] Transport retry is bounded and applies to the final recommender call.
-- [ ] JSON/schema repair retry remains distinct from transport retry.
-- [ ] Retry attempts and terminal failure are observable without secrets.
-- [ ] Existing provider callers retain compatible behavior.
+- [x] Transport retry is bounded and applies to the final recommender call.
+- [x] JSON/schema repair retry remains distinct from transport retry.
+- [x] Retry attempts and terminal failure are observable without secrets.
+- [x] Existing provider callers retain compatible behavior.
 
 ### US-002: Inspect recommender payloads
 **Description:** As an operator, I want the final recommender request and raw
 response captured locally so prompt size and output quality can be evaluated.
 
 **Acceptance Criteria:**
-- [ ] DEBUG captures stable overwritten request and response artifacts.
-- [ ] Captures include stage and token metadata where available.
-- [ ] Transport failures preserve request diagnostics without fabricating output.
-- [ ] Credentials, session headers, and proxy URLs are excluded.
+- [x] DEBUG captures stable overwritten request and response artifacts.
+- [x] Captures include stage and token metadata where available.
+- [x] Transport failures preserve request diagnostics without fabricating output.
+- [x] Credentials, session headers, and proxy URLs are excluded.
 
 ## Functional Requirements
 

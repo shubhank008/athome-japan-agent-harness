@@ -4,7 +4,8 @@ The language-model building blocks under `src/athome_harness/llm/`. This layer
 turns a natural-language housing wish into a structured plan, scores harvested
 listings into a shortlist, and ranks shortlisted details into the final
 recommendations. Every stage is schema-validated through the shared
-`complete_json` path with token accounting and exactly-one repair retry.
+`complete_json` path with token accounting, exactly-one JSON repair retry, and a
+bounded transport retry for transient provider failures.
 
 * **Depends on:** [data models](data-models.md) (`SearchPlan`,
   `ListingSummary`, `ListingDetail`, `Recommendation`, `FilterMap`),
@@ -27,15 +28,24 @@ First invariant: no HTTP client is imported here).
 
 `complete_json` is the only path production consumers use. Its behavior:
 
-1. Calls `complete_text` and records usage.
+1. Calls `complete_text` and records usage. The shared transport makes at most
+   two total attempts for a transport exception or HTTP 5xx response, with a
+   bounded one-second delay and `[LLM_TRANSPORT_RETRY]` marker.
 2. Parses and validates the completion against `schema`. On success returns the
-   validated instance with the first call's usage.
-3. On `ValidationError` or `JSONDecodeError` it runs **exactly one** repair
+   validated instance with the first successful call's usage.
+3. On `ValidationError` or `JSONDecodeError` it runs **exactly one** JSON repair
    retry: `complete_text` again with an explicit instruction to return valid
-   JSON for the schema.
+   JSON for the schema. This is separate from transport retry.
 4. If the repair also fails it logs the `LLM_JSON_INVALID` marker and raises
-   `LLMJSONInvalidError` (a subclass of `LLMProviderError`). The reported usage
-   sums both attempts.
+   `LLMJSONInvalidError` (a subclass of `LLMProviderError`). A terminal
+   transport failure logs `[LLM_TRANSPORT_FAILED]` and is not mislabeled as JSON
+   invalid.
+
+The recommender passes `debug_stage="recommender"`. With `DEBUG=true`, stable
+ignored files `debug/llm_recommender_input.json` and
+`debug/llm_recommender_output.json` are overwritten on each run. The request
+capture is written before transport, so it remains available when the provider
+times out; the response capture is written only when raw response text exists.
 
 `LLMUsage` fields: `prompt_tokens: int`, `completion_tokens: int` (both `>= 0`,
 default `0`), plus the derived `total` / `total_tokens` properties.

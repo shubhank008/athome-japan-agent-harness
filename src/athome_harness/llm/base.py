@@ -150,6 +150,7 @@ class BaseLLMProvider(ABC):
         user: str,
         schema: type[SchemaT],
         temperature: float = 0.0,
+        debug_stage: str | None = None,
     ) -> tuple[SchemaT, LLMUsage]:
         """Return a schema-validated ``schema`` instance plus total usage.
 
@@ -160,12 +161,22 @@ class BaseLLMProvider(ABC):
         Prompt and completion tokens are summed across the original call and,
         when it happens, the repair call.
         """
+        if debug_stage:
+            self._debug_dump(
+                f"llm_{debug_stage}_input.json",
+                {"stage": debug_stage, "schema": schema.__name__, "system": system, "user": user},
+            )
         text, usage = self.complete_text(system=system, user=user, temperature=temperature)
         self._debug_dump("llm_last_input.json", {"system": system, "user": user})
         self._debug_dump(
             "llm_last_output.json",
             {"stage": "initial", "text": text, "usage": usage.model_dump()},
         )
+        if debug_stage:
+            self._debug_dump(
+                f"llm_{debug_stage}_output.json",
+                {"stage": debug_stage, "text": text, "usage": usage.model_dump()},
+            )
         self._record_usage(usage)
         try:
             return _extract_json(text, schema), usage

@@ -91,12 +91,15 @@ class Recommender:
             f"Constraints:\n{constraints}\n\nListings:\n{user_lines}\n\n"
             f"Return the top {limit} listings as JSON ranked best first."
         )
+        logger.debug("[LLM_DEBUG_CAPTURE] stage=<recommender> artifact=<request>")
         output, usage = self._provider.complete_json(
             system=_SYSTEM_PROMPT,
             user=user,
             schema=RecommendationOutput,
             temperature=temperature,
+            debug_stage="recommender",
         )
+        logger.debug("[LLM_DEBUG_CAPTURE] stage=<recommender> artifact=<response>")
         logger.debug(
             "[RECOMMEND_TOKENS] prompt=%d completion=%d ranked=%d",
             usage.prompt_tokens,
