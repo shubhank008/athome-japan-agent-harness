@@ -145,6 +145,9 @@ place.
 * When a subagent reports landmines, the orchestrator (not the subagent) evaluates each for project-wide applicability and promotes the durable ones into this Architecture invariants list. Task-specific or one-off notes are recorded in the milestone report instead.
 * Delegated work uses the project-verified models (SPEC section 6 / PLAN.md decisions), never Haiku. Only downgrade to a lesser model for genuinely mechanical tasks.
 
+* After independently accepting a delegated milestone, merge its accepted branch into the current orchestrator branch before launching the next milestone. Every subsequent subagent must start from the latest integrated orchestrator tree, not from `origin/main` or an older sibling branch. Verify the merged tree and gate before dispatching again; otherwise stacked milestone branches create avoidable conflicts and hide integration defects.
+* Live diagnostics are opt-in and path-sensitive: the LLM request/completion dumps are written only when `DEBUG` is enabled, and the production cookie farmer intentionally rejects rather than persists challenged/rendered handoff HTML. A live run must set an explicit debug artifact directory or use the operator probe when raw challenge/handoff HTML is required; a log marker alone is not evidence that an artifact was captured.
+
 ### Engineering landmines (verified, promote durable surprises here)
 
 * pydantic v2 `model_copy(update=...)` does NOT re-run validators. Tests that assert a value invariant (for example a non-negative price) must construct the invalid instance via `Model.model_validate({...})` or direct construction, not by copying a valid one.
