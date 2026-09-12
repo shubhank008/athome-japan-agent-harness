@@ -38,11 +38,25 @@ SQLite implementation is the only one today.
 | `seen_internal_ids` | `() -> set[str]` | Every listing ID the store has ever upserted. |
 | `clear_feedback` | `(internal_id: str) -> None` | Remove saved/rejected feedback for one listing. |
 | `set_cache_meta` | `(key: str, value: str \| int \| float) -> None` | Write a cache metadata entry. |
+
 | `get_cache_meta` | `(key: str) -> str \| int \| float \| None` | Read a cache metadata entry. |
 
 `SearchRecord` fields: `search_id: int`, `query: str`, `plan: SearchPlan`,
 `created_at: str` (ISO-8601). `RecommendationRecord` fields: `search_id: int`,
 `recommendation: Recommendation`, `created_at: str`.
+
+
+## Detail hydration worker boundary
+
+`DetailHydrationWorker` consumes the queue methods on `BaseDataStore` in strict FIFO
+order: claim, fetch through an injected production scraper, challenge/availability
+validation, detail parsing, `upsert_listing` plus agency persistence, and success
+acknowledgement. It processes one claim at a time, uses the existing rate limiter,
+and applies a 14-day detail freshness interval (`DESIGN-FRESH`). Timeout, parser,
+identity, challenge, and block failures are categorized through the queue failure
+transition. Challenge and block stop the current run; only explicit unavailable
+markers can cancel a job. The command is disabled unless
+`ATHOME_HYDRATION_WORKER_ENABLED=true`; T34 live cache integration is not included.
 
 `store/base.py` also ships `StoreContractSuite`, a pytest-ready mixin that
 exercises every contract method against any implementation, so a new backend

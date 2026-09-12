@@ -171,6 +171,15 @@ class Settings(BaseSettings):
     http_timeout_s: float = Field(default=30.0, validation_alias="ATHOME_HTTP_TIMEOUT_S")
     proxy_retries: int = Field(default=3, validation_alias="ATHOME_PROXY_RETRIES")
     prefetch_ttl_hours: float = Field(default=48.0, validation_alias="ATHOME_PREFETCH_TTL_HOURS")
+    hydration_worker_enabled: bool = Field(
+        default=False, validation_alias="ATHOME_HYDRATION_WORKER_ENABLED"
+    )
+    hydration_worker_sleep_s: float = Field(
+        default=30.0, validation_alias="ATHOME_HYDRATION_WORKER_SLEEP_S"
+    )
+    hydration_worker_max_jobs: int = Field(
+        default=1, validation_alias="ATHOME_HYDRATION_WORKER_MAX_JOBS"
+    )
     llm_timeout_s: float = Field(default=30.0, validation_alias="ATHOME_LLM_TIMEOUT_S")
     llm_temperature: float = Field(default=0.0, validation_alias="ATHOME_LLM_TEMPERATURE")
     llm_max_tokens: int = Field(default=2048, validation_alias="ATHOME_LLM_MAX_TOKENS")

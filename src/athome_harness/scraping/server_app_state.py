@@ -187,3 +187,27 @@ def _agency_from_kaiin_info(value: object) -> Agency | None:
         license_number=value.get("menkyoNo"),
         raw=value,
     )
+
+
+def extract_server_app_agency(html: str) -> Agency | None:
+    """Extract the agency from canonical structured detail state."""
+    script = HTMLParser(html).css_first("script#serverApp-state")
+    if script is None:
+        return None
+    try:
+        payload = json.loads(script.text())
+        property_data = payload.get("first-view-ITEMS", {}).get("propertyData", {})
+        raw = property_data.get("kaiinInfo")
+        if not isinstance(raw, dict):
+            raw = payload.get("listing", {}).get("agency")
+    except (TypeError, AttributeError, json.JSONDecodeError):
+        return None
+    if not isinstance(raw, dict) or not str(raw.get("kaiinNo", "")).strip():
+        return None
+    hours = raw.get("eigyoTime")
+    main_hours = hours.get("main") if isinstance(hours, dict) else None
+    def text(value: object) -> str | None:
+        """Normalize optional agency text fields."""
+        result = str(value).strip() if value is not None else ""
+        return result or None
+    return Agency(kaiin_no=str(raw["kaiinNo"]), kaiin_link_no=text(raw.get("kaiinLinkNo")), name=text(raw.get("syogo")), address=text(raw.get("address")), phone=text(raw.get("telFax")), url=text(raw.get("syosaiUrl") or raw.get("urlLong")), domain=text(raw.get("domain")), access=text(raw.get("access")), business_hours=text(main_hours), holidays=text(raw.get("teikyubi")), features=text(raw.get("tokutyou")), associations=text(raw.get("syozokuKyokai")), license_number=text(raw.get("menkyoNo")), raw=raw)
