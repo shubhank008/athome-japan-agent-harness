@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -20,6 +21,7 @@ from selectolax.parser import HTMLParser
 from athome_harness.cli import SearchSession, SessionDeps, parse_command
 from athome_harness.config import Budgets
 from athome_harness.llm.base import BaseLLMProvider, LLMUsage
+from athome_harness.models import HydrationIntent, ListingDetail, ListingSummary, PriceBreakdown
 from athome_harness.scraping.base import BlockDetected
 from athome_harness.scraping.list_parser import parse_list_page
 from athome_harness.store.sqlite_store import SqliteStore
@@ -147,8 +149,9 @@ def _make_session(
     block_on: set[int] | None = None,
     confirm=None,
     fetch: FakeFetch | None = None,
+    store: SqliteStore | None = None,
 ) -> tuple[SearchSession, SqliteStore, ScriptedProvider, FakeFetch]:
-    store = _make_store(tmp_path)
+    store = store or _make_store(tmp_path)
     provider = ScriptedProvider()
     fetch_impl = fetch or FakeFetch(block_on=block_on)
     deps = SessionDeps(
@@ -361,3 +364,103 @@ def test_refine_runs_new_search(tmp_path: Path, caplog: pytest.LogCaptureFixture
 
     assert first.session_id != session.last_session_id
     assert session.last_query == "cheap 2LDK"
+
+
+def _cache_summary(internal_id: str = "cache-1") -> ListingSummary:
+    """Build a small summary for direct hydration tests."""
+    return ListingSummary(
+        internal_id=internal_id,
+        athome_key=internal_id,
+        url=f"https://example.invalid/detail/{internal_id}",
+        title="Summary title",
+        address="Osaka",
+        price=PriceBreakdown(rent=80000),
+        area_m2=25.0,
+    )
+
+
+def _cache_detail(summary, fetched_at: datetime) -> ListingDetail:
+    """Build a complete detail record with deterministic freshness metadata."""
+    values = summary.model_dump()
+    values.update(
+        completeness="detail_complete",
+        title="Cached detail title",
+        description="Rich cached detail",
+        listing_detail=True,
+        detail_fetched_at=fetched_at,
+        detail_fresh_until=fetched_at + timedelta(days=14),
+    )
+    return ListingDetail.model_validate(values)
+
+
+def test_detail_cache_hit_avoids_fetch(tmp_path: Path) -> None:
+    """Fresh complete detail is returned without invoking the fetch boundary."""
+    summary = _cache_summary()
+    store = SqliteStore(tmp_path / "cache-hit.db")
+    now = datetime(2026, 1, 2, tzinfo=UTC)
+    store.upsert_listing(_cache_detail(summary, datetime(2026, 1, 1, tzinfo=UTC)))
+    fetch = FakeFetch()
+    session, _, _, _ = _make_session(tmp_path / "session", fetch=fetch, store=store)
+    session._detail_clock = lambda: now
+    details, failed = session._scrape_details([summary])
+    assert failed == 0 and details[0].description == "Rich cached detail"
+    assert fetch.calls == []
+    store.close()
+
+
+def test_detail_cache_miss_fetches_and_persists(tmp_path: Path) -> None:
+    """A cache miss fetches directly and writes a fourteen-day detail record."""
+    summary = _cache_summary()
+    store = SqliteStore(tmp_path / "cache-miss.db")
+    fetch = FakeFetch()
+    session, _, _, _ = _make_session(tmp_path / "session", fetch=fetch, store=store)
+    fetched_at = datetime(2026, 1, 2, tzinfo=UTC)
+    session._detail_clock = lambda: fetched_at
+    parsed = _cache_detail(summary, fetched_at)
+    session._detail_parser = lambda _: parsed
+    details, failed = session._scrape_details([summary])
+    saved = store.get_fresh_detail(summary.athome_key, fetched_at)
+    assert failed == 0 and details[0].listing_detail
+    assert saved is not None and saved.detail_fresh_until == datetime(2026, 1, 16, tzinfo=UTC)
+    assert len(fetch.calls) == 1
+    store.close()
+
+
+def test_live_hydration_is_queue_independent(tmp_path: Path) -> None:
+    """A live detail miss does not create or claim background work."""
+    summary = _cache_summary("queue-independent")
+    store = SqliteStore(tmp_path / "queue-independent.db")
+    fetch = FakeFetch()
+    session, _, _, _ = _make_session(tmp_path / "session", fetch=fetch, store=store)
+    fetched_at = datetime(2026, 1, 2, tzinfo=UTC)
+    session._detail_clock = lambda: fetched_at
+    session._detail_parser = lambda _: _cache_detail(summary, fetched_at)
+    details, failed = session._scrape_details([summary])
+    assert failed == 0 and details
+    assert store.get_hydration_job(summary.athome_key) is None
+    assert store.claim_hydration() is None
+    store.close()
+
+
+def test_live_refresh_makes_queued_job_skippable(tmp_path: Path) -> None:
+    """A queued job becomes skipped once live hydration writes fresh detail."""
+    summary = _cache_summary("race-listing")
+    store = SqliteStore(tmp_path / "race.db")
+    store.enqueue_hydration(
+        HydrationIntent(
+            athome_key=summary.athome_key,
+            internal_id=summary.internal_id,
+            url=summary.url,
+        )
+    )
+    fetch = FakeFetch()
+    session, _, _, _ = _make_session(tmp_path / "session", fetch=fetch, store=store)
+    fetched_at = datetime.now(UTC)
+    session._detail_clock = lambda: fetched_at
+    session._detail_parser = lambda _: _cache_detail(summary, fetched_at)
+    details, failed = session._scrape_details([summary])
+    assert failed == 0 and details
+    assert store.claim_hydration() is None
+    job = store.get_hydration_job(summary.athome_key)
+    assert job is not None and job.status.value == "skipped"
+    store.close()

@@ -22,4 +22,13 @@ Preserve existing store methods and migrations. Do not add dependencies, worker 
 - Success persists complete detail and agency, then applies the 14-day freshness policy
   before acknowledgement. Challenge/block stops the run; only documented unavailable
   markers cancel a job.
-- T34 live cache integration and priority scheduling remain out of scope.
+- Priority scheduling remains out of scope for T34.
+
+## T34 / G6 live LLM pipeline cache integration
+
+- `BaseDataStore.get_fresh_detail` and `SqliteStore.get_fresh_detail` read only complete,
+  unexpired detail records by canonical AtHome listing ID using timezone-aware timestamps.
+- `SearchSession` checks that read before each detail request. A miss directly fetches and
+  parses detail, persists structured detail and agency data with a fourteen-day freshness
+  window, and immediately uses the hydrated result.
+- The live stage never enqueues, leases, claims, or waits for background hydration work.

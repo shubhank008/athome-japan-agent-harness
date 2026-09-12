@@ -481,6 +481,28 @@ class SqliteStore(BaseDataStore):
                 listing = listing.model_copy(update={"agency": agency})
         return listing
 
+    def get_fresh_detail(self, athome_key: str, now: datetime) -> ListingDetail | None:
+        """Return a complete, unexpired detail record keyed by AtHome listing ID."""
+        if now.tzinfo is None:
+            raise ValueError("now must be timezone-aware")
+        current = now.astimezone(UTC)
+        row = self._conn.execute(
+            "SELECT payload, agency_kaiin_no, completeness, detail_fresh_until "
+            "FROM listings WHERE athome_key = ?",
+            (athome_key,),
+        ).fetchone()
+        if row is None or row["completeness"] != ListingCompleteness.DETAIL_COMPLETE.value:
+            return None
+        fresh_until = _parse_time(row["detail_fresh_until"])
+        if fresh_until is None or fresh_until.astimezone(UTC) <= current:
+            return None
+        listing = self._listing_from_row(row)
+        if not isinstance(listing, ListingDetail):
+            return None
+        if listing.completeness is not ListingCompleteness.DETAIL_COMPLETE:
+            return None
+        return listing
+
     # -- Detail hydration queue ---------------------------------------------
 
     def _fresh_detail(self, internal_id: str, now: str) -> bool:

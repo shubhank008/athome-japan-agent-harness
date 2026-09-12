@@ -14,7 +14,13 @@ import uuid
 
 import pytest
 
-from athome_harness.models import ListingDetail, ListingSummary, PriceBreakdown, SearchPlan
+from athome_harness.models import (
+    ListingCompleteness,
+    ListingDetail,
+    ListingSummary,
+    PriceBreakdown,
+    SearchPlan,
+)
 from athome_harness.store.base import StoreContractSuite
 from athome_harness.store.sqlite_store import SCHEMA_VERSION, SqliteStore, migrate
 
@@ -140,6 +146,32 @@ class TestSqliteStoreBehavior:
         assert version == SCHEMA_VERSION
         conn.execute("SELECT internal_id FROM listings").fetchall()  # table exists
         conn.close()
+
+
+    def test_get_fresh_detail_requires_complete_fresh_record(
+        self, memory_store: SqliteStore
+    ) -> None:
+        """Fresh detail reads reject missing, expired, and partial records."""
+        from datetime import UTC, datetime, timedelta
+
+        now = datetime(2026, 1, 1, tzinfo=UTC)
+        detail_values = _make_summary(internal_id="fresh", athome_key="FRESH").model_dump()
+        detail_values.update(
+            completeness=ListingCompleteness.DETAIL_COMPLETE,
+            detail_fetched_at=now - timedelta(days=1),
+            detail_fresh_until=now + timedelta(days=1),
+            listing_detail=True,
+        )
+        detail = ListingDetail.model_validate(detail_values)
+        memory_store.upsert_listing(detail)
+        assert memory_store.get_fresh_detail("FRESH", now) == detail
+        assert memory_store.get_fresh_detail("FRESH", now + timedelta(days=2)) is None
+        memory_store._conn.execute(
+            "UPDATE listings SET completeness = 'summary_partial' WHERE athome_key = 'FRESH'"
+        )
+        memory_store._conn.commit()
+        assert memory_store.get_fresh_detail("FRESH", now) is None
+        assert memory_store.get_fresh_detail("MISSING", now) is None
 
     def test_unsaved_feedback_returns_false(self, memory_store: SqliteStore) -> None:
         """A listing with no feedback is neither saved nor rejected."""

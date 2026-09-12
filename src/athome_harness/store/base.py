@@ -18,6 +18,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
@@ -25,6 +26,7 @@ from pydantic import BaseModel, Field
 from athome_harness.models import (
     HydrationIntent,
     HydrationJob,
+    ListingDetail,
     ListingSummary,
     PriceBreakdown,
     Recommendation,
@@ -111,6 +113,11 @@ class BaseDataStore(ABC):
     @abstractmethod
     def list_listings(self) -> list[ListingSummary]:
         """Return every persisted listing in insertion order."""
+
+    @abstractmethod
+    def get_fresh_detail(self, athome_key: str, now: datetime) -> ListingDetail | None:
+        """Return complete detail for ``athome_key`` when fresh at ``now``."""
+
 
     # -- Detail hydration queue ---------------------------------------------
 
