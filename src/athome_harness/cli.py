@@ -42,6 +42,7 @@ from athome_harness.llm.recommender import Recommender, render_json, render_mark
 from athome_harness.llm.shortlister import Shortlister
 from athome_harness.models import (
     FilterMap,
+    ListingCompleteness,
     ListingDetail,
     ListingSummary,
     Recommendation,
@@ -110,7 +111,7 @@ def _hydrate_detail(summary: ListingSummary, detail: ListingDetail) -> ListingDe
             values[field_name] = value
     return ListingDetail(
         **values,
-        completeness="detail_complete",
+        completeness=ListingCompleteness.DETAIL_COMPLETE,
         listing_detail=True,
         detail_failure_reason=None,
     )
@@ -492,7 +493,7 @@ class SearchSession:
                         encoding="utf-8",
                     )
                 failed_values = summary.model_dump()
-                failed_values["completeness"] = "summary_partial"
+                failed_values["completeness"] = ListingCompleteness.SUMMARY_PARTIAL
                 details.append(
                     ListingDetail(
                         **failed_values,

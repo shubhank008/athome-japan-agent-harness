@@ -163,9 +163,14 @@ class TestSqliteStoreBehavior:
             CREATE TABLE recommendations (id INTEGER PRIMARY KEY AUTOINCREMENT,
                 search_id INTEGER NOT NULL, listing_id TEXT NOT NULL, rank INTEGER NOT NULL,
                 reasons_json TEXT NOT NULL, satisfied_json TEXT NOT NULL,
-                violated_json TEXT NOT NULL, probable_neg_json TEXT NOT NULL, created_at TEXT NOT NULL);
-            CREATE TABLE feedback (internal_id TEXT PRIMARY KEY, action TEXT NOT NULL, updated_at TEXT NOT NULL);
-            CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+                violated_json TEXT NOT NULL, probable_neg_json TEXT NOT NULL,
+                created_at TEXT NOT NULL);
+            CREATE TABLE feedback (
+                internal_id TEXT PRIMARY KEY, action TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
+            CREATE TABLE cache_meta (
+                key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL
+            );
             CREATE TABLE schema_version (version INTEGER NOT NULL);
             INSERT INTO schema_version VALUES (1);
             """
@@ -173,7 +178,14 @@ class TestSqliteStoreBehavior:
         listing = _make_summary()
         conn.execute(
             "INSERT INTO listings VALUES (?, ?, ?, ?, ?, ?)",
-            (listing.internal_id, listing.athome_key, listing.url, listing.model_dump_json(), "now", "now"),
+            (
+                listing.internal_id,
+                listing.athome_key,
+                listing.url,
+                listing.model_dump_json(),
+                "now",
+                "now",
+            ),
         )
         conn.commit()
         assert migrate(conn) == SCHEMA_VERSION
@@ -186,7 +198,12 @@ class TestSqliteStoreBehavior:
             columns = {
                 str(row[1]) for row in reopened._conn.execute("PRAGMA table_info(listings)")
             }
-            assert {"completeness", "detail_fetched_at", "detail_fresh_until", "agency_kaiin_no"} <= columns
+            assert {
+                "completeness",
+                "detail_fetched_at",
+                "detail_fresh_until",
+                "agency_kaiin_no",
+            } <= columns
         finally:
             reopened.close()
             os.remove(path)

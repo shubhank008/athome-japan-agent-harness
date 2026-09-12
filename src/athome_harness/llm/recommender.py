@@ -21,7 +21,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from athome_harness.llm.base import BaseLLMProvider
-from athome_harness.models import ListingDetail, Recommendation, SearchPlan
+from athome_harness.models import ListingDetail, ListingSummary, Recommendation, SearchPlan
 
 logger = logging.getLogger(__name__)
 
@@ -146,7 +146,7 @@ class Recommender:
         return "\n".join(pieces)
 
     @staticmethod
-    def _serialize(detail: ListingDetail) -> str:
+    def _serialize(detail: ListingSummary) -> str:
         """Serialize one detail to a compact JSON line for the prompt."""
         data = detail.model_dump()
         data.pop("photo_urls", None)
@@ -205,7 +205,7 @@ def render_markdown(recommendations: list[Recommendation], query: str = "") -> s
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _report_listing(listing: ListingDetail | None) -> dict[str, Any] | None:
+def _report_listing(listing: ListingSummary | None) -> dict[str, Any] | None:
     """Return the established report fields, excluding persistence metadata."""
     if listing is None:
         return None

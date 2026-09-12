@@ -22,7 +22,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
-from athome_harness.models import Agency, ListingDetail, ListingSummary, Recommendation, SearchPlan
+from athome_harness.models import (
+    Agency,
+    ListingDetail,
+    ListingSummary,
+    Recommendation,
+    SearchPlan,
+)
 from athome_harness.store.base import (
     FEEDBACK_REJECT,
     FEEDBACK_SAVE,
@@ -125,7 +131,8 @@ def migrate(connection: sqlite3.Connection) -> int:
         if "completeness" not in columns:
             _exec(
                 connection,
-                "ALTER TABLE listings ADD COLUMN completeness TEXT NOT NULL DEFAULT 'summary_partial'",
+                "ALTER TABLE listings ADD COLUMN completeness TEXT NOT NULL "
+                "DEFAULT 'summary_partial'",
             )
         if "detail_fetched_at" not in columns:
             _exec(connection, "ALTER TABLE listings ADD COLUMN detail_fetched_at TEXT")
@@ -156,7 +163,9 @@ def _read_version(connection: sqlite3.Connection) -> int | None:
     return int(row[0])
 
 
-def _exec(connection: sqlite3.Connection, sql: str, params: tuple[object, ...] = ()) -> None:
+def _exec(
+    connection: sqlite3.Connection, sql: str, params: tuple[object, ...] = ()
+) -> None:
     """Execute ``sql`` with ``params`` on ``connection``."""
     connection.execute(sql, params)
 

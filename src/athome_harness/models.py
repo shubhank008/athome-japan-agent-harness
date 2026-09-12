@@ -97,9 +97,11 @@ class ListingSummary(BaseModel):
     @model_validator(mode="after")
     def validate_detail_freshness(self) -> ListingSummary:
         """Require a complete timestamp pair when detail freshness is recorded."""
-        if (self.detail_fetched_at is None) != (self.detail_fresh_until is None):
+        fetched_at = self.detail_fetched_at
+        fresh_until = self.detail_fresh_until
+        if (fetched_at is None) != (fresh_until is None):
             raise ValueError("detail_fetched_at and detail_fresh_until must be provided together")
-        if self.detail_fetched_at is not None and self.detail_fresh_until < self.detail_fetched_at:
+        if fetched_at is not None and fresh_until is not None and fresh_until < fetched_at:
             raise ValueError("detail_fresh_until must not precede detail_fetched_at")
         return self
     athome_key: str = Field(description="AtHome BKLISTID listing key.")
