@@ -54,7 +54,11 @@ from athome_harness.scraping.challenge import detect_athome_challenge
 from athome_harness.scraping.detail_parser import parse_detail_page
 from athome_harness.scraping.harvester import Harvester
 from athome_harness.scraping.list_parser import parse_list_page
-from athome_harness.scraping.server_app_state import extract_server_app_agency
+from athome_harness.scraping.recommendation_cards import ingest_recommendation_cards
+from athome_harness.scraping.server_app_state import (
+    extract_server_app_agency,
+    extract_server_app_recommendation_cards,
+)
 from athome_harness.store.base import BaseDataStore
 
 logger = logging.getLogger(__name__)
@@ -504,6 +508,10 @@ class SearchSession:
                     }
                 )
                 self._deps.store.upsert_listing(hydrated)
+                cards = extract_server_app_recommendation_cards(html, summary.athome_key)
+                ingestion = ingest_recommendation_cards(cards, self._deps.store)
+                for intent in ingestion.hydration_intents:
+                    self._deps.store.enqueue_hydration(intent)
                 details.append(hydrated)
             except Exception as exc:  # noqa: BLE001 - one detail failure degrades
                 failed += 1

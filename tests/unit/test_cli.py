@@ -426,6 +426,39 @@ def test_detail_cache_miss_fetches_and_persists(tmp_path: Path) -> None:
     store.close()
 
 
+
+def test_live_detail_ingests_recommendation_cards_into_queue(tmp_path: Path) -> None:
+    """A successful live detail fetch persists cards and schedules hydration jobs."""
+    payload = (Path("data/server-app-state-1106831830.full.json")).read_text(encoding="utf-8")
+    html = f'<script id="serverApp-state">{payload}</script>'
+    summary = _cache_summary("1106831830")
+    store = SqliteStore(tmp_path / "recommendation-queue.db")
+
+    class FixtureFetch:
+        """Return the curated server-state fixture for the direct detail fetch."""
+
+        def __init__(self) -> None:
+            self.calls: list[str] = []
+
+        def __call__(self, url: str) -> str:
+            self.calls.append(url)
+            return html
+
+    fetch = FixtureFetch()
+    session, _, _, _ = _make_session(tmp_path / "session", fetch=fetch, store=store)
+    fetched_at = datetime(2026, 1, 2, tzinfo=UTC)
+    session._detail_clock = lambda: fetched_at
+    session._detail_parser = lambda _: _cache_detail(summary, fetched_at)
+    details, failed = session._scrape_details([summary])
+    job = store.get_hydration_job("1106827130")
+    target_job = store.get_hydration_job("1106831830")
+    assert failed == 0 and details[0].listing_detail
+    assert len(store.list_listings()) == 21
+    assert job is not None and job.status.value == "queued"
+    assert target_job is None
+    store.close()
+
+
 def test_live_hydration_is_queue_independent(tmp_path: Path) -> None:
     """A live detail miss does not create or claim background work."""
     summary = _cache_summary("queue-independent")
