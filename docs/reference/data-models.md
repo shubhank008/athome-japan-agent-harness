@@ -38,6 +38,19 @@ numeric field as `None` and are recorded in the raw field so they are never
 mistaken for "no deposit". Converting a month term to yen requires the unit's
 rent, which the parser does not assume.
 
+## ListingCompleteness
+
+`ListingCompleteness` is the explicit lifecycle state for listing data:
+`summary_partial`, `summary_complete`, or `detail_complete`. Existing summary
+payloads default to `summary_partial`; `ListingDetail` defaults to
+`detail_complete` while failed hydration explicitly uses `summary_partial`.
+
+## Agency
+
+`Agency` is keyed by the AtHome `kaiin_no` member number and carries selected
+optional contact fields (`name`, `postal_code`, `address`, `phone`, `url`, and
+`representative`). Parsing `kaiinInfo` is intentionally outside this contract.
+
 ## ListingSummary
 
 One unit of a building. A multi-unit building yields several summaries that
@@ -47,6 +60,10 @@ share a building identity but differ per unit. Produced by
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
 | `internal_id` | `str` | required | Stable internal property ID used for dedupe. |
+| `completeness` | `ListingCompleteness` | `summary_partial` | Explicit listing lifecycle state. |
+| `detail_fetched_at` | `datetime \| None` | `None` | UTC time when detail data was fetched. |
+| `detail_fresh_until` | `datetime \| None` | `None` | UTC freshness deadline; must accompany `detail_fetched_at`. |
+| `agency` | `Agency \| None` | `None` | Linked AtHome agency record. |
 | `athome_key` | `str` | required | AtHome `BKLISTID` listing key. |
 | `url` | `str` | required | Canonical AtHome listing URL. |
 | `title` | `str` | required | Human-readable listing title. |

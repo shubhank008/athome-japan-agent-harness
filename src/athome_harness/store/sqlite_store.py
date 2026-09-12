@@ -22,7 +22,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
-from athome_harness.models import ListingDetail, ListingSummary, Recommendation, SearchPlan
+from athome_harness.models import Agency, ListingDetail, ListingSummary, Recommendation, SearchPlan
 from athome_harness.store.base import (
     FEEDBACK_REJECT,
     FEEDBACK_SAVE,
@@ -33,7 +33,7 @@ from athome_harness.store.base import (
 
 # Current on-disk schema version. Bump this (and add a step to `migrate`) when
 # the table DDL changes.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # The full set of cache_meta value types the store preserves and returns.
 _CacheValue = str | int | float
@@ -44,10 +44,21 @@ CREATE TABLE IF NOT EXISTS listings (
     athome_key    TEXT NOT NULL,
     url           TEXT NOT NULL,
     payload       TEXT NOT NULL,
+    completeness  TEXT NOT NULL DEFAULT 'summary_partial',
+    detail_fetched_at TEXT,
+    detail_fresh_until TEXT,
+    agency_kaiin_no TEXT REFERENCES agencies (kaiin_no),
     created_at    TEXT NOT NULL,
     updated_at    TEXT NOT NULL,
     UNIQUE (athome_key),
     UNIQUE (url)
+);
+
+CREATE TABLE IF NOT EXISTS agencies (
+    kaiin_no      TEXT PRIMARY KEY,
+    payload       TEXT NOT NULL,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS searches (
@@ -104,12 +115,32 @@ def migrate(connection: sqlite3.Connection) -> int:
     if version is None:
         _exec(connection, "INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,))
         return SCHEMA_VERSION
+    if version < 2:
+        # Schema v1 stored lifecycle state only inside the JSON payload. These
+        # nullable columns make freshness and agency links queryable without
+        # invalidating existing rows or payloads.
+        columns = {
+            str(row[1]) for row in connection.execute("PRAGMA table_info(listings)")
+        }
+        if "completeness" not in columns:
+            _exec(
+                connection,
+                "ALTER TABLE listings ADD COLUMN completeness TEXT NOT NULL DEFAULT 'summary_partial'",
+            )
+        if "detail_fetched_at" not in columns:
+            _exec(connection, "ALTER TABLE listings ADD COLUMN detail_fetched_at TEXT")
+        if "detail_fresh_until" not in columns:
+            _exec(connection, "ALTER TABLE listings ADD COLUMN detail_fresh_until TEXT")
+        if "agency_kaiin_no" not in columns:
+            _exec(connection, "ALTER TABLE listings ADD COLUMN agency_kaiin_no TEXT")
+        _exec(
+            connection,
+            "CREATE TABLE IF NOT EXISTS agencies ("
+            "kaiin_no TEXT PRIMARY KEY, payload TEXT NOT NULL, "
+            "created_at TEXT NOT NULL, updated_at TEXT NOT NULL)",
+        )
+        version = 2
     if version < SCHEMA_VERSION:
-        # Future migrations append steps here, e.g.
-        #   if version < 2:
-        #       _exec(connection, "ALTER TABLE listings ADD COLUMN ...")
-        #       version = 2
-        #   ...
         _exec(connection, "UPDATE schema_version SET version = ?", (SCHEMA_VERSION,))
     return SCHEMA_VERSION
 
@@ -212,6 +243,8 @@ class SqliteStore(BaseDataStore):
         """
         conn = self._conn
         now = _now()
+        if listing.agency is not None:
+            self.upsert_agency(listing.agency)
         # Resolve dedupe against existing athome_key or url.
         existing = conn.execute(
             "SELECT internal_id FROM listings WHERE athome_key = ? OR url = ?",
@@ -221,9 +254,29 @@ class SqliteStore(BaseDataStore):
             canonical = str(existing["internal_id"])
             try:
                 conn.execute(
-                    "UPDATE listings SET athome_key = ?, url = ?, payload = ?, updated_at = ? "
+                    "UPDATE listings SET athome_key = ?, url = ?, payload = ?, completeness = ?, "
+                    "detail_fetched_at = ?, detail_fresh_until = ?, agency_kaiin_no = ?, "
+                    "updated_at = ? "
                     "WHERE internal_id = ?",
-                    (listing.athome_key, listing.url, _serialize_listing(listing), now, canonical),
+                    (
+                        listing.athome_key,
+                        listing.url,
+                        _serialize_listing(listing),
+                        listing.completeness.value,
+                        (
+                            listing.detail_fetched_at.isoformat()
+                            if listing.detail_fetched_at
+                            else None
+                        ),
+                        (
+                            listing.detail_fresh_until.isoformat()
+                            if listing.detail_fresh_until
+                            else None
+                        ),
+                        listing.agency.kaiin_no if listing.agency else None,
+                        now,
+                        canonical,
+                    ),
                 )
             except sqlite3.IntegrityError:
                 # The new athome_key belongs to a different row; merge into that
@@ -235,20 +288,43 @@ class SqliteStore(BaseDataStore):
                 if conflicting is not None:
                     canonical = str(conflicting["internal_id"])
                 conn.execute(
-                    "UPDATE listings SET url = ?, payload = ?, updated_at = ? "
-                    "WHERE internal_id = ?",
-                    (listing.url, _serialize_listing(listing), now, canonical),
+                    "UPDATE listings SET url = ?, payload = ?, completeness = ?, "
+                    "detail_fetched_at = ?, detail_fresh_until = ?, agency_kaiin_no = ?, "
+                    "updated_at = ? WHERE internal_id = ?",
+                    (
+                        listing.url,
+                        _serialize_listing(listing),
+                        listing.completeness.value,
+                        (
+                            listing.detail_fetched_at.isoformat()
+                            if listing.detail_fetched_at
+                            else None
+                        ),
+                        (
+                            listing.detail_fresh_until.isoformat()
+                            if listing.detail_fresh_until
+                            else None
+                        ),
+                        listing.agency.kaiin_no if listing.agency else None,
+                        now,
+                        canonical,
+                    ),
                 )
             conn.commit()
             return canonical
         conn.execute(
-            "INSERT INTO listings (internal_id, athome_key, url, payload, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO listings (internal_id, athome_key, url, payload, completeness, "
+            "detail_fetched_at, detail_fresh_until, agency_kaiin_no, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 listing.internal_id,
                 listing.athome_key,
                 listing.url,
                 _serialize_listing(listing),
+                listing.completeness.value,
+                listing.detail_fetched_at.isoformat() if listing.detail_fetched_at else None,
+                listing.detail_fresh_until.isoformat() if listing.detail_fresh_until else None,
+                listing.agency.kaiin_no if listing.agency else None,
                 now,
                 now,
             ),
@@ -259,18 +335,28 @@ class SqliteStore(BaseDataStore):
     def get_listing(self, internal_id: str) -> ListingSummary | None:
         """Return the listing with ``internal_id``, or ``None`` if absent."""
         row = self._conn.execute(
-            "SELECT payload FROM listings WHERE internal_id = ?", (internal_id,)
+            "SELECT payload, agency_kaiin_no FROM listings WHERE internal_id = ?", (internal_id,)
         ).fetchone()
         if row is None:
             return None
-        return _deserialize_listing(str(row["payload"]))
+        return self._listing_from_row(row)
 
     def list_listings(self) -> list[ListingSummary]:
         """Return every persisted listing in insertion order."""
         rows = self._conn.execute(
-            "SELECT payload FROM listings ORDER BY created_at, internal_id"
+            "SELECT payload, agency_kaiin_no FROM listings ORDER BY created_at, internal_id"
         ).fetchall()
-        return [_deserialize_listing(str(row["payload"])) for row in rows]
+        return [self._listing_from_row(row) for row in rows]
+
+    def _listing_from_row(self, row: sqlite3.Row) -> ListingSummary:
+        """Deserialize a listing row and hydrate its separately stored agency."""
+        listing = _deserialize_listing(str(row["payload"]))
+        kaiin_no = row["agency_kaiin_no"]
+        if kaiin_no is not None:
+            agency = self.get_agency(str(kaiin_no))
+            if agency is not None:
+                listing = listing.model_copy(update={"agency": agency})
+        return listing
 
     # -- Searches ------------------------------------------------------------
 
@@ -286,6 +372,52 @@ class SqliteStore(BaseDataStore):
         last_id = cursor.lastrowid
         assert last_id is not None  # an INSERT always fills lastrowid
         return int(last_id)
+
+
+    def upsert_agency(self, agency: Agency) -> str:
+        """Insert or update an agency keyed by its AtHome member number."""
+        conn = self._conn
+        now = _now()
+        conn.execute(
+            "INSERT INTO agencies (kaiin_no, payload, created_at, updated_at) VALUES (?, ?, ?, ?) "
+            "ON CONFLICT (kaiin_no) DO UPDATE SET payload = excluded.payload, "
+            "updated_at = excluded.updated_at",
+            (agency.kaiin_no, agency.model_dump_json(), now, now),
+        )
+        conn.commit()
+        return agency.kaiin_no
+
+    def get_agency(self, kaiin_no: str) -> Agency | None:
+        """Return an agency by AtHome member number, or ``None`` if absent."""
+        row = self._conn.execute(
+            "SELECT payload FROM agencies WHERE kaiin_no = ?", (kaiin_no,)
+        ).fetchone()
+        if row is None:
+            return None
+        return Agency.model_validate_json(str(row["payload"]))
+
+    def link_listing_agency(self, internal_id: str, kaiin_no: str | None) -> None:
+        """Link a listing to an agency or clear its agency relationship."""
+        conn = self._conn
+        row = conn.execute(
+            "SELECT payload FROM listings WHERE internal_id = ?", (internal_id,)
+        ).fetchone()
+        if row is None:
+            return
+        listing = _deserialize_listing(str(row["payload"]))
+        conn.execute(
+            "UPDATE listings SET payload = ?, agency_kaiin_no = ?, updated_at = ? "
+            "WHERE internal_id = ?",
+            (
+                listing.model_copy(
+                    update={"agency": self.get_agency(kaiin_no) if kaiin_no else None}
+                ).model_dump_json(),
+                kaiin_no,
+                _now(),
+                internal_id,
+            ),
+        )
+        conn.commit()
 
     def search_history(self, limit: int = 20) -> list[SearchRecord]:
         """Return recent searches, newest first, capped at ``limit``."""

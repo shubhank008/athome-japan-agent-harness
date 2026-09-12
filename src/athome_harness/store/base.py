@@ -22,7 +22,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
-from athome_harness.models import ListingSummary, PriceBreakdown, Recommendation, SearchPlan
+from athome_harness.models import Agency, ListingSummary, PriceBreakdown, Recommendation, SearchPlan
 
 __all__ = [
     "BaseDataStore",
@@ -104,6 +104,18 @@ class BaseDataStore(ABC):
     @abstractmethod
     def list_listings(self) -> list[ListingSummary]:
         """Return every persisted listing in insertion order."""
+
+    @abstractmethod
+    def upsert_agency(self, agency: Agency) -> str:
+        """Persist an agency and return its canonical AtHome member number."""
+
+    @abstractmethod
+    def get_agency(self, kaiin_no: str) -> Agency | None:
+        """Return an agency by AtHome member number, or ``None`` if absent."""
+
+    @abstractmethod
+    def link_listing_agency(self, internal_id: str, kaiin_no: str | None) -> None:
+        """Link a listing to an agency, or clear the link when ``None`` is passed."""
 
     # -- Searches ------------------------------------------------------------
 

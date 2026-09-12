@@ -108,7 +108,12 @@ def _hydrate_detail(summary: ListingSummary, detail: ListingDetail) -> ListingDe
         value = detail_values[field_name]
         if value is not None and value != "" and value != []:
             values[field_name] = value
-    return ListingDetail(**values, listing_detail=True, detail_failure_reason=None)
+    return ListingDetail(
+        **values,
+        completeness="detail_complete",
+        listing_detail=True,
+        detail_failure_reason=None,
+    )
 
 
 @dataclass
@@ -486,9 +491,11 @@ class SearchSession:
                         ),
                         encoding="utf-8",
                     )
+                failed_values = summary.model_dump()
+                failed_values["completeness"] = "summary_partial"
                 details.append(
                     ListingDetail(
-                        **summary.model_dump(),
+                        **failed_values,
                         listing_detail=False,
                         detail_failure_reason=reason,
                     )

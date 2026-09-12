@@ -22,6 +22,9 @@ SQLite implementation is the only one today.
 | `upsert_listing` | `(listing: ListingSummary) -> str` | Insert or update one listing; returns its internal ID. |
 | `get_listing` | `(internal_id: str) -> ListingSummary \| None` | Fetch one listing by ID. |
 | `list_listings` | `() -> list[ListingSummary]` | List every stored listing. |
+| `upsert_agency` | `(agency: Agency) -> str` | Insert or update an agency keyed by `kaiin_no`. |
+| `get_agency` | `(kaiin_no: str) -> Agency \| None` | Fetch an agency by AtHome member number. |
+| `link_listing_agency` | `(internal_id: str, kaiin_no: str \| None) -> None` | Set or clear a listing's agency relationship. |
 | `record_search` | `(query: str, plan: SearchPlan) -> int` | Record one executed search; returns the backend search ID. |
 | `search_history` | `(limit: int = 20) -> list[SearchRecord]` | Most recent searches. |
 | `record_recommendation` | `(search_id: int, recommendations: list[Recommendation]) -> None` | Persist the recommendations a search produced. |

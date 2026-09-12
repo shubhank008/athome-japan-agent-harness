@@ -14,7 +14,7 @@ import uuid
 
 import pytest
 
-from athome_harness.models import ListingDetail, ListingSummary, PriceBreakdown, SearchPlan
+from athome_harness.models import Agency, ListingDetail, ListingSummary, PriceBreakdown, SearchPlan
 from athome_harness.store.base import StoreContractSuite
 from athome_harness.store.sqlite_store import SCHEMA_VERSION, SqliteStore, migrate
 
@@ -146,3 +146,63 @@ class TestSqliteStoreBehavior:
         memory_store.upsert_listing(_make_summary())
         assert not memory_store.is_saved("listing-1")
         assert not memory_store.is_rejected("listing-1")
+
+    def test_schema_v1_migrates_without_losing_existing_listing(self) -> None:
+        """A schema v1 row remains readable after the v2 migration."""
+        path = f"/tmp/athome_harness_migration_{uuid.uuid4().hex}.sqlite3"
+        conn = sqlite3.connect(path)
+        conn.executescript(
+            """
+            CREATE TABLE listings (
+                internal_id TEXT PRIMARY KEY, athome_key TEXT NOT NULL, url TEXT NOT NULL,
+                payload TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                UNIQUE (athome_key), UNIQUE (url)
+            );
+            CREATE TABLE searches (id INTEGER PRIMARY KEY AUTOINCREMENT, query TEXT NOT NULL,
+                plan_json TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE recommendations (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                search_id INTEGER NOT NULL, listing_id TEXT NOT NULL, rank INTEGER NOT NULL,
+                reasons_json TEXT NOT NULL, satisfied_json TEXT NOT NULL,
+                violated_json TEXT NOT NULL, probable_neg_json TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE feedback (internal_id TEXT PRIMARY KEY, action TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE cache_meta (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+            CREATE TABLE schema_version (version INTEGER NOT NULL);
+            INSERT INTO schema_version VALUES (1);
+            """
+        )
+        listing = _make_summary()
+        conn.execute(
+            "INSERT INTO listings VALUES (?, ?, ?, ?, ?, ?)",
+            (listing.internal_id, listing.athome_key, listing.url, listing.model_dump_json(), "now", "now"),
+        )
+        conn.commit()
+        assert migrate(conn) == SCHEMA_VERSION
+        conn.commit()
+        conn.close()
+        reopened = SqliteStore(path)
+        try:
+            loaded = reopened.get_listing(listing.internal_id)
+            assert loaded == listing
+            columns = {
+                str(row[1]) for row in reopened._conn.execute("PRAGMA table_info(listings)")
+            }
+            assert {"completeness", "detail_fetched_at", "detail_fresh_until", "agency_kaiin_no"} <= columns
+        finally:
+            reopened.close()
+            os.remove(path)
+
+    def test_agency_upsert_read_and_listing_link(self, memory_store: SqliteStore) -> None:
+        """Agency upsert and listing linkage round-trip through SQLite."""
+        listing = _make_summary()
+        agency = Agency(kaiin_no="K-1", name="Test Agency", phone="0120-000")
+        assert memory_store.upsert_listing(listing) == listing.internal_id
+        assert memory_store.upsert_agency(agency) == "K-1"
+        memory_store.link_listing_agency(listing.internal_id, "K-1")
+        loaded = memory_store.get_listing(listing.internal_id)
+        assert loaded is not None
+        assert loaded.agency == agency
+        assert memory_store.get_agency("K-1") == agency
+        memory_store.link_listing_agency(listing.internal_id, None)
+        unlinked = memory_store.get_listing(listing.internal_id)
+        assert unlinked is not None
+        assert unlinked.agency is None

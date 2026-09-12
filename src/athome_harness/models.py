@@ -7,9 +7,11 @@ rank invariants enforced here are unit-tested in ``tests/unit/test_models.py``.
 
 from __future__ import annotations
 
+from datetime import datetime
+from enum import StrEnum
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from athome_harness.config import Budgets
 
@@ -45,6 +47,31 @@ class PriceBreakdown(BaseModel):
         return self.rent + self.management_fee + (self.deposit or 0) + (self.key_money or 0)
 
 
+class ListingCompleteness(StrEnum):
+    """Observed completeness level for an AtHome listing record."""
+
+    SUMMARY_PARTIAL = "summary_partial"
+    SUMMARY_COMPLETE = "summary_complete"
+    DETAIL_COMPLETE = "detail_complete"
+
+
+class Agency(BaseModel):
+    """AtHome agency record keyed by the ``kaiinNo`` member number.
+
+    The selected fields are deliberately tolerant because AtHome may omit or rename
+    optional agency attributes between pages. Raw ``kaiinInfo`` parsing belongs to a
+    later ingestion task.
+    """
+
+    kaiin_no: str = Field(description="AtHome agency member number (kaiinNo).")
+    name: str | None = Field(default=None, description="Agency display name.")
+    postal_code: str | None = Field(default=None, description="Agency postal code.")
+    address: str | None = Field(default=None, description="Agency address.")
+    phone: str | None = Field(default=None, description="Agency telephone number.")
+    url: str | None = Field(default=None, description="Agency page URL, when supplied.")
+    representative: str | None = Field(default=None, description="Agency representative name.")
+
+
 class ListingSummary(BaseModel):
     """One rentable or purchasable unit as parsed from an AtHome results page.
 
@@ -53,6 +80,28 @@ class ListingSummary(BaseModel):
     """
 
     internal_id: str = Field(description="Stable internal property ID used for dedupe.")
+    completeness: ListingCompleteness = Field(
+        default=ListingCompleteness.SUMMARY_PARTIAL,
+        description="Highest observed listing data completeness level.",
+    )
+    detail_fetched_at: datetime | None = Field(
+        default=None, description="UTC timestamp when detail data was fetched."
+    )
+    detail_fresh_until: datetime | None = Field(
+        default=None, description="UTC timestamp through which fetched detail is fresh."
+    )
+    agency: Agency | None = Field(
+        default=None, description="Persisted listing agency, when known."
+    )
+
+    @model_validator(mode="after")
+    def validate_detail_freshness(self) -> ListingSummary:
+        """Require a complete timestamp pair when detail freshness is recorded."""
+        if (self.detail_fetched_at is None) != (self.detail_fresh_until is None):
+            raise ValueError("detail_fetched_at and detail_fresh_until must be provided together")
+        if self.detail_fetched_at is not None and self.detail_fresh_until < self.detail_fetched_at:
+            raise ValueError("detail_fresh_until must not precede detail_fetched_at")
+        return self
     athome_key: str = Field(description="AtHome BKLISTID listing key.")
     url: str = Field(description="Canonical AtHome listing URL.")
     title: str = Field(description="Human-readable listing title.")
@@ -93,6 +142,10 @@ class ListingSummary(BaseModel):
 class ListingDetail(ListingSummary):
     """A listing summary hydrated with detail-page data and status metadata."""
 
+    completeness: ListingCompleteness = Field(
+        default=ListingCompleteness.DETAIL_COMPLETE,
+        description="Detail records are complete unless explicitly marked partial.",
+    )
     listing_detail: bool = Field(
         default=False,
         description="True when the detail page supplied usable listing data.",
@@ -101,6 +154,17 @@ class ListingDetail(ListingSummary):
         default=None,
         description="Operator-safe reason detail hydration was incomplete or failed.",
     )
+
+    @model_validator(mode="after")
+    def infer_legacy_detail_completeness(self) -> ListingDetail:
+        """Map legacy successful detail payloads to the explicit detail state."""
+        if (
+            self.completeness is ListingCompleteness.SUMMARY_PARTIAL
+            and not self.listing_detail
+            and self.detail_failure_reason is None
+        ):
+            self.completeness = ListingCompleteness.DETAIL_COMPLETE
+        return self
     building_name: str | None = Field(default=None, description="Canonical building name.")
     building_structure: str | None = Field(default=None, description="Building structure.")
     total_units: str | None = Field(default=None, description="Displayed total unit count.")

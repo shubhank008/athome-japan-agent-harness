@@ -205,6 +205,16 @@ def render_markdown(recommendations: list[Recommendation], query: str = "") -> s
     return "\n".join(lines).rstrip() + "\n"
 
 
+def _report_listing(listing: ListingDetail | None) -> dict[str, Any] | None:
+    """Return the established report fields, excluding persistence metadata."""
+    if listing is None:
+        return None
+    data = listing.model_dump(mode="json")
+    for field_name in ("completeness", "detail_fetched_at", "detail_fresh_until", "agency"):
+        data.pop(field_name, None)
+    return data
+
+
 def render_json(recommendations: list[Recommendation], plan: SearchPlan | None = None) -> str:
     """Render recommendations and optionally the executed search plan as JSON.
 
@@ -220,7 +230,7 @@ def render_json(recommendations: list[Recommendation], plan: SearchPlan | None =
             "satisfied_constraints": rec.satisfied_constraints,
             "violated_constraints": rec.violated_constraints,
             "probable_negatives": rec.probable_negatives,
-            "listing": rec.listing.model_dump(mode="json") if rec.listing is not None else None,
+            "listing": _report_listing(rec.listing),
         }
 
     payload: dict[str, Any] = {"recommendations": [_entry(rec) for rec in recommendations]}
