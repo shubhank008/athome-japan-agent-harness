@@ -205,24 +205,28 @@ implemented unless marked otherwise.
 
 - **G1: Listing and agency persistence contract**: add explicit listing completeness
   states (`summary_partial`, `summary_complete`, `detail_complete`), 14-day detail
-  freshness metadata, and a deduplicated `Agency` entity keyed by `kaiinNo`.
+  freshness metadata, and a deduplicated `Agency` entity keyed by `kaiinNo`. **Implemented
+  locally in T29.**
 - **G2: Rich structured detail persistence**: store the selected `kaiinInfo` profile
   separately and link it from listings; retain detail transit, facilities, images,
   costs, surrounding data, and source payload for the internal record while keeping the
-  LLM projection compact and separately generated.
+  LLM projection compact and separately generated. **Implemented locally in T30.**
 - **G3: Recommendation-card ingestion**: normalize `otherPropertyData` into existing
   summary records, upsert as `summary_complete`, never downgrade fresh detail, and
-  idempotently queue missing/stale detail hydration.
+  idempotently queue missing/stale detail hydration. **Implemented locally in T31 and
+  wired into live detail success.**
 - **G4: Durable FIFO hydration queue**: add atomic claim/lease, freshness recheck,
   completion/skip, bounded retry, and deletion only on positively identified unavailable
   detail pages. Block/challenge/timeout/parser failures remain retryable evidence.
+  **Implemented locally in T32.**
 - **G5: Lean background worker**: provide a config-gated standalone worker that claims,
   fetches, validates, parses, upserts, and acknowledges one job at a time using existing
   rate limits and challenge handling. On blocks/challenges, cool down or stop the
   affected worker/pool and report the condition; never scale around target controls.
+  **Implemented locally in T33.**
 - **G6: Live-path cache read**: allow the LLM pipeline to use only fresh detail records;
   otherwise it directly fetches and upserts detail without waiting for or sharing the
-  background worker path.
+  background worker path. **Implemented locally in T34.**
 - **G7: Deferred search-result cache**: if latency later requires it, cache complete
   normalized search parameter queries briefly and independently from listing details.
 
