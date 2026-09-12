@@ -105,54 +105,69 @@ implemented unless marked otherwise.
 
 ### Phase A: Diagnostics and observability
 
-- **A1: Stable DEBUG artifact contract**: make list/detail/LLM artifacts overwrite
-  fixed local paths; add per-target failure metadata; capture a post-handoff
-  challenge body only when `DEBUG=true`; never persist direct challenge bodies by
-  default. Add tests for redaction and overwrite behavior.
-- **A2: LLM payload inspection**: dump the last shortlist/recommender input and raw
-  output under DEBUG, including schema and token metadata; keep prompts and outputs
-  local and ignored. Add retention guidance for future remote observability.
+- **A1: Transport retry and final-call diagnostics**: add a bounded retry with
+  backoff for transient LLM transport failures, including the final recommender
+  call. Dump the recommender's raw request payload before transport, and its raw
+  response after transport, under stable DEBUG paths. Keep JSON/schema repair retry
+  behavior distinct from transport retry behavior. **Next task.**
+- **A2: Stable DEBUG artifact contract**: retain fixed overwrite paths for
+  list/detail/LLM artifacts; capture a post-handoff challenge body only when
+  `DEBUG=true`; never persist direct challenge bodies by default. Add tests for
+  redaction, overwrite behavior, and valid-farmed-session challenge capture.
 - **A3: Diagnostic retention roadmap**: design dated debug subdirectories, 14-day
-  cleanup, and an optional remote log/analysis sink. Do not upload local captures
-  without explicit operator authorization.
+  cleanup, log rotation, and an optional remote log/analysis sink. Do not upload
+  local captures without explicit operator authorization. **Future roadmap.**
 
 ### Phase B: Detail data contract
 
 - **B1: Structured server-state parser**: validate
   `script#serverApp-state -> first-view-ITEMS.propertyData.rentInfo`, map fields,
-  and fall back to current DOM parsing. Completed in commit `5528fe6`.
+  and fall back to current DOM parsing. Completed in `5528fe6`; schema reference
+  and sanitized example are in `docs/reference/server-app-state.md`.
 - **B2: Financial and age semantics**: keep raw duration terms, make numeric deposit
   fields nullable for non-yen values, preserve construction date and age raw text,
-  and expose rounded/human-friendly age. Completed in `b727bd4`.
+  and expose rounded/human-friendly age. Implemented in `b727bd4`; regression
+  coverage and live-schema completeness review remain part of B5.
 - **B3: Detail metadata enrichment**: map contract period, building structure,
-  total units, remarks, and structured PICK UP enabled/disabled features. Completed
-  in `215dc47`; expand fixture coverage for missing/changed state keys.
+  total units, remarks, and structured PICK UP enabled/disabled features. Core
+  implementation landed in `215dc47`; verify all desired
+  `property-summary-main-content` fields against the server-state payload and add
+  fixture coverage.
 - **B4: Detail validation and hydration**: validate meaningful identity and price
   fields, merge valid detail values onto list summaries, preserve summary values on
   failure, and expose `listing_detail` plus a meaningful failure reason. Completed
-  in `b58f981`; add field-level failure diagnostics.
+  in `b58f981`.
+- **B5: Detail schema completeness**: audit the structured payload mapping for
+  contract period, construction date, floor, area, building metadata, and raw
+  remarks; add missing fields, tests, and sanitized example payload updates.
+  **After A1.**
 
 ### Phase C: Building-aware domain model
 
 - **C1: Building identity normalization**: define conservative identity keys from
   structured building ID when available, otherwise normalized building name/address.
-  Add collision and missing-identity tests.
+  Add collision and missing-identity tests. **After B5.**
 - **C2: Building and unit models**: introduce aggregate models while retaining every
-  unit's room, floor, price, area, contract, and URL fields.
-- **C3: Post-detail grouping**: group only after detail hydration; preserve units
-  and expose representative-unit selection without discarding alternatives.
-- **C4: Building-aware shortlist/report**: decide whether ranking occurs per unit or
-  building, show unit alternatives, and update store persistence without breaking
-  save/reject URLs.
+  unit's room, floor, price, area, contract, availability, and URL fields.
+- **C3: Post-detail grouping**: group only after detail hydration and before the
+  recommender prompt; preserve every unit and expose representative-unit selection
+  without discarding alternatives. This avoids pre-detail collisions and keeps
+  floor/price differences visible.
+- **C4: Building-aware shortlist/report**: rank at building level only with an
+  explicit unit-aware projection, show unit alternatives, and update store
+  persistence without breaking save/reject URLs.
 
 ### Phase D: Geography and query execution
 
 - **D1: Query-plan reporting**: persist flow, prefecture, cities, hard filters, and
-  soft preferences in JSON reports. Implemented in `50592c8`.
+  soft preferences in JSON reports. Implemented in `50592c8`; add explicit stage
+  log coverage for parsed plans.
 - **D2: Prefecture route resolver**: replace hard-coded Osaka paths with validated
   flow/prefecture route mappings; reject unsupported combinations explicitly.
-- **D3: City/area route resolver**: resolve parser city labels to AtHome slugs and
-  encode city context into list requests; add Tokyo, Sapporo, and Osaka tests.
+  **Next after detail/building contracts.**
+- **D3: City/area route resolver**: resolve parsed city/area names to verified
+  AtHome slugs and encode city context into list requests; add Tokyo, Sapporo,
+  and Osaka tests.
 - **D4: Multi-region live smoke checks**: run authorized bounded checks for one rent
   and one buy route per supported region; never claim a region is live without
   parser and filter-map evidence.
