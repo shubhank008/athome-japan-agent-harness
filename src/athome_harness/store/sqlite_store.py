@@ -24,6 +24,7 @@ from typing import cast
 
 from athome_harness.models import (
     Agency,
+    ListingCompleteness,
     ListingDetail,
     ListingSummary,
     Recommendation,
@@ -206,14 +207,32 @@ def _merge_agency(existing: Agency | None, incoming: Agency) -> Agency:
 
 
 def _merge_listing(existing: ListingSummary, incoming: ListingSummary) -> ListingSummary:
-    """Merge listing detail updates while preserving richer prior fields."""
+    """Merge listing updates without downgrading lifecycle or useful fields."""
+    if (
+        existing.completeness is ListingCompleteness.DETAIL_COMPLETE
+        and incoming.completeness is not ListingCompleteness.DETAIL_COMPLETE
+    ):
+        return existing
     values = existing.model_dump()
     for name, value in incoming.model_dump().items():
         values[name] = _merge_optional(values.get(name), value)
-    values["completeness"] = incoming.completeness
+    lifecycle_rank = {
+        ListingCompleteness.SUMMARY_PARTIAL: 0,
+        ListingCompleteness.SUMMARY_COMPLETE: 1,
+        ListingCompleteness.DETAIL_COMPLETE: 2,
+    }
+    values["completeness"] = max(
+        (existing.completeness, incoming.completeness),
+        key=lambda state: lifecycle_rank[state],
+    )
     values["detail_fetched_at"] = incoming.detail_fetched_at or existing.detail_fetched_at
     values["detail_fresh_until"] = incoming.detail_fresh_until or existing.detail_fresh_until
-    if incoming.agency is not None:
+    if existing.completeness is ListingCompleteness.DETAIL_COMPLETE:
+        values["price"] = existing.price
+    if (
+        incoming.agency is not None
+        and existing.completeness is not ListingCompleteness.DETAIL_COMPLETE
+    ):
         values["agency"] = incoming.agency
     if isinstance(existing, ListingDetail) or isinstance(incoming, ListingDetail):
         return ListingDetail.model_validate(values)

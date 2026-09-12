@@ -13,6 +13,7 @@ from athome_harness.models import (
     FacilityRecord,
     FeatureGroup,
     ImageRecord,
+    RecommendationCard,
     StructuredDetail,
 )
 
@@ -125,6 +126,37 @@ def extract_server_app_rich_detail(
         else {},
     )
     return rich, agency
+
+
+def extract_server_app_recommendation_cards(
+    html: str, expected_id: str
+) -> list[RecommendationCard]:
+    """Return recommendation cards from validated target detail state only."""
+    state = extract_server_app_detail(html, expected_id)
+    if state is None:
+        return []
+    script = HTMLParser(html).css_first("script#serverApp-state")
+    if script is None:
+        return []
+    try:
+        property_data = json.loads(script.text())["first-view-ITEMS"]["propertyData"]
+    except (KeyError, TypeError, json.JSONDecodeError):
+        return []
+    cards = property_data.get("otherPropertyData") if isinstance(property_data, dict) else None
+    if not isinstance(cards, list):
+        return []
+    return [
+        RecommendationCard(
+            athome_key=str(card["id"]),
+            title=str(card.get("title") or ""),
+            seo_path=str(card.get("seoRoma") or "chintai"),
+            location=str(card.get("location") or ""),
+            raw=card,
+        )
+        for card in cards
+        if isinstance(card, dict) and card.get("id")
+    ]
+
 
 
 def _agency_from_kaiin_info(value: object) -> Agency | None:

@@ -216,7 +216,9 @@ def _report_listing(listing: ListingSummary | None) -> dict[str, Any] | None:
         "detail_fetched_at",
         "detail_fresh_until",
         "agency",
+        "agency_reference",
         "structured_detail",
+        "source_data",
     ):
         data.pop(field_name, None)
     return data

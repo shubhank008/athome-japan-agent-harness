@@ -1,4 +1,13 @@
 # Data models
+## RecommendationCard and HydrationIntent
+
+`RecommendationCard` retains an observed `otherPropertyData` card identity, URL path,
+title, location, and complete raw card. `normalize_recommendation_card` maps it to a
+`ListingSummary` with `summary_complete` lifecycle and source provenance. A
+`HydrationIntent` is in-memory metadata for a later detail request; T31 does not persist
+or execute it.
+
+
 
 The pydantic v2 contract for the whole harness, defined in
 `src/athome_harness/models.py`. These models are the single source of truth for

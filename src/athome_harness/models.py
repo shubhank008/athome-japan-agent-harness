@@ -130,6 +130,26 @@ class StructuredDetail(BaseModel):
     other_property_info: dict[str, object] = Field(default_factory=dict)
 
 
+class RecommendationCard(BaseModel):
+    """Typed recommendation card retained alongside its normalized summary."""
+
+    athome_key: str = Field(description="AtHome recommendation card identifier.")
+    title: str = Field(default="", description="Displayed recommendation title.")
+    seo_path: str = Field(default="chintai", description="AtHome URL path segment.")
+    location: str = Field(default="", description="Displayed location and transit text.")
+    raw: dict[str, object] = Field(default_factory=dict, description="Complete source card.")
+
+
+class HydrationIntent(BaseModel):
+    """Non-durable request to hydrate a normalized recommendation later."""
+
+    athome_key: str = Field(description="AtHome listing identifier to hydrate.")
+    internal_id: str = Field(description="Normalized listing identity.")
+    url: str = Field(description="Canonical detail URL.")
+
+
+
+
 class ListingSummary(BaseModel):
     """One rentable or purchasable unit as parsed from an AtHome results page.
 
@@ -149,6 +169,9 @@ class ListingSummary(BaseModel):
         default=None, description="UTC timestamp through which fetched detail is fresh."
     )
     agency: Agency | None = Field(default=None, description="Persisted listing agency, when known.")
+    agency_reference: str | None = Field(
+        default=None, description="Partial agency reference from a summary source."
+    )
 
     @model_validator(mode="after")
     def validate_detail_freshness(self) -> ListingSummary:
@@ -195,6 +218,9 @@ class ListingSummary(BaseModel):
     )
     photo_urls: list[str] = Field(
         default_factory=list, description="Thumbnail photo URLs from the list page."
+    )
+    source_data: dict[str, object] = Field(
+        default_factory=dict, description="Raw source payload retained for provenance."
     )
 
 
