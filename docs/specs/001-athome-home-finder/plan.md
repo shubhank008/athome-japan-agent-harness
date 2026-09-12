@@ -56,8 +56,8 @@ src/athome_harness/
     text_eval.py            # TextDescriptionFloorPlanEvaluator (default)
     vision_eval.py          # VisionFloorPlanEvaluator (stub, off)
   cache/
-    prefetch.py             # optional freshness-sorted prefetch worker (post-MVP)
-    revalidator.py          # background dead-listing checker (post-MVP)
+    hydration_queue.py      # durable detail-job repository and claim/ack lifecycle (post-MVP)
+    hydration_worker.py     # lean FIFO detail fetch/parse/upsert consumer (post-MVP)
 tools/
   dump_filter_map.py        # extraction tool (US-006)
 .github/workflows/
@@ -199,9 +199,33 @@ PLAN.md                     # repo-level live plan, updated after every feature
 
 ### Post-MVP (spec'd, scheduled later)
 
-- [ ] T29 US-009 `cache/prefetch.py` + `cache/revalidator.py` behind config flag.
-- [ ] T30 US-010 vision evaluator stub + A/B benchmark harness + report.
-- [ ] T31 US-007 purchase-flow fixtures + parser diffs + map coverage (may pull forward
+- [ ] T29 US-009 data-contract migration: add listing completeness (`summary_partial`,
+  `summary_complete`, `detail_complete`), detail fetched/fresh-through timestamps, and
+  an `Agency` entity keyed by `kaiinNo`. Keep the database record rich; generate the
+  compact LLM projection only at inference time. Add migration and contract tests.
+- [ ] T30 US-009 structured-detail persistence: map `kaiinInfo` into an agency upsert,
+  link the listing by `kaiinNo`, and preserve full listing transit, facility, image,
+  cost, and surrounding records. An incomplete recommendation-card agency reference
+  must not overwrite a complete agency profile. Add parser/store tests.
+- [ ] T31 US-009 recommendation-card ingestion: normalize each `otherPropertyData` card
+  to `ListingSummary`, upsert it as `summary_complete`, preserve a richer detail record,
+  and enqueue a deduplicated job only when no fresh detail exists. Add fixture-backed
+  tests proving the target detail plus 20 candidate records.
+- [ ] T32 US-009 durable FIFO hydration queue: SQLite job table with atomic claim/lease,
+  idempotent enqueue, claim-time freshness recheck, acknowledge/skip, bounded retry
+  metadata, and safe deletion only after a verified unavailable selector/marker. Add
+  store contract and concurrent-claim tests.
+- [ ] T33 US-009 lean hydration worker: standalone `claim -> fetch -> validate -> parse
+  -> upsert -> acknowledge` command behind an explicit config flag. Reuse
+  `BaseScraper`, global limiter, challenge detection, and proxy policy; cool down or
+  stop the affected worker/pool on blocks/challenges, never retry around them. Add
+  end-to-end fake-transport evidence for success, stale skip, transient failure, and
+  challenge circuit-break behavior.
+- [ ] T34 US-009 live-path cache integration: use only fresh `detail_complete` records
+  in the LLM pipeline; otherwise fetch detail directly and upsert it without waiting for
+  or sharing the queue. Add cache-hit, stale direct-refresh, and queue/live race tests.
+- [ ] T35 US-010 vision evaluator stub + A/B benchmark harness + report.
+- [ ] T36 US-007 purchase-flow fixtures + parser diffs + map coverage (may pull forward
   if cheap after M3 reveals how different purchase markup is).
 
 ## Risks and mitigations

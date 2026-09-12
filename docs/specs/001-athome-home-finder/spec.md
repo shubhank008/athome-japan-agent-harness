@@ -26,27 +26,35 @@ now, WebUI later. Architecture decisions below are made to not close those doors
    rendered HTML by a standalone tool, versioned in-repo, refreshed by a scheduled
    GitHub Action that auto-files an issue when extraction breaks (USER).
 3. Coverage strategy: the live search always scrapes **100% of the LLM-filtered result
-   set** (hard filters shrink 300k to a manageable page count). Separately, an optional
-   background prefetch cache, sorted by listing freshness, casts the broad net for
-   high-interest areas. This resolves the "golden listing hidden on page 6" worry
-   without multi-hour live searches (DESIGN-FRESH, accepted by user).
-4. Cached listings get background revalidation against AtHome; dead listings are
-   reported and marked (USER).
-5. Vision-based floor-plan evaluation exists behind an abstract interface, default OFF,
+   set** (hard filters shrink 300k to a manageable page count). Separately, a durable
+   background detail-hydration queue turns rich recommendation cards into a progressively
+   warmer local catalogue without extending a live request. This resolves the "golden
+   listing hidden on page 6" worry and reduces later detail-fetch latency
+   (DESIGN-FRESH, accepted by user).
+4. Listing completeness is explicit: search-result observations are `summary_partial`,
+   normalized `otherPropertyData` cards are `summary_complete`, and validated canonical
+   detail pages are `detail_complete`. Full detail is fresh for 14 days. A positively
+   identified unavailable/deleted page deletes its listing, related records, and queued
+   job; a block, challenge, timeout, or parser failure is retryable and never deletion
+   evidence (USER).
+5. Agency profiles are separate deduplicated entities keyed by AtHome `kaiinNo`; detailed
+   listing data links to the agency rather than copying its profile into every record
+   (USER).
+6. Vision-based floor-plan evaluation exists behind an abstract interface, default OFF,
    and will be A/B benchmarked against text-only evaluation (USER).
-6. Scraper adapters behind an abstract base: HTTP+HTML->DOM adapter first, Playwright
+7. Scraper adapters behind an abstract base: HTTP+HTML->DOM adapter first, Playwright
    adapter as fallback scaffold (USER).
-7. Stack: Python 3.12, httpx, selectolax (fallback BeautifulSoup), pydantic v2,
+8. Stack: Python 3.12, httpx, selectolax (fallback BeautifulSoup), pydantic v2,
    SQLite via sqlite3, pytest, ruff + mypy (USER).
-8. Models: general LLM `deepseek/deepseek-v4-flash-0731`; vision model
+9. Models: general LLM `deepseek/deepseek-v4-flash-0731`; vision model
    `google/gemma-4-31b-it` (both VERIFIED on OpenRouter 2026-07-08).
-9. Webshare: cheapest ($3) plan; proxy/IP rotated per session; Webshare invoked only
+10. Webshare: cheapest ($3) plan; proxy/IP rotated per session; Webshare invoked only
    when the main IP is actually blocked (USER).
-10. Prefetch scope: Osaka prefecture first, scaling to all prefectures slowly (USER).
-11. Multi-value filters: many filters accept a list (e.g., layout "2LDK or 3DK" ->
+11. Prefetch scope: Osaka prefecture first, scaling to all prefectures slowly (USER).
+12. Multi-value filters: many filters accept a list (e.g., layout "2LDK or 3DK" ->
     `MADORI[]=[...]`). The conditions map (SPEC.md section 1.1) encodes each field's
     cardinality so tool-calling knows the expected parameter signature (USER).
-12. Probable Negatives: disabled features in the DOM
+13. Probable Negatives: disabled features in the DOM
     (`p-property__information-facility_disabled-list`, VERIFIED 550 occurrences in the
     Osaka dump) are recorded as Probable Negatives (e.g., "Pets MIGHT not be allowed"),
     scored as caveats, and surfaced in reports (USER).
@@ -223,17 +231,30 @@ through Webshare proxies so a search does not die mid-run.
       contracts/log-markers.md), using redacted URLs only.
 - [ ] Direct connection is always tried first; proxies are never used when healthy.
 
-### US-009: Optional prefetch cache (post-MVP)
-**Description:** As a power user, I want a background job that pre-harvests fresh
-listings for my areas of interest so live searches can consult a broad, warm cache.
+### US-009: Detail hydration cache and agency records (post-MVP)
+**Description:** As a home seeker, I want recommendation cards discovered on a detail
+page to become a rich local catalogue in the background, so a later live search can
+reuse fresh details without waiting for extra detail-page scraping.
 
 **Acceptance Criteria:**
-- [ ] Prefetch walks a configured prefecture/city set ordered by listing freshness
-      (newest first), at background-grade rate limits.
-- [ ] Cache entries carry fetched-at timestamps and TTL; stale entries are revalidated
-      in the background and dead listings are marked and reported (USER).
-- [ ] Live search merges cache hits with fresh scraping, clearly labeling source.
-- [ ] The mode is off by default and gated behind an explicit config flag.
+- [ ] A full-detail parse upserts an agency entity keyed by `kaiinNo` and links the
+      listing to it without duplicating the agency profile per listing.
+- [ ] Every `otherPropertyData` card is normalized and upserted as `summary_complete`;
+      it never overwrites a richer `detail_complete` record.
+- [ ] A durable, deduplicated FIFO queue schedules canonical detail hydration only when
+      the listing lacks fresh detail. Workers atomically claim one job at a time, recheck
+      freshness after claim, and skip work already completed by a live request.
+- [ ] A successful canonical detail fetch is fresh for 14 days. The live LLM pipeline
+      reads a fresh detail record when available, otherwise fetches and upserts detail
+      directly; it does not wait for or share worker execution.
+- [ ] A positively identified deleted/unavailable page deletes the listing, associated
+      listing records, and queued job. Challenge/block/timeout/parser failures are
+      retryable failures, not deletion evidence.
+- [ ] Background workers use existing rate limits, challenge detection, bounded retries,
+      and a circuit breaker that cools down or stops a blocked worker/pool. The feature is
+      disabled by default and requires an explicit configuration flag.
+- [ ] A future short-lived search-results cache, if needed, is keyed by the complete
+      normalized parameter query and remains independent from individual listing cache.
 
 ### US-010: Floor-plan evaluation abstraction (post-MVP)
 **Description:** As a user, I want pluggable floor-plan/property evaluation so visual
@@ -293,7 +314,8 @@ cues (poor condition, old fixtures, bad layout) can improve recommendations late
 | Max pages per live search | 100 (3,000 listings) | DESIGN-FRESH, configurable |
 | Live search runtime budget | 30 min | DESIGN-FRESH, configurable |
 | Filter-map refresh cadence | weekly | USER (GitHub Action) |
-| Cache TTL (prefetch mode) | 48h | DESIGN-FRESH |
+| Canonical detail freshness TTL | 14 days | USER |
+| Background worker execution | FIFO, disabled by default | USER |
 | Proxy retry budget | 3 rotations then abort | DESIGN-FRESH |
 | HTTP timeout | 30s | DESIGN-FRESH |
 | LLM scoring temperature | 0 | DESIGN-FRESH (determinism) |

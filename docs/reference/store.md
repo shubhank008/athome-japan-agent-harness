@@ -58,12 +58,28 @@ database file (default `athome.db`, configurable via `ATHOME_STORE_PATH`).
   dedupe.
 * **Feedback:** one feedback row per listing (`save` or `reject`); the last
   action wins and `clear_feedback` removes it.
-* **Cache meta:** a small key-value table reserved for the post-MVP prefetch
-  cache bookkeeping (`ATHOME_PREFETCH_TTL_HOURS` gates that feature, which is
-  not scheduled).
+* **Cache meta:** a small key-value table reserved for post-MVP cache bookkeeping;
+  its former `ATHOME_PREFETCH_TTL_HOURS` use is superseded by US-009 detail freshness.
 * **Connection lifecycle:** the connection is opened lazily per-thread and
   `close()` releases it. Always call `close()` when the store is no longer
   needed; the probes and the CLI do this in `finally` blocks.
+
+## Planned detail-hydration extension
+
+US-009 will extend this contract without making the live LLM path depend on a worker.
+The planned SQLite migration adds an `Agency` entity keyed by AtHome `kaiinNo`, listing
+completeness (`summary_partial`, `summary_complete`, `detail_complete`), 14-day detail
+freshness metadata, and a durable FIFO detail-job queue. `otherPropertyData` cards will
+be normalized as `summary_complete`; full detail parses will upsert and link an agency
+record without duplicating it into each listing.
+
+The queue is a background optimization only. A live request uses a fresh
+`detail_complete` record, or directly fetches and upserts current detail when it is
+missing or stale. The worker independently claims, rechecks, fetches, validates, parses,
+upserts, and acknowledges jobs. A verified unavailable page deletes the listing and
+related records; challenge/block/timeout/parser failure is retryable and must not delete
+data.
+
 
 ## Session memory semantics
 

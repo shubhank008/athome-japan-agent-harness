@@ -88,7 +88,7 @@ revalidation, vision A/B benchmarks.
 | M6 Orchestration + CLI | T24-T26 | done (2026-08-19, `feat/001-m6-orchestration-cli`) |
 | M7 Maintenance surfaces | T27-T28 | done (2026-08-19, `feat/001-m7-maintenance-surfaces`) |
 | M8 Configurable providers | (factory) | done (PR #15 `feat/001-m8-configurable-providers`) |
-| Post-MVP | T29-T31 | spec'd, not scheduled |
+| Post-MVP | T29-T36 | detail hydration catalogue, agency records, vision, and purchase coverage spec'd; not scheduled |
 
 ## Decisions log
 
@@ -201,6 +201,31 @@ implemented unless marked otherwise.
 - **F3: Full no-mistakes run**: run lint, mypy, tests, documentation review, and
   publication only after each focused phase is committed.
 
+### Phase G: Detail hydration catalogue
+
+- **G1: Listing and agency persistence contract**: add explicit listing completeness
+  states (`summary_partial`, `summary_complete`, `detail_complete`), 14-day detail
+  freshness metadata, and a deduplicated `Agency` entity keyed by `kaiinNo`.
+- **G2: Rich structured detail persistence**: store the selected `kaiinInfo` profile
+  separately and link it from listings; retain detail transit, facilities, images,
+  costs, surrounding data, and source payload for the internal record while keeping the
+  LLM projection compact and separately generated.
+- **G3: Recommendation-card ingestion**: normalize `otherPropertyData` into existing
+  summary records, upsert as `summary_complete`, never downgrade fresh detail, and
+  idempotently queue missing/stale detail hydration.
+- **G4: Durable FIFO hydration queue**: add atomic claim/lease, freshness recheck,
+  completion/skip, bounded retry, and deletion only on positively identified unavailable
+  detail pages. Block/challenge/timeout/parser failures remain retryable evidence.
+- **G5: Lean background worker**: provide a config-gated standalone worker that claims,
+  fetches, validates, parses, upserts, and acknowledges one job at a time using existing
+  rate limits and challenge handling. On blocks/challenges, cool down or stop the
+  affected worker/pool and report the condition; never scale around target controls.
+- **G6: Live-path cache read**: allow the LLM pipeline to use only fresh detail records;
+  otherwise it directly fetches and upserts detail without waiting for or sharing the
+  background worker path.
+- **G7: Deferred search-result cache**: if latency later requires it, cache complete
+  normalized search parameter queries briefly and independently from listing details.
+
 - 2026-07-08: robots.txt is honored in spirit (rate limits, session scope) not
   mechanically; user decision, on record.
 - 2026-07-08: Filter map is context-keyed by (flow, filter name) because `kcXXX` codes
@@ -259,6 +284,7 @@ implemented unless marked otherwise.
 - 2026-09-11: Validated `script#serverApp-state` is the preferred current detail source;
   parse `first-view-ITEMS.propertyData.rentInfo`, validate identity and required fields,
   and fall back to DOM parsing when wrappers or fields change.
+- 2026-09-11: Detail SSR retention keeps source-shaped listing, facility, cost, map, nearby-facility, selected agency, and recommendation-card data. `otherPropertyData` cards are immediate `summary_complete` candidates keyed by AtHome `id`, never full details: preserve richer `detail_complete` data, reuse fresh hydrated records, and enqueue canonical detail hydration only when missing or stale. `bukkenNo` is the external identity; `kanriNo` is stored as a non-unique agency property reference. Agencies are separate entities keyed by `kaiinNo`. Rich internal storage remains separate from a compact LLM projection.
 - 2026-09-11: Deposit/key-money duration terms remain raw strings with nullable numeric
   yen values; `なし` may map to zero, while `1ヶ月`, `0.5ヶ月`, and `15日` do not.
 - 2026-09-11: Building aggregation is post-detail and conservative. It must preserve
