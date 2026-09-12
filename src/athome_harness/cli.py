@@ -127,7 +127,6 @@ def _hydrate_detail(summary: ListingSummary, detail: ListingDetail) -> ListingDe
             values[field_name] = value
     return ListingDetail(
         **values,
-        completeness=ListingCompleteness.DETAIL_COMPLETE,
         listing_detail=True,
         detail_failure_reason=None,
     )

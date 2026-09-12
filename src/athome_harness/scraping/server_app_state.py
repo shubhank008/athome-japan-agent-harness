@@ -210,4 +210,19 @@ def extract_server_app_agency(html: str) -> Agency | None:
         """Normalize optional agency text fields."""
         result = str(value).strip() if value is not None else ""
         return result or None
-    return Agency(kaiin_no=str(raw["kaiinNo"]), kaiin_link_no=text(raw.get("kaiinLinkNo")), name=text(raw.get("syogo")), address=text(raw.get("address")), phone=text(raw.get("telFax")), url=text(raw.get("syosaiUrl") or raw.get("urlLong")), domain=text(raw.get("domain")), access=text(raw.get("access")), business_hours=text(main_hours), holidays=text(raw.get("teikyubi")), features=text(raw.get("tokutyou")), associations=text(raw.get("syozokuKyokai")), license_number=text(raw.get("menkyoNo")), raw=raw)
+    return Agency(
+        kaiin_no=str(raw["kaiinNo"]),
+        kaiin_link_no=text(raw.get("kaiinLinkNo")),
+        name=text(raw.get("syogo")),
+        address=text(raw.get("address")),
+        phone=text(raw.get("telFax")),
+        url=text(raw.get("syosaiUrl") or raw.get("urlLong")),
+        domain=text(raw.get("domain")),
+        access=text(raw.get("access")),
+        business_hours=text(main_hours),
+        holidays=text(raw.get("teikyubi")),
+        features=text(raw.get("tokutyou")),
+        associations=text(raw.get("syozokuKyokai")),
+        license_number=text(raw.get("menkyoNo")),
+        raw=raw,
+    )
