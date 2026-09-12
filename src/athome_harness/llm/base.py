@@ -183,10 +183,19 @@ class BaseLLMProvider(ABC):
         except (ValidationError, json.JSONDecodeError) as first_error:
             logger.debug("first JSON parse failed: %s", type(first_error).__name__)
         # Exactly one repair retry.
+        repair_user = _repair_prompt(user, text, schema)
+        self._debug_dump(
+            "llm_repair_input.json",
+            {"schema": schema.__name__, "system": system, "user": repair_user},
+        )
         repaired, repair_usage = self.complete_text(
             system=system,
-            user=_repair_prompt(user, text, schema),
+            user=repair_user,
             temperature=temperature,
+        )
+        self._debug_dump(
+            "llm_repair_output.json",
+            {"schema": schema.__name__, "text": repaired, "usage": repair_usage.model_dump()},
         )
         self._record_usage(repair_usage)
         merged_usage = LLMUsage(

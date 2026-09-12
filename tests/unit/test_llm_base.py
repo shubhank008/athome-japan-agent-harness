@@ -117,6 +117,21 @@ def test_complete_json_fails_after_one_repair(caplog: pytest.LogCaptureFixture) 
     assert sum("LLM_JSON_INVALID" in record for record in records) == 1
 
 
+def test_complete_json_debug_saves_repair_artifacts(tmp_path, monkeypatch) -> None:
+    """DEBUG captures the complete repair request and response artifacts."""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("DEBUG", "true")
+    provider = FakeProvider(["bad", "also bad"])
+    with pytest.raises(LLMJSONInvalidError):
+        provider.complete_json(system="system", user="request", schema=SampleSchema)
+    repair_input = (tmp_path / "debug/llm_repair_input.json").read_text()
+    repair_output = (tmp_path / "debug/llm_repair_output.json").read_text()
+    invalid = (tmp_path / "debug/llm_last_invalid.json").read_text()
+    assert "request" in repair_input and "bad" in repair_input
+    assert "also bad" in repair_output
+    assert "also bad" in invalid
+
+
 def test_repairable_failure_has_no_invalid_marker(caplog: pytest.LogCaptureFixture) -> None:
     """A successful repair must not emit the terminal failure marker."""
     provider = FakeProvider(["bad", _ok_json()])

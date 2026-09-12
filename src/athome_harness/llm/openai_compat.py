@@ -21,9 +21,11 @@ as JSON also raises a typed error instead of leaking raw content.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Protocol, cast
 
 from curl_cffi import requests as curl_requests
@@ -119,6 +121,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         self._timeout_s = timeout_s
         self._session_owned = session is None
         self._session: ChatSession = session or self._build_session()
+        self._debug_response_index = 0
         # Stored solely to seed the Authorization header; never logged.
         self._api_key = resolved_key
 
@@ -230,9 +233,46 @@ class OpenAICompatibleProvider(BaseLLMProvider):
                 )
             raise LLMProviderError(f"{self.provider_name} returned HTTP {response.status_code}")
         body = self._parse_body(response)
-        content = self._extract_content(body)
         usage = self._extract_usage(body)
+        self._debug_response_index += 1
+        self._debug_dump_response(
+            self._debug_response_index,
+            body,
+            status_code=response.status_code,
+            elapsed_seconds=time.monotonic() - started,
+        )
+        content = self._extract_content(body)
         return content, usage
+
+    def _debug_dump_response(
+        self,
+        response_index: int,
+        body: dict[str, object],
+        *,
+        status_code: int,
+        elapsed_seconds: float,
+    ) -> None:
+        """Persist a complete provider response envelope when DEBUG is enabled."""
+        if os.getenv("DEBUG", "").lower() not in {"1", "true", "yes", "on"}:
+            return
+        debug_dir = Path("debug")
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "provider": self.provider_name,
+            "model": self._model,
+            "response_index": response_index,
+            "status_code": status_code,
+            "elapsed_seconds": elapsed_seconds,
+            "body": body,
+        }
+        (debug_dir / f"llm_provider_response_{response_index:03d}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+        (debug_dir / "llm_provider_response_last.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
 
     def _parse_body(self, response: ChatResponse) -> dict[str, object]:
         """Parse the response body into a dict, raising on malformed JSON."""
