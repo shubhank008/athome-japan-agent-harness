@@ -1,0 +1,559 @@
+{
+  "plan": {
+    "budgets": null,
+    "cities": [],
+    "flow": "rent",
+    "hard_filters": {},
+    "prefecture": "osaka",
+    "soft_prefs": [
+      "cheap / low rent preferred (no explicit budget given, so results are sorted by lowest rent first)",
+      "MADORI: 1K (km003)",
+      "SORT: 賃料が安い順 (7)"
+    ]
+  },
+  "recommendations": [
+    {
+      "listing": {
+        "address": "大阪府東大阪市大蓮北２丁目",
+        "age": 32.1,
+        "age_display": "32.1 years old",
+        "age_raw": "1994年8月",
+        "area_m2": 21.33,
+        "athome_key": "1053195299",
+        "building_name": "ストリートハウス ４０１",
+        "building_structure": "鉄骨造",
+        "building_type": "賃貸マンション",
+        "construction_date": "1994年8月",
+        "contract_period": "2年",
+        "description": "賃貸保証等：加入要（エポスカード　（初回保証料：月額賃料等総額１００％　・　月額保証委託料：月額賃料等総額２．０％））<br>管理形態/管理員の勤務形態：－/－<br>単身者限定<br>退室料：44000円（退去時クリーニング費用（税込））<br>連帯保証人：必要<br>近鉄大阪線弥刀駅徒歩１２分の１Ｋ物件。最上階角部屋のお部屋です。２面バルコニー付。単身様ぜひ一度ご検討ください！<br>近鉄大阪線弥刀駅徒歩１２分の１Ｋ物件。最上階角部屋のお部屋です。２面バルコニー付。",
+        "detail_failure_reason": null,
+        "facility_features": [
+          "－",
+          "洗濯機置場",
+          "ケーブルTV",
+          "2階以上"
+        ],
+        "floor_plan": "１K（洋６．５）",
+        "floor_plan_image_url": null,
+        "floors": "4階建 / 4階",
+        "internal_id": "1053195299",
+        "listing_detail": true,
+        "photo_urls": [
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHpuKcvWfM3DXQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/KzCB5dt0V2mMGm3ariuuzA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/KzCB5dt0V2nTbtz7nM3Nhg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/KzCB5dt0V2nTbtz7nM3Nhg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/KzCB5dt0V2nTbtz7nM3Nhg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHp37cc7XOiyDA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHpHm5DYRRFFGQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHqezxahwhyVuA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHqd9YRD1_KREg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHquJaSNGEecqg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHo1ulCa28aCOQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHpT9fv42_6nUw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5_AmtqAdVHpK_7gh7XChRw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/LVEyVs4cqsX3QGIgGKStAQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/9gTNqDRBbGXSrtui6L8SLA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/9gTNqDRBbGXUUUgvyOYm5A==?width=409&height=409&margin=true"
+        ],
+        "pickup_features": [
+          "2階以上"
+        ],
+        "price": {
+          "deposit": 0,
+          "deposit_raw": "なし",
+          "key_money": 0,
+          "key_money_raw": "なし",
+          "management_fee": 3000,
+          "rent": 39000
+        },
+        "probable_negatives": [
+          "バス・トイレ別",
+          "浴室乾燥機",
+          "オートロック",
+          "モニター付インターホン",
+          "宅配ボックス",
+          "インターネット無料",
+          "築浅",
+          "ペット相談",
+          "駐車場"
+        ],
+        "remarks": "賃貸保証等：加入要（エポスカード　（初回保証料：月額賃料等総額１００％　・　月額保証委託料：月額賃料等総額２．０％））<br>管理形態/管理員の勤務形態：－/－<br>単身者限定<br>退室料：44000円（退去時クリーニング費用（税込））<br>連帯保証人：必要<br>近鉄大阪線弥刀駅徒歩１２分の１Ｋ物件。最上階角部屋のお部屋です。２面バルコニー付。単身様ぜひ一度ご検討ください！<br>近鉄大阪線弥刀駅徒歩１２分の１Ｋ物件。最上階角部屋のお部屋です。２面バルコニー付。",
+        "station": "弥刀",
+        "title": "ストリートハウス ４０１",
+        "total_units": "5戸",
+        "url": "https://www.athome.co.jp/chintai/1053195299/",
+        "usp_tags": [
+          "floor-plan",
+          "photos"
+        ],
+        "walk_minutes": 14.0
+      },
+      "listing_id": "1053195299",
+      "probable_negatives": [
+        "バス・トイレ別",
+        "浴室乾燥機",
+        "オートロック",
+        "モニター付インターホン",
+        "宅配ボックス",
+        "インターネット無料",
+        "築浅",
+        "ペット相談",
+        "駐車場"
+      ],
+      "rank": 1,
+      "reasons": [
+        "Lowest rent tier among 1K listings at ¥39,000/month (plus only ¥3,000 management fee), directly matching the cheap-rent soft preference and 賃料が安い順 sort.",
+        "Exact 1K (洋6.5) floor plan matches the MADORI=1K (km003) hard filter.",
+        "Located in Osaka Prefecture (東大阪市大蓮北2丁目), satisfying the prefecture=osaka hard filter.",
+        "Best-documented listing of the identical ¥39,000 units: includes floor plan figure, 16 photos, and agent commentary noting it is the top-floor corner unit with a two-sided balcony.",
+        "Zero deposit and zero key money keep initial costs minimal, reinforcing the low-cost preference."
+      ],
+      "satisfied_constraints": [
+        "flow=rent",
+        "prefecture=osaka",
+        "MADORI: 1K (km003)",
+        "soft_pref: cheap / low rent (¥39,000, lowest tier in results)",
+        "zero deposit / zero key money (low initial cost)"
+      ],
+      "violated_constraints": []
+    },
+    {
+      "listing": {
+        "address": "大阪府東大阪市大蓮北２丁目",
+        "age": 32.1,
+        "age_display": "32.1 years old",
+        "age_raw": "1994年8月",
+        "area_m2": 21.33,
+        "athome_key": "1139228428",
+        "building_name": "ストリートハウス",
+        "building_structure": "鉄骨造",
+        "building_type": "賃貸マンション",
+        "construction_date": "1994年8月",
+        "contract_period": "2年",
+        "description": "賃貸保証等：加入要（保証会社の加入は必須になります。）<br>管理形態/管理員の勤務形態：－/－<br>IT重説対応物件<br>家の近くにパーキングもあり、車をお持ちの方に嬉しい物件です。このマンションは駐輪場付きの物件です。駅まで徒歩１４分に立地する物件です。ワンルームとはちがった素敵なキッチンがあるお住まいです。こちらはフローリング張りの洋室があるマンションとなっています。閑静な住宅地にあるマンションです。室内設備はエアコン・ＢＳ・ＣＳなど大変充実しております。お住まいにネットの回線を繋げましたので暮らしに役立ちます。",
+        "detail_failure_reason": null,
+        "facility_features": [
+          "ガスコンロ可",
+          "－",
+          "洗濯機置場",
+          "インターネット対応",
+          "CATVインターネット",
+          "ケーブルTV",
+          "ＣＳ",
+          "ＢＳ端子",
+          "2階以上",
+          "駐車場"
+        ],
+        "floor_plan": "１K（洋６．５、Ｋ３）",
+        "floor_plan_image_url": null,
+        "floors": "4階建 / 4階",
+        "internal_id": "1139228428",
+        "listing_detail": true,
+        "photo_urls": [
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY0wEAKyEcKfxg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/xOx2lcVnqbhghkS4BbcCOg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY3Nzo_HCUn5sg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY2U6k1Gk2_32w==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY371v_KMYi6nw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY0q8grNYOpNzw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY0Q0-tAF24OHQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY16oxOE_qm7Eg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY1Ag3pxbLyiQw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY0e8gaHdSV0Kw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY1Z7q4zlfiiJA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY2DmtURoG1j4g==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY296eokDXdLZQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY29qiLdZ67-1w==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/Y9_z_xmnyKEN8-2yB8ZF5Q==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/1cxcsUp-EY2oNJ0136M0iw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/0xYJxoPN212d9EiafvOXZA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/0xYJxoPN212yYqeascnAmA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5NfYSP5rGg3DCSfEoPaqSA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5NfYSP5rGg0EaZPUPd_Qzw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5NfYSP5rGg3CTXNv1saR5Q==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/5NfYSP5rGg2v2Ag_eo0OdA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/9pAKTdjIAK4OPOzEHK9yjQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/hM5CeETnEwwO9l8iaknvew==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/bmZym-_k_Vieh4YUGxU3Yg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/J_nTJ9UYxhAuG5rMkRDqqg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/weVSsCG8sqz_LPZrhYOwAA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/eX8xVvQhyRPpbhezv_cZsg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/eX8xVvQhyRN17LosE7lEZQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/c4GuAYG010ryNXYSRYs3ug==?width=409&height=409&margin=true"
+        ],
+        "pickup_features": [
+          "2階以上",
+          "駐車場"
+        ],
+        "price": {
+          "deposit": 0,
+          "deposit_raw": "なし",
+          "key_money": 0,
+          "key_money_raw": "なし",
+          "management_fee": 3000,
+          "rent": 39000
+        },
+        "probable_negatives": [
+          "バス・トイレ別",
+          "浴室乾燥機",
+          "オートロック",
+          "モニター付インターホン",
+          "宅配ボックス",
+          "インターネット無料",
+          "築浅",
+          "ペット相談"
+        ],
+        "remarks": "賃貸保証等：加入要（保証会社の加入は必須になります。）<br>管理形態/管理員の勤務形態：－/－<br>IT重説対応物件<br>家の近くにパーキングもあり、車をお持ちの方に嬉しい物件です。このマンションは駐輪場付きの物件です。駅まで徒歩１４分に立地する物件です。ワンルームとはちがった素敵なキッチンがあるお住まいです。こちらはフローリング張りの洋室があるマンションとなっています。閑静な住宅地にあるマンションです。室内設備はエアコン・ＢＳ・ＣＳなど大変充実しております。お住まいにネットの回線を繋げましたので暮らしに役立ちます。",
+        "station": "弥刀",
+        "title": "ストリートハウス",
+        "total_units": "－",
+        "url": "https://www.athome.co.jp/chintai/1139228428/",
+        "usp_tags": [],
+        "walk_minutes": 14.0
+      },
+      "listing_id": "1139228428",
+      "probable_negatives": [
+        "バス・トイレ別",
+        "浴室乾燥機",
+        "オートロック",
+        "モニター付インターホン",
+        "宅配ボックス",
+        "インターネット無料",
+        "築浅",
+        "ペット相談"
+      ],
+      "rank": 2,
+      "reasons": [
+        "Same lowest rent tier of ¥39,000/month with only ¥3,000 management fee, matching the cheap-rent soft preference.",
+        "Exact 1K (洋6.5, K3) floor plan satisfies the 1K hard filter.",
+        "Osaka Prefecture location (東大阪市大蓮北2丁目, 弥刀駅) satisfies prefecture=osaka.",
+        "Zero deposit and zero key money minimize move-in costs.",
+        "Rich remarks (エアコン, BS/CS, internet wired, quiet residential area, parking nearby) give it an edge over the other duplicate ¥39,000 entries."
+      ],
+      "satisfied_constraints": [
+        "flow=rent",
+        "prefecture=osaka",
+        "MADORI: 1K (km003)",
+        "soft_pref: cheap / low rent (¥39,000, lowest tier)",
+        "zero deposit / zero key money"
+      ],
+      "violated_constraints": []
+    },
+    {
+      "listing": {
+        "address": "大阪府東大阪市大蓮北２丁目",
+        "age": 32.1,
+        "age_display": "32.1 years old",
+        "age_raw": "1994年8月",
+        "area_m2": 21.33,
+        "athome_key": "1124244421",
+        "building_name": null,
+        "building_structure": "鉄骨造",
+        "building_type": "賃貸アパート",
+        "construction_date": "1994年8月",
+        "contract_period": "2年",
+        "description": "賃貸保証等：加入要（賃貸保証料18,660円）<br>管理形態/管理員の勤務形態：－/－<br>単身者限定、IT重説対応物件<br>1Kタイプのお部屋です。",
+        "detail_failure_reason": null,
+        "facility_features": [
+          "システムキッチン",
+          "ガスコンロ付",
+          "ガスコンロ可",
+          "－",
+          "洗濯機置場",
+          "インターネット対応",
+          "光ファイバー",
+          "2階以上",
+          "駐車場"
+        ],
+        "floor_plan": "１K（洋６．５）",
+        "floor_plan_image_url": null,
+        "floors": "4階建 / 4階",
+        "internal_id": "1124244421",
+        "listing_detail": true,
+        "photo_urls": [
+          "https://www.athome.co.jp/image_files/path/fnRaUlWp3gfdxzeWY_nFyQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM1PsZ8IayNQKA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM24OSXhhvs97Q==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM09YCd9TqyJQQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM3lsm_BwvmbAQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM1yBc_aHiT3Bg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM3MOuZ3KefbwQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM2xlGwycU8BwQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/GZ59p7Vl23fAp39NOaNr0g==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/9MQWjwNOdiNKJ_Lrxb4KNQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/K7CdbqwoOq_6SKTU8HERBg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/Vf2dS3ZNc1Dl3jiUf5ddZw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/IYomkL5nbqjiejYDLdjvjg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/wfa3ilo9K0sNl79U1YZHGw==?width=409&height=409&margin=true"
+        ],
+        "pickup_features": [
+          "2階以上",
+          "駐車場"
+        ],
+        "price": {
+          "deposit": 0,
+          "deposit_raw": "なし",
+          "key_money": 0,
+          "key_money_raw": "なし",
+          "management_fee": 3000,
+          "rent": 39000
+        },
+        "probable_negatives": [
+          "バス・トイレ別",
+          "浴室乾燥機",
+          "オートロック",
+          "モニター付インターホン",
+          "宅配ボックス",
+          "インターネット無料",
+          "築浅",
+          "ペット相談"
+        ],
+        "remarks": "賃貸保証等：加入要（賃貸保証料18,660円）<br>管理形態/管理員の勤務形態：－/－<br>単身者限定、IT重説対応物件<br>1Kタイプのお部屋です。",
+        "station": "弥刀",
+        "title": "東大阪市 大蓮北２丁目（弥刀駅） 4階 １K",
+        "total_units": "5戸",
+        "url": "https://www.athome.co.jp/chintai/1124244421/",
+        "usp_tags": [],
+        "walk_minutes": 13.0
+      },
+      "listing_id": "1124244421",
+      "probable_negatives": [
+        "バス・トイレ別",
+        "浴室乾燥機",
+        "オートロック",
+        "モニター付インターホン",
+        "宅配ボックス",
+        "インターネット無料",
+        "築浅",
+        "ペット相談"
+      ],
+      "rank": 3,
+      "reasons": [
+        "¥39,000/month rent with ¥3,000 management fee — tied for the cheapest 1K option, matching the low-rent soft preference and sort order.",
+        "1K (洋6.5) floor plan exactly matches the MADORI=1K hard filter.",
+        "Osaka Prefecture (東大阪市大蓮北2丁目) satisfies prefecture=osaka.",
+        "Zero deposit and zero key money keep initial costs at the guaranteed-company fee only.",
+        "IT重説対応 and 単身者限定 make for a smooth single-occupant rental process."
+      ],
+      "satisfied_constraints": [
+        "flow=rent",
+        "prefecture=osaka",
+        "MADORI: 1K (km003)",
+        "soft_pref: cheap / low rent (¥39,000, lowest tier)",
+        "zero deposit / zero key money"
+      ],
+      "violated_constraints": []
+    },
+    {
+      "listing": {
+        "address": "大阪府東大阪市大蓮北２丁目",
+        "age": 32.1,
+        "age_display": "32.1 years old",
+        "age_raw": "1994年8月",
+        "area_m2": 21.33,
+        "athome_key": "1124244721",
+        "building_name": "ストリートハウス ４０１",
+        "building_structure": "鉄骨造",
+        "building_type": "賃貸アパート",
+        "construction_date": "1994年8月",
+        "contract_period": "2年",
+        "description": "賃貸保証等：加入要（賃貸保証料18,660円）<br>管理形態/管理員の勤務形態：－/－<br>単身者限定、IT重説対応物件<br>1Kタイプのお部屋です。",
+        "detail_failure_reason": null,
+        "facility_features": [
+          "システムキッチン",
+          "ガスコンロ付",
+          "ガスコンロ可",
+          "－",
+          "洗濯機置場",
+          "インターネット対応",
+          "光ファイバー",
+          "2階以上",
+          "駐車場"
+        ],
+        "floor_plan": "１K（洋６．５）",
+        "floor_plan_image_url": null,
+        "floors": "4階建 / 4階",
+        "internal_id": "1124244721",
+        "listing_detail": true,
+        "photo_urls": [
+          "https://www.athome.co.jp/image_files/path/fnRaUlWp3gfdxzeWY_nFyQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM1PsZ8IayNQKA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM24OSXhhvs97Q==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM09YCd9TqyJQQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM3lsm_BwvmbAQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM1yBc_aHiT3Bg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM3MOuZ3KefbwQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM2xlGwycU8BwQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/GZ59p7Vl23fAp39NOaNr0g==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/9MQWjwNOdiNKJ_Lrxb4KNQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/K7CdbqwoOq_6SKTU8HERBg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/Vf2dS3ZNc1Dl3jiUf5ddZw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/IYomkL5nbqjiejYDLdjvjg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/wfa3ilo9K0sNl79U1YZHGw==?width=409&height=409&margin=true"
+        ],
+        "pickup_features": [
+          "2階以上",
+          "駐車場"
+        ],
+        "price": {
+          "deposit": 0,
+          "deposit_raw": "なし",
+          "key_money": 0,
+          "key_money_raw": "なし",
+          "management_fee": 3000,
+          "rent": 39000
+        },
+        "probable_negatives": [
+          "バス・トイレ別",
+          "浴室乾燥機",
+          "オートロック",
+          "モニター付インターホン",
+          "宅配ボックス",
+          "インターネット無料",
+          "築浅",
+          "ペット相談"
+        ],
+        "remarks": "賃貸保証等：加入要（賃貸保証料18,660円）<br>管理形態/管理員の勤務形態：－/－<br>単身者限定、IT重説対応物件<br>1Kタイプのお部屋です。",
+        "station": "弥刀",
+        "title": "ストリートハウス ４０１",
+        "total_units": "5戸",
+        "url": "https://www.athome.co.jp/chintai/1124244721/",
+        "usp_tags": [],
+        "walk_minutes": 14.0
+      },
+      "listing_id": "1124244721",
+      "probable_negatives": [
+        "バス・トイレ別",
+        "浴室乾燥機",
+        "オートロック",
+        "モニター付インターホン",
+        "宅配ボックス",
+        "インターネット無料",
+        "築浅",
+        "ペット相談"
+      ],
+      "rank": 4,
+      "reasons": [
+        "¥39,000/month rent with ¥3,000 management fee — tied for cheapest, aligned with the low-rent soft preference.",
+        "1K (洋6.5) floor plan satisfies the 1K hard filter.",
+        "Osaka Prefecture address (東大阪市大蓮北2丁目) satisfies prefecture=osaka.",
+        "Zero deposit and zero key money minimize upfront costs.",
+        "Building name confirmed (ストリートハウス 401), giving slightly more identifying detail than the remaining duplicates."
+      ],
+      "satisfied_constraints": [
+        "flow=rent",
+        "prefecture=osaka",
+        "MADORI: 1K (km003)",
+        "soft_pref: cheap / low rent (¥39,000, lowest tier)",
+        "zero deposit / zero key money"
+      ],
+      "violated_constraints": []
+    },
+    {
+      "listing": {
+        "address": "大阪府東大阪市大蓮北２丁目",
+        "age": 32.1,
+        "age_display": "32.1 years old",
+        "age_raw": "1994年8月",
+        "area_m2": 21.33,
+        "athome_key": "1124244921",
+        "building_name": "ストリートハウス ４０１",
+        "building_structure": "鉄骨造",
+        "building_type": "賃貸アパート",
+        "construction_date": "1994年8月",
+        "contract_period": "2年",
+        "description": "賃貸保証等：加入要（賃貸保証料18,660円）<br>管理形態/管理員の勤務形態：－/－<br>単身者限定、IT重説対応物件<br>1Kタイプのお部屋です。",
+        "detail_failure_reason": null,
+        "facility_features": [
+          "システムキッチン",
+          "ガスコンロ付",
+          "ガスコンロ可",
+          "－",
+          "洗濯機置場",
+          "インターネット対応",
+          "光ファイバー",
+          "2階以上",
+          "駐車場"
+        ],
+        "floor_plan": "１K（洋６．５）",
+        "floor_plan_image_url": null,
+        "floors": "4階建 / 4階",
+        "internal_id": "1124244921",
+        "listing_detail": true,
+        "photo_urls": [
+          "https://www.athome.co.jp/image_files/path/fnRaUlWp3gfdxzeWY_nFyQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM1PsZ8IayNQKA==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM24OSXhhvs97Q==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM09YCd9TqyJQQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM3lsm_BwvmbAQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM1yBc_aHiT3Bg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM3MOuZ3KefbwQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/lRisAVxIaM2xlGwycU8BwQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/GZ59p7Vl23fAp39NOaNr0g==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/9MQWjwNOdiNKJ_Lrxb4KNQ==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/K7CdbqwoOq_6SKTU8HERBg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/Vf2dS3ZNc1Dl3jiUf5ddZw==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/IYomkL5nbqjiejYDLdjvjg==?width=409&height=409&margin=true",
+          "https://www.athome.co.jp/image_files/path/wfa3ilo9K0sNl79U1YZHGw==?width=409&height=409&margin=true"
+        ],
+        "pickup_features": [
+          "2階以上",
+          "駐車場"
+        ],
+        "price": {
+          "deposit": 0,
+          "deposit_raw": "なし",
+          "key_money": 0,
+          "key_money_raw": "なし",
+          "management_fee": 3000,
+          "rent": 39000
+        },
+        "probable_negatives": [
+          "バス・トイレ別",
+          "浴室乾燥機",
+          "オートロック",
+          "モニター付インターホン",
+          "宅配ボックス",
+          "インターネット無料",
+          "築浅",
+          "ペット相談"
+        ],
+        "remarks": "賃貸保証等：加入要（賃貸保証料18,660円）<br>管理形態/管理員の勤務形態：－/－<br>単身者限定、IT重説対応物件<br>1Kタイプのお部屋です。",
+        "station": "弥刀",
+        "title": "ストリートハウス ４０１",
+        "total_units": "5戸",
+        "url": "https://www.athome.co.jp/chintai/1124244921/",
+        "usp_tags": [],
+        "walk_minutes": 14.0
+      },
+      "listing_id": "1124244921",
+      "probable_negatives": [
+        "バス・トイレ別",
+        "浴室乾燥機",
+        "オートロック",
+        "モニター付インターホン",
+        "宅配ボックス",
+        "インターネット無料",
+        "築浅",
+        "ペット相談"
+      ],
+      "rank": 5,
+      "reasons": [
+        "¥39,000/month rent with ¥3,000 management fee — tied for cheapest 1K listing, matching the low-rent soft preference.",
+        "1K (洋6.5) floor plan satisfies the 1K hard filter.",
+        "Osaka Prefecture location (東大阪市大蓮北2丁目) satisfies prefecture=osaka.",
+        "Zero deposit and zero key money keep initial costs low.",
+        "Completes the set of the five cheapest 1K units; the next-cheapest 1K options jump to ¥43,900 rent plus ¥20,000 management fee."
+      ],
+      "satisfied_constraints": [
+        "flow=rent",
+        "prefecture=osaka",
+        "MADORI: 1K (km003)",
+        "soft_pref: cheap / low rent (¥39,000, lowest tier)",
+        "zero deposit / zero key money"
+      ],
+      "violated_constraints": []
+    }
+  ]
+}
