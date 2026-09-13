@@ -32,6 +32,7 @@ The pydantic value object carrying the budget knobs. Every field is `ge=0`
 | `llm_timeout_s` | `float` | `30.0` | `ATHOME_LLM_TIMEOUT_S` | OpenAI-compatible LLM request timeout. |
 | `llm_temperature` | `float` | `0.0` | `ATHOME_LLM_TEMPERATURE` | LLM scoring temperature. |
 | `llm_max_tokens` | `int` | `2048` | `ATHOME_LLM_MAX_TOKENS` | Universal total completion ceiling sent as both `max_tokens` and `max_completion_tokens`. |
+| `llm_reasoning_effort` | `low \| medium \| high` | `low` | `ATHOME_LLM_REASONING` | Qualitative reasoning effort sent to compatible providers; internal policy budgets are 2500, 5000, and 8000 tokens respectively. |
 
 ## Settings
 

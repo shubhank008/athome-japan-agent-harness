@@ -61,6 +61,7 @@ def build_llm_provider(settings: Settings) -> BaseLLMProvider:
             api_key=settings.openrouter_api_key,
             model=settings.general_model,
             max_tokens=settings.llm_max_tokens,
+            reasoning_effort=settings.llm_reasoning_effort,
             timeout_s=settings.llm_timeout_s,
         )
     if provider == LLM_PROVIDER_OPENCODEGO:
@@ -71,6 +72,7 @@ def build_llm_provider(settings: Settings) -> BaseLLMProvider:
             model=settings.opencodego_model,
             base_url=settings.opencodego_base_url,
             max_tokens=settings.llm_max_tokens,
+            reasoning_effort=settings.llm_reasoning_effort,
             timeout_s=settings.llm_timeout_s,
         )
     raise ValueError(

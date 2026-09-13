@@ -17,7 +17,11 @@ from __future__ import annotations
 
 from uuid import uuid4
 
-from athome_harness.config import DEFAULT_OPENCODEGO_MODEL, DEFAULT_OPENCODEGO_URL
+from athome_harness.config import (
+    DEFAULT_OPENCODEGO_MODEL,
+    DEFAULT_OPENCODEGO_URL,
+    LLMReasoningEffort,
+)
 from athome_harness.llm.openai_compat import ChatSession, OpenAICompatibleProvider
 
 # OpencodeGo OpenAI-compatible chat completions endpoint (see /docs/go#endpoints).
@@ -44,6 +48,7 @@ class OpenCodeGoProvider(OpenAICompatibleProvider):
         session: ChatSession | None = None,
         base_url: str | None = None,
         max_tokens: int | None = None,
+        reasoning_effort: LLMReasoningEffort = "low",
         timeout_s: float = 30.0,
     ) -> None:
         """Configure an OpencodeGo transport.
@@ -61,6 +66,7 @@ class OpenCodeGoProvider(OpenAICompatibleProvider):
             session=session,
             base_url=base_url,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
             timeout_s=timeout_s,
         )
         self._session_id = str(uuid4())

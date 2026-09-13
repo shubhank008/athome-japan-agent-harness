@@ -57,9 +57,9 @@ credential material.
 ## OpenAICompatibleProvider (shared transport base)
 
 `llm/openai_compat.py` factors the shared wire contract used by OpenRouter
-and OpencodeGo: messages payload, JSON response format, optional `max_tokens`,
-and safe error handling. Concrete transports can opt into provider-specific
-reasoning controls without changing the shared fallback behavior.
+and OpencodeGo: messages payload, JSON response format, optional completion
+ceilings, qualitative reasoning effort, and safe error handling. Both concrete
+transports use the same policy without provider-specific payload overrides.
 
 When `max_tokens` is configured, it remains the total completion ceiling,
 including reasoning and visible JSON. The universal payload policy sends both
@@ -110,7 +110,8 @@ used for deterministic repair instructions beyond what the provider requires.
 | `model` | `str` | `DEFAULT_GENERAL_MODEL` (subclasses override) | Completion model. |
 | `session` | `ChatSession \| None` | `None` | Injectable transport for tests. |
 | `base_url` | `str \| None` | `None` | Endpoint override; defaults to the subclass `default_base_url`. |
-| `max_tokens` | `int \| None` | `None` | API-level completion ceiling (`ATHOME_LLM_MAX_TOKENS`); `None` uses the endpoint default. |
+| `max_tokens` | `int \| None` | `None` | API-level completion ceiling (`ATHOME_LLM_MAX_TOKENS`); sent as both completion fields when configured. |
+| `reasoning_effort` | `low \| medium \| high` | `low` | Qualitative reasoning control; omitted when `max_tokens` is `None`. |
 
 Class attributes subclasses declare: `provider_name` (error label),
 `default_base_url`, `env_api_key`. An empty resolved key or URL raises

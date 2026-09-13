@@ -30,7 +30,7 @@ from typing import Protocol, cast
 
 from curl_cffi import requests as curl_requests
 
-from athome_harness.config import DEFAULT_GENERAL_MODEL
+from athome_harness.config import DEFAULT_GENERAL_MODEL, LLMReasoningEffort
 from athome_harness.llm.base import BaseLLMProvider, LLMProviderError, LLMUsage
 
 logger = logging.getLogger(__name__)
@@ -95,6 +95,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         session: ChatSession | None = None,
         base_url: str | None = None,
         max_tokens: int | None = None,
+        reasoning_effort: LLMReasoningEffort = "low",
         timeout_s: float = 30.0,
     ) -> None:
         """Configure an OpenAI-compatible transport.
@@ -119,7 +120,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             raise ValueError("timeout_s must not be negative")
         if max_tokens is not None and max_tokens < 1:
             raise ValueError("max_tokens must be positive when configured")
+        if reasoning_effort not in {"low", "medium", "high"}:
+            raise ValueError("reasoning_effort must be one of: low, medium, high")
         self._max_tokens = max_tokens
+        self._reasoning_effort = reasoning_effort
         self._timeout_s = timeout_s
         self._session_owned = session is None
         self._session: ChatSession = session or self._build_session()
@@ -149,10 +153,6 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             "Content-Type": "application/json",
         }
 
-    def _reasoning_payload(self) -> dict[str, object] | None:
-        """Return an optional provider-supported reasoning control payload."""
-        return None
-
     def complete_text(
         self,
         *,
@@ -171,11 +171,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             "response_format": {"type": "json_object"},
         }
         if self._max_tokens is not None:
-            # This remains the total completion ceiling, including reasoning.
+            # Both fields are required because compatible gateways vary in preference.
             payload["max_tokens"] = self._max_tokens
-            reasoning_payload = self._reasoning_payload()
-            if reasoning_payload is not None:
-                payload.update(reasoning_payload)
+            payload["max_completion_tokens"] = self._max_tokens
+            payload["reasoning_effort"] = self._reasoning_effort
         started = time.monotonic()
         response: ChatResponse | None = None
         for attempt in range(1, _MAX_TRANSPORT_ATTEMPTS + 1):
