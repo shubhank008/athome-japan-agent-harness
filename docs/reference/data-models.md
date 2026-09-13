@@ -1,13 +1,4 @@
 # Data models
-## RecommendationCard and HydrationIntent
-
-`RecommendationCard` retains an observed `otherPropertyData` card identity, URL path,
-title, location, and complete raw card. `normalize_recommendation_card` maps it to a
-`ListingSummary` with `summary_complete` lifecycle and source provenance. A
-`HydrationIntent` is in-memory metadata for a later detail request; T31 does not persist
-or execute it.
-
-
 
 The pydantic v2 contract for the whole harness, defined in
 `src/athome_harness/models.py`. These models are the single source of truth for
@@ -47,22 +38,6 @@ numeric field as `None` and are recorded in the raw field so they are never
 mistaken for "no deposit". Converting a month term to yen requires the unit's
 rent, which the parser does not assume.
 
-## ListingCompleteness
-
-`ListingCompleteness` is the explicit lifecycle state for listing data:
-`summary_partial`, `summary_complete`, or `detail_complete`. Existing summary
-payloads default to `summary_partial`; `ListingDetail` defaults to
-`detail_complete` while failed hydration explicitly uses `summary_partial`.
-
-## Agency
-
-`Agency` is keyed by the AtHome `kaiin_no` member number and carries contact and
-operational fields from `kaiinInfo`, plus a `raw` map for unmapped source values.
-`StructuredDetail` is retained only on `ListingDetail`; it contains typed access,
-image, nearby-facility, and feature records plus raw surrounding, cost, appeal,
-building, and other-property values. It is deliberately not sent to the LLM
-projection.
-
 ## ListingSummary
 
 One unit of a building. A multi-unit building yields several summaries that
@@ -72,10 +47,6 @@ share a building identity but differ per unit. Produced by
 | Field | Type | Default | Meaning |
 |-------|------|---------|---------|
 | `internal_id` | `str` | required | Stable internal property ID used for dedupe. |
-| `completeness` | `ListingCompleteness` | `summary_partial` | Explicit listing lifecycle state. |
-| `detail_fetched_at` | `datetime \| None` | `None` | UTC time when detail data was fetched. |
-| `detail_fresh_until` | `datetime \| None` | `None` | UTC freshness deadline; must accompany `detail_fetched_at`. |
-| `agency` | `Agency \| None` | `None` | Linked AtHome agency record. |
 | `athome_key` | `str` | required | AtHome `BKLISTID` listing key. |
 | `url` | `str` | required | Canonical AtHome listing URL. |
 | `title` | `str` | required | Human-readable listing title. |
@@ -133,8 +104,11 @@ field; the fields below are the additions and overrides.
 | `floor_plan_image_url` | `str \| None` | `None` | URL of the floor-plan image (`間取図`), also present in `photo_urls`. |
 | `facility_features` | `list[str]` | `[]` | Enabled facility features grouped by category. |
 
-## Recommendation
+## LLM projection boundary
 
+The canonical `ListingSummary` and `ListingDetail` models above remain rich and are persisted unchanged, including URLs, internal IDs, age metadata, detail status, and full detail text/media fields. The LLM layer derives a separate compact prompt payload through [`project_property_for_llm`](llm.md#compact-property-projection); that payload is not a replacement model and must never be stored as canonical listing data.
+
+## Recommendation
 One ranked recommendation produced by the [`Recommender`](llm.md).
 
 | Field | Type | Default | Meaning |
@@ -195,7 +169,3 @@ The final report produced by a [`SearchSession`](architecture.md) run.
 | `recommendations` | `list[Recommendation]` | `[]` | The ranked recommendations. |
 | `budgets_consumed` | `Budgets \| None` | `None` | Budgets actually consumed. |
 | `partial` | `bool` | `False` | True when the run was cut short by a budget or a block. |
-
-## Hydration queue models
-
-`HydrationStatus` has `queued`, `leased`, `succeeded`, `skipped`, `failed`, and `cancelled` states. `HydrationJob` carries the durable job ID, AtHome listing key, canonical URL, internal listing ID, attempt/max-attempt counters, UTC timestamps, lease token/expiry, and categorized last error fields. Queue defaults are three attempts and a five-minute lease (`DESIGN-FRESH`); T33 owns consumption and detail fetching.

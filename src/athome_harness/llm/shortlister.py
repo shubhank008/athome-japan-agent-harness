@@ -32,6 +32,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 
 from athome_harness.llm.base import BaseLLMProvider
+from athome_harness.llm.property_projection import project_property_for_llm
 from athome_harness.models import ListingSummary
 
 logger = logging.getLogger(__name__)
@@ -115,7 +116,10 @@ class Shortlister:
         top = DEFAULT_TOP_X if top_x is None else max(0, top_x)
         if top == 0:
             return []
-        source_ids = {listing.internal_id for listing in listings}
+        prompt_to_internal_id = {listing.athome_key: listing.internal_id for listing in listings}
+        prompt_to_internal_id.update(
+            {listing.internal_id: listing.internal_id for listing in listings}
+        )
         batches = self._pack_batches(prefs, listings)
         self._write_example(batches[0])
         logger.info(
@@ -181,14 +185,20 @@ class Shortlister:
                     time.monotonic() - submitted,
                 )
                 for entry in entries:
-                    if entry.listing_id not in source_ids:
+                    internal_id = prompt_to_internal_id.get(entry.listing_id)
+                    if internal_id is None:
                         logger.warning(
                             "shortlister referenced unknown listing %s", entry.listing_id
                         )
                         continue
-                    previous = best_by_id.get(entry.listing_id)
-                    if previous is None or entry.score > previous.score:
-                        best_by_id[entry.listing_id] = entry
+                    normalized = ShortlistEntry(
+                        listing_id=internal_id,
+                        score=entry.score,
+                        rationale=entry.rationale,
+                    )
+                    previous = best_by_id.get(internal_id)
+                    if previous is None or normalized.score > previous.score:
+                        best_by_id[internal_id] = normalized
         logger.info(
             "[SHORTLIST_DONE] shortlisted=%d successful_batches=%d failed_batches=%d "
             "prompt_tokens=%d completion_tokens=%d elapsed_s=<%.3f>",
@@ -213,7 +223,12 @@ class Shortlister:
             return
         self._example_path.parent.mkdir(parents=True, exist_ok=True)
         self._example_path.write_text(
-            json.dumps(batch[0].model_dump(), ensure_ascii=False, indent=2, default=str),
+            json.dumps(
+                project_property_for_llm(batch[0]),
+                ensure_ascii=False,
+                indent=2,
+                default=str,
+            ),
             encoding="utf-8",
         )
 
@@ -277,7 +292,7 @@ class Shortlister:
     def _serialize(listing: ListingSummary) -> str:
         """Serialize a listing to one compact JSON line for scoring."""
         return json.dumps(
-            listing.model_dump(),
+            project_property_for_llm(listing),
             ensure_ascii=False,
             separators=(",", ":"),
             default=str,

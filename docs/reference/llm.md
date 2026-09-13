@@ -4,8 +4,7 @@ The language-model building blocks under `src/athome_harness/llm/`. This layer
 turns a natural-language housing wish into a structured plan, scores harvested
 listings into a shortlist, and ranks shortlisted details into the final
 recommendations. Every stage is schema-validated through the shared
-`complete_json` path with token accounting, exactly-one JSON repair retry, and a
-bounded transport retry for transient provider failures.
+`complete_json` path with token accounting and exactly-one repair retry.
 
 * **Depends on:** [data models](data-models.md) (`SearchPlan`,
   `ListingSummary`, `ListingDetail`, `Recommendation`, `FilterMap`),
@@ -28,24 +27,15 @@ First invariant: no HTTP client is imported here).
 
 `complete_json` is the only path production consumers use. Its behavior:
 
-1. Calls `complete_text` and records usage. The shared transport makes at most
-   two total attempts for a transport exception or HTTP 5xx response, with a
-   bounded one-second delay and `[LLM_TRANSPORT_RETRY]` marker.
+1. Calls `complete_text` and records usage.
 2. Parses and validates the completion against `schema`. On success returns the
-   validated instance with the first successful call's usage.
-3. On `ValidationError` or `JSONDecodeError` it runs **exactly one** JSON repair
+   validated instance with the first call's usage.
+3. On `ValidationError` or `JSONDecodeError` it runs **exactly one** repair
    retry: `complete_text` again with an explicit instruction to return valid
-   JSON for the schema. This is separate from transport retry.
+   JSON for the schema.
 4. If the repair also fails it logs the `LLM_JSON_INVALID` marker and raises
-   `LLMJSONInvalidError` (a subclass of `LLMProviderError`). A terminal
-   transport failure logs `[LLM_TRANSPORT_FAILED]` and is not mislabeled as JSON
-   invalid.
-
-The recommender passes `debug_stage="recommender"`. With `DEBUG=true`, stable
-ignored files `debug/llm_recommender_input.json` and
-`debug/llm_recommender_output.json` are overwritten on each run. The request
-capture is written before transport, so it remains available when the provider
-times out; the response capture is written only when raw response text exists.
+   `LLMJSONInvalidError` (a subclass of `LLMProviderError`). The reported usage
+   sums both attempts.
 
 `LLMUsage` fields: `prompt_tokens: int`, `completion_tokens: int` (both `>= 0`,
 default `0`), plus the derived `total` / `total_tokens` properties.
@@ -56,51 +46,9 @@ credential material.
 
 ## OpenAICompatibleProvider (shared transport base)
 
-`llm/openai_compat.py` factors the shared wire contract used by OpenRouter
-and OpencodeGo: messages payload, JSON response format, optional completion
-ceilings, qualitative reasoning effort, and safe error handling. Both concrete
-transports use the same policy without provider-specific payload overrides.
-
-When `max_tokens` is configured, it remains the total completion ceiling,
-including reasoning and visible JSON. The universal payload policy sends both
-`max_tokens` and `max_completion_tokens` with the same configured value, plus a
-qualitative `reasoning_effort` value (`low` by default). `max_output_tokens` is
-not sent because the live OpenCodeGo `glm-5.2` gateway rejects it.
-
-Live compatibility probes on 2026-09-13 established:
-
-| Model | `max_tokens` | `max_completion_tokens` | `max_output_tokens` | nested `reasoning` |
-|---|---:|---:|---:|---:|
-| OpenCodeGo `glm-5.2` | accepted | accepted | rejected | rejected |
-| OpenCodeGo `deepseek-v4-flash` | accepted | accepted | accepted | accepted in tested request |
-
-Because the universal request must work for `glm-5.2`, numeric
-`reasoning.max_tokens` is not sent. Desired numeric budgets remain internal
-policy and telemetry until a common accepted field is verified. The planned
-levels are `low=2500`, `medium=5000`, and `high=8000`, but these values are not
-claimed to be enforced by every gateway. Usage telemetry must compare requested
-policy with returned `reasoning_tokens`, `completion_tokens`, and
-`finish_reason`.
-
-OpenCodeGo's `/zen/go/v1/chat/completions` gateway is OpenAI-compatible but
-model validation differs by model. The adapter therefore uses only the fields
-proven universal for the active GLM route and records response usage for
-compatibility monitoring.
-
-### Reasoning policy by stage
-
-The harness currently makes four logical call types:
-
-| Stage | Calls | Reasoning policy |
-|---|---|---|
-| Flow detection | One small `rent` vs `buy` JSON call | Disable or minimize reasoning when the provider supports it. |
-| Query parsing | One structured intent JSON call, with one repair retry possible | Low effort. |
-| Shortlisting | One call per token-bounded listing batch | Low by default because this is the main call-volume and latency hotspot. |
-| Recommender | One final ranking call, with one repair retry possible | Medium is a future candidate because it compares already-shortlisted details; keep low for bounded live probes initially. |
-
-The current provider interface does not yet expose a per-call reasoning setting;
-these stage policies are the next implementation target. No reasoning should be
-used for deterministic repair instructions beyond what the provider requires.
+`llm/openai_compat.py` factors the identical wire contract used by OpenRouter
+and OpencodeGo: messages payload, JSON response format, optional `max_tokens`,
+safe error handling. Concrete transports are thin declarations.
 
 `__init__` parameters:
 
@@ -110,8 +58,7 @@ used for deterministic repair instructions beyond what the provider requires.
 | `model` | `str` | `DEFAULT_GENERAL_MODEL` (subclasses override) | Completion model. |
 | `session` | `ChatSession \| None` | `None` | Injectable transport for tests. |
 | `base_url` | `str \| None` | `None` | Endpoint override; defaults to the subclass `default_base_url`. |
-| `max_tokens` | `int \| None` | `None` | API-level completion ceiling (`ATHOME_LLM_MAX_TOKENS`); sent as both completion fields when configured. |
-| `reasoning_effort` | `low \| medium \| high` | `low` | Qualitative reasoning control; omitted when `max_tokens` is `None`. |
+| `max_tokens` | `int \| None` | `None` | API-level completion ceiling (`ATHOME_LLM_MAX_TOKENS`); `None` uses the endpoint default. |
 
 Class attributes subclasses declare: `provider_name` (error label),
 `default_base_url`, `env_api_key`. An empty resolved key or URL raises
@@ -189,6 +136,14 @@ top_x: int | None = None, temperature: float = 0.0) -> list[ShortlistEntry]`:
 
 `ShortlistEntry` fields: `listing_id: str`, `score: float` (0 to 10),
 `rationale: str`. `ShortlistBatch` holds `entries: list[ShortlistEntry]`.
+
+### Compact property projection
+
+`llm/property_projection.py` defines the single `project_property_for_llm` contract used by both `Shortlister` and `Recommender`. It sends only ranking-oriented data: `athome_key`, title, address, station and walking time, price, floor plan, area, building type, floors, `construction_date`, USP tags, probable negatives, and detail-only pickup/facility features plus bounded text.
+
+`construction_date` remains the preferred construction/age field; when it is empty, the projection uses `age_display`. Description and remarks are consolidated into one `description` value: identical sources are emitted once, while different sources are retained with `Description:` and `Remarks:` labels. The projection omits agency metadata, URLs, freshness/completeness metadata, `internal_id`, numeric/raw/display age fields, and detail status fields listed in the approved payload removal contract. `athome_key` is retained as the prompt-to-source identifier.
+
+This is a prompt-only projection. `ListingSummary`, `ListingDetail`, SQLite payloads, recommendations, and rendered reports continue to use the full canonical listing objects. Token estimation, batch packing, and the Shortlister debug example all serialize this same projection.
 
 ## Recommender
 

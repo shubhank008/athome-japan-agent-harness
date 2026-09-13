@@ -21,7 +21,8 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from athome_harness.llm.base import BaseLLMProvider
-from athome_harness.models import ListingDetail, ListingSummary, Recommendation, SearchPlan
+from athome_harness.llm.property_projection import project_property_for_llm
+from athome_harness.models import ListingDetail, Recommendation, SearchPlan
 
 logger = logging.getLogger(__name__)
 
@@ -85,21 +86,19 @@ class Recommender:
         if limit == 0:
             return []
         constraints = self._describe_constraints(plan)
-        by_id = {det.internal_id: det for det in details}
+        by_id = {det.athome_key: det for det in details}
+        by_id.update({det.internal_id: det for det in details})
         user_lines = "\n".join(self._serialize(det) for det in details)
         user = (
             f"Constraints:\n{constraints}\n\nListings:\n{user_lines}\n\n"
             f"Return the top {limit} listings as JSON ranked best first."
         )
-        logger.debug("[LLM_DEBUG_CAPTURE] stage=<recommender> artifact=<request>")
         output, usage = self._provider.complete_json(
             system=_SYSTEM_PROMPT,
             user=user,
             schema=RecommendationOutput,
             temperature=temperature,
-            debug_stage="recommender",
         )
-        logger.debug("[LLM_DEBUG_CAPTURE] stage=<recommender> artifact=<response>")
         logger.debug(
             "[RECOMMEND_TOKENS] prompt=%d completion=%d ranked=%d",
             usage.prompt_tokens,
@@ -120,7 +119,7 @@ class Recommender:
             seen_ids.add(entry.listing_id)
             recommendations.append(
                 Recommendation(
-                    listing_id=entry.listing_id,
+                    listing_id=detail.internal_id,
                     rank=len(recommendations) + 1,
                     reasons=entry.reasons,
                     satisfied_constraints=entry.satisfied_constraints,
@@ -146,12 +145,14 @@ class Recommender:
         return "\n".join(pieces)
 
     @staticmethod
-    def _serialize(detail: ListingSummary) -> str:
+    def _serialize(detail: ListingDetail) -> str:
         """Serialize one detail to a compact JSON line for the prompt."""
-        data = detail.model_dump()
-        data.pop("photo_urls", None)
-        data.pop("structured_detail", None)
-        return json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
+        return json.dumps(
+            project_property_for_llm(detail),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        )
 
 
 def render_markdown(recommendations: list[Recommendation], query: str = "") -> str:
@@ -206,24 +207,6 @@ def render_markdown(recommendations: list[Recommendation], query: str = "") -> s
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _report_listing(listing: ListingSummary | None) -> dict[str, Any] | None:
-    """Return the established report fields, excluding persistence metadata."""
-    if listing is None:
-        return None
-    data = listing.model_dump(mode="json")
-    for field_name in (
-        "completeness",
-        "detail_fetched_at",
-        "detail_fresh_until",
-        "agency",
-        "agency_reference",
-        "structured_detail",
-        "source_data",
-    ):
-        data.pop(field_name, None)
-    return data
-
-
 def render_json(recommendations: list[Recommendation], plan: SearchPlan | None = None) -> str:
     """Render recommendations and optionally the executed search plan as JSON.
 
@@ -239,7 +222,7 @@ def render_json(recommendations: list[Recommendation], plan: SearchPlan | None =
             "satisfied_constraints": rec.satisfied_constraints,
             "violated_constraints": rec.violated_constraints,
             "probable_negatives": rec.probable_negatives,
-            "listing": _report_listing(rec.listing),
+            "listing": rec.listing.model_dump(mode="json") if rec.listing is not None else None,
         }
 
     payload: dict[str, Any] = {"recommendations": [_entry(rec) for rec in recommendations]}
