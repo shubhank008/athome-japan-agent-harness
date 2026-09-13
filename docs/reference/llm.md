@@ -62,17 +62,45 @@ and safe error handling. Concrete transports can opt into provider-specific
 reasoning controls without changing the shared fallback behavior.
 
 When `max_tokens` is configured, it remains the total completion ceiling,
-including reasoning and visible JSON. OpenRouter additionally receives
-`reasoning: {"max_tokens": floor(max_tokens / 2)}` when that floor is at least
-one. Flooring is integer rounding toward zero, and the remaining ceiling is
-left for visible output. With no configured ceiling, no reasoning field is
-sent. A non-positive configured ceiling is rejected at construction.
+including reasoning and visible JSON. The universal payload policy sends both
+`max_tokens` and `max_completion_tokens` with the same configured value, plus a
+qualitative `reasoning_effort` value (`low` by default). `max_output_tokens` is
+not sent because the live OpenCodeGo `glm-5.2` gateway rejects it.
 
-OpenCodeGo's documented `/zen/go/v1/chat/completions` gateway is an
-OpenAI-compatible endpoint, but its published numeric reasoning-budget
-convention is not established. The OpenCodeGo adapter therefore preserves
-`max_tokens` and omits the provider-specific reasoning field rather than
-sending an unverified extension.
+Live compatibility probes on 2026-09-13 established:
+
+| Model | `max_tokens` | `max_completion_tokens` | `max_output_tokens` | nested `reasoning` |
+|---|---:|---:|---:|---:|
+| OpenCodeGo `glm-5.2` | accepted | accepted | rejected | rejected |
+| OpenCodeGo `deepseek-v4-flash` | accepted | accepted | accepted | accepted in tested request |
+
+Because the universal request must work for `glm-5.2`, numeric
+`reasoning.max_tokens` is not sent. Desired numeric budgets remain internal
+policy and telemetry until a common accepted field is verified. The planned
+levels are `low=2500`, `medium=5000`, and `high=8000`, but these values are not
+claimed to be enforced by every gateway. Usage telemetry must compare requested
+policy with returned `reasoning_tokens`, `completion_tokens`, and
+`finish_reason`.
+
+OpenCodeGo's `/zen/go/v1/chat/completions` gateway is OpenAI-compatible but
+model validation differs by model. The adapter therefore uses only the fields
+proven universal for the active GLM route and records response usage for
+compatibility monitoring.
+
+### Reasoning policy by stage
+
+The harness currently makes four logical call types:
+
+| Stage | Calls | Reasoning policy |
+|---|---|---|
+| Flow detection | One small `rent` vs `buy` JSON call | Disable or minimize reasoning when the provider supports it. |
+| Query parsing | One structured intent JSON call, with one repair retry possible | Low effort. |
+| Shortlisting | One call per token-bounded listing batch | Low by default because this is the main call-volume and latency hotspot. |
+| Recommender | One final ranking call, with one repair retry possible | Medium is a future candidate because it compares already-shortlisted details; keep low for bounded live probes initially. |
+
+The current provider interface does not yet expose a per-call reasoning setting;
+these stage policies are the next implementation target. No reasoning should be
+used for deterministic repair instructions beyond what the provider requires.
 
 `__init__` parameters:
 

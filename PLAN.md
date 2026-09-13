@@ -232,6 +232,12 @@ implemented unless marked otherwise.
 
 - 2026-07-08: robots.txt is honored in spirit (rate limits, session scope) not
   mechanically; user decision, on record.
+- 2026-09-12: LLM output budgeting uses a qualitative reasoning effort setting with
+  default `low`; the provisional numeric policy is low=2500, medium=5000, high=8000.
+  Provider payloads must preserve the single configured `ATHOME_LLM_MAX_TOKENS` value
+  as the total ceiling and send it in both `max_tokens` and `max_completion_tokens`.
+  Numeric reasoning fields remain internal telemetry until universally supported.
+- 2026-09-13: Live OpenCodeGo probes confirmed `glm-5.2` accepts `max_tokens`, `max_completion_tokens`, and `reasoning_effort`, but rejects `max_output_tokens` and nested `reasoning`; `deepseek-v4-flash` accepted all tested variants. To avoid model-specific configuration, the universal payload will send only `max_tokens` and `max_completion_tokens` from `ATHOME_LLM_MAX_TOKENS` plus qualitative `reasoning_effort` (default low). Low/medium/high desired numeric budgets (2500/5000/8000) remain internal policy and telemetry until a universally accepted numeric field exists; never send a field proven to make GLM requests fail.
 - 2026-07-08: Filter map is context-keyed by (flow, filter name) because `kcXXX` codes
   collide across PRICEFROM/PRICETO and flows.
 - 2026-07-08: Project-scoped PRD.md and SPEC.md live at repo root; the feature spec in
