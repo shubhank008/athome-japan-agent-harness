@@ -122,3 +122,27 @@ python scripts/full_run_probe.py --mode live
 
 Every probe is safe to inspect with `--help` (no side effects). LLM live mode
 requires the provider credential to be present in the environment.
+
+## DEBUG run evidence contract
+
+When `DEBUG=true`, every completed full probe must produce two human-readable analysis
+artifacts in addition to the machine report and raw provider envelopes:
+
+1. **Recommender Input Schema Analysis**: inventory the final
+   `debug/llm_recommender_input.json`, list property keys, presence rates, serialized
+   sizes, and prompt-trimming candidates.
+2. **Audit Flow Report**: describe the run configuration, every pipeline stage, counts,
+   timings, provider usage, challenge/refarm events, persistence changes, failures, and
+   recommended next actions.
+
+For benchmark runs, preserve them under separate directories such as:
+
+```text
+docs/reports/benchmarks/YYYY-MM-DD-low/
+docs/reports/benchmarks/YYYY-MM-DD-medium/
+```
+
+Copy the current final Markdown/JSON report, schema analysis, and audit report before
+starting another DEBUG run because fixed `debug/llm_*` and `last` artifacts are
+intentionally overwritten. Reports must omit secrets, cookies, session IDs, and
+unredacted provider credentials. These analyses are operator evidence, not LLM inputs.
