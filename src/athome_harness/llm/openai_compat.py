@@ -117,6 +117,8 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         self._base_url = resolved_base_url
         if timeout_s < 0:
             raise ValueError("timeout_s must not be negative")
+        if max_tokens is not None and max_tokens < 1:
+            raise ValueError("max_tokens must be positive when configured")
         self._max_tokens = max_tokens
         self._timeout_s = timeout_s
         self._session_owned = session is None
@@ -147,6 +149,10 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             "Content-Type": "application/json",
         }
 
+    def _reasoning_payload(self) -> dict[str, object] | None:
+        """Return an optional provider-supported reasoning control payload."""
+        return None
+
     def complete_text(
         self,
         *,
@@ -165,7 +171,11 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             "response_format": {"type": "json_object"},
         }
         if self._max_tokens is not None:
+            # This remains the total completion ceiling, including reasoning.
             payload["max_tokens"] = self._max_tokens
+            reasoning_payload = self._reasoning_payload()
+            if reasoning_payload is not None:
+                payload.update(reasoning_payload)
         started = time.monotonic()
         response: ChatResponse | None = None
         for attempt in range(1, _MAX_TRANSPORT_ATTEMPTS + 1):

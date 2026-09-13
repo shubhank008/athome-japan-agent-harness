@@ -209,5 +209,32 @@ def test_max_tokens_omitted_when_none() -> None:
     session = FakeSession([FakeResponse(200, _ok_body())])
     provider = OpenRouterProvider("k", session=session)
     provider.complete_text(system="sys", user="usr")
-    _, kwargs = session.calls[0]
-    assert "max_tokens" not in kwargs["json"]  # type: ignore[index]
+    assert "max_tokens" not in session.calls[0][1]["json"]  # type: ignore[operator]
+    assert "reasoning" not in session.calls[0][1]["json"]  # type: ignore[operator]
+
+
+def test_reasoning_budget_uses_floored_half_without_changing_total_ceiling() -> None:
+    """OpenRouter receives half the ceiling while max_tokens stays total."""
+    session = FakeSession([FakeResponse(200, _ok_body())])
+    provider = OpenRouterProvider("k", session=session, max_tokens=513)
+    provider.complete_text(system="sys", user="usr")
+    payload = session.calls[0][1]["json"]
+    assert payload["max_tokens"] == 513  # type: ignore[index]
+    assert payload["reasoning"] == {"max_tokens": 256}  # type: ignore[index]
+
+
+def test_one_token_ceiling_omits_zero_reasoning_budget() -> None:
+    """A one-token ceiling remains valid without a zero reasoning slice."""
+    session = FakeSession([FakeResponse(200, _ok_body())])
+    provider = OpenRouterProvider("k", session=session, max_tokens=1)
+    provider.complete_text(system="sys", user="usr")
+    payload = session.calls[0][1]["json"]
+    assert payload["max_tokens"] == 1  # type: ignore[index]
+    assert "reasoning" not in payload  # type: ignore[operator]
+
+
+def test_reasoning_budget_requires_positive_total_ceiling() -> None:
+    """A zero or negative configured ceiling is rejected before transport."""
+    for max_tokens in (0, -1):
+        with pytest.raises(ValueError, match="max_tokens must be positive"):
+            OpenRouterProvider("k", session=FakeSession([]), max_tokens=max_tokens)

@@ -28,3 +28,19 @@ class OpenRouterProvider(OpenAICompatibleProvider):
     default_base_url = OPENROUTER_URL
     # Environment variable that carries the OpenRouter API key.
     env_api_key = "OPENROUTER_API_KEY"
+
+    def _reasoning_payload(self) -> dict[str, object] | None:
+        """Return OpenRouter's documented numeric reasoning-token budget.
+
+        OpenRouter uses ``reasoning.max_tokens`` for this control. The shared
+        ``max_tokens`` field remains the total completion ceiling, so flooring
+        half leaves the other half available for visible JSON output. A
+        one-token ceiling has no positive reasoning slice and therefore omits
+        the optional field rather than sending an invalid zero budget.
+        """
+        if self._max_tokens is None:
+            return None
+        reasoning_tokens = self._max_tokens // 2
+        if reasoning_tokens < 1:
+            return None
+        return {"reasoning": {"max_tokens": reasoning_tokens}}

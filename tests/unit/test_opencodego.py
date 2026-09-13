@@ -69,7 +69,6 @@ def test_authorization_header_carries_key() -> None:
     assert headers["Authorization"] == "Bearer go-secret"
 
 
-
 def test_coding_agent_headers_use_one_stable_session_id() -> None:
     """OpenCodeGo identifies the app and reuses one UUID per provider instance."""
     session = _FakeSession([_FakeResponse(200, _ok_body()), _FakeResponse(200, _ok_body())])
@@ -133,3 +132,13 @@ def test_unknown_provider_name_error_message() -> None:
     session = _FakeSession([_FakeResponse(200, _ok_body())])
     with pytest.raises(LLMProviderError, match="OpenCodeGo"):
         OpenCodeGoProvider(session=session)
+
+
+def test_reasoning_budget_field_is_omitted_for_unsupported_gateway() -> None:
+    """OpenCodeGo keeps the total ceiling without guessing a gateway extension."""
+    session = _FakeSession([_FakeResponse(200, _ok_body())])
+    provider = OpenCodeGoProvider("k", session=session, max_tokens=513)
+    provider.complete_text(system="sys", user="usr")
+    payload = session.calls[0][1]["json"]
+    assert payload["max_tokens"] == 513  # type: ignore[index]
+    assert "reasoning" not in payload  # type: ignore[operator]

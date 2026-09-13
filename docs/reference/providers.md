@@ -34,7 +34,11 @@ Maps `settings.llm_provider` to a concrete transport:
 | `opencodego` | `OpenCodeGoProvider` | `opencodego_api_key` | `opencodego_model` |
 
 Any other value raises `ValueError` naming the expected values. The
-`llm_max_tokens` budget is passed through as the transport's `max_tokens`.
+`llm_max_tokens` budget is passed through as the transport's total
+`max_tokens` ceiling. OpenRouter also sends its documented nested
+`reasoning.max_tokens` field at `floor(llm_max_tokens / 2)` when positive.
+OpenCodeGo preserves the total ceiling but omits that optional field because
+its gateway's numeric reasoning-budget convention is not established.
 
 ## build_store(settings) -> BaseDataStore
 

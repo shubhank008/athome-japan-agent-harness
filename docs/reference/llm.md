@@ -56,9 +56,23 @@ credential material.
 
 ## OpenAICompatibleProvider (shared transport base)
 
-`llm/openai_compat.py` factors the identical wire contract used by OpenRouter
+`llm/openai_compat.py` factors the shared wire contract used by OpenRouter
 and OpencodeGo: messages payload, JSON response format, optional `max_tokens`,
-safe error handling. Concrete transports are thin declarations.
+and safe error handling. Concrete transports can opt into provider-specific
+reasoning controls without changing the shared fallback behavior.
+
+When `max_tokens` is configured, it remains the total completion ceiling,
+including reasoning and visible JSON. OpenRouter additionally receives
+`reasoning: {"max_tokens": floor(max_tokens / 2)}` when that floor is at least
+one. Flooring is integer rounding toward zero, and the remaining ceiling is
+left for visible output. With no configured ceiling, no reasoning field is
+sent. A non-positive configured ceiling is rejected at construction.
+
+OpenCodeGo's documented `/zen/go/v1/chat/completions` gateway is an
+OpenAI-compatible endpoint, but its published numeric reasoning-budget
+convention is not established. The OpenCodeGo adapter therefore preserves
+`max_tokens` and omits the provider-specific reasoning field rather than
+sending an unverified extension.
 
 `__init__` parameters:
 

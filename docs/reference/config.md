@@ -31,7 +31,7 @@ The pydantic value object carrying the budget knobs. Every field is `ge=0`
 | `prefetch_ttl_hours` | `float` | `48.0` | `ATHOME_PREFETCH_TTL_HOURS` | Legacy unscheduled broad-prefetch setting. US-009 supersedes this design with a 14-day canonical-detail freshness policy; do not use this setting for detail hydration until its dedicated configuration is implemented. |
 | `llm_timeout_s` | `float` | `30.0` | `ATHOME_LLM_TIMEOUT_S` | OpenAI-compatible LLM request timeout. |
 | `llm_temperature` | `float` | `0.0` | `ATHOME_LLM_TEMPERATURE` | LLM scoring temperature. |
-| `llm_max_tokens` | `int` | `2048` | `ATHOME_LLM_MAX_TOKENS` | LLM completion ceiling. |
+| `llm_max_tokens` | `int` | `2048` | `ATHOME_LLM_MAX_TOKENS` | Total LLM completion ceiling, including reasoning and visible output. OpenRouter reserves `floor(value / 2)` for reasoning when positive; OpenCodeGo keeps the ceiling without an unverified numeric reasoning field. |
 
 ## Settings
 
