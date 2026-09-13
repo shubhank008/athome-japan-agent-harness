@@ -228,7 +228,7 @@ class BaseLLMProvider(ABC):
         """Overwrite a local DEBUG diagnostic file when enabled."""
         if os.getenv("DEBUG", "").lower() not in {"1", "true", "yes", "on"}:
             return
-        debug_dir = Path("debug")
+        debug_dir = Path(os.environ.get("ATHOME_DEBUG_DIR", "debug"))
         debug_dir.mkdir(parents=True, exist_ok=True)
         (debug_dir / filename).write_text(
             json.dumps(payload, ensure_ascii=False, indent=2, default=str),

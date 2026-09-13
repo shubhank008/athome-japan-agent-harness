@@ -264,7 +264,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         """Persist a complete provider response envelope when DEBUG is enabled."""
         if os.getenv("DEBUG", "").lower() not in {"1", "true", "yes", "on"}:
             return
-        debug_dir = Path("debug")
+        debug_dir = Path(os.environ.get("ATHOME_DEBUG_DIR", "debug"))
         debug_dir.mkdir(parents=True, exist_ok=True)
         payload = {
             "provider": self.provider_name,

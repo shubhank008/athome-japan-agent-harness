@@ -132,6 +132,16 @@ def test_complete_json_debug_saves_repair_artifacts(tmp_path, monkeypatch) -> No
     assert "also bad" in invalid
 
 
+def test_debug_dump_uses_configured_run_directory(tmp_path, monkeypatch) -> None:
+    """DEBUG artifacts follow ATHOME_DEBUG_DIR for run isolation."""
+    run_dir = tmp_path / "debug" / "run-1"
+    monkeypatch.setenv("DEBUG", "true")
+    monkeypatch.setenv("ATHOME_DEBUG_DIR", str(run_dir))
+    provider = FakeProvider([_ok_json()])
+    provider.complete_json(system="s", user="u", schema=SampleSchema)
+    assert (run_dir / "llm_last_input.json").exists()
+    assert not (tmp_path / "debug" / "llm_last_input.json").exists()
+
 def test_repairable_failure_has_no_invalid_marker(caplog: pytest.LogCaptureFixture) -> None:
     """A successful repair must not emit the terminal failure marker."""
     provider = FakeProvider(["bad", _ok_json()])

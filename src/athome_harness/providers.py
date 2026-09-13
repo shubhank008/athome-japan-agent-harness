@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from collections.abc import Callable
 from pathlib import Path
 
@@ -132,14 +133,16 @@ def build_production_fetch(
             debug=settings.debug,
         )
 
+    debug_dir = Path(os.environ.get("ATHOME_DEBUG_DIR", "debug"))
+
     async def farm(url: str) -> CookieHandoff:
-        return await PlaywrightCookieFetcher(url=url).farm()
+        return await PlaywrightCookieFetcher(url=url, debug_dir=debug_dir).farm()
 
     refarmer = SessionRefarmer(
         build_adapter=build_adapter,
         farm=farm,
         debug=settings.debug,
-        debug_dir=Path("debug"),
+        debug_dir=debug_dir,
     )
 
     def fetch(url: str) -> str:
@@ -161,6 +164,4 @@ def load_settings() -> Settings:
     value comes from the ``OPENROUTER_API_KEY`` process environment variable
     (empty when unset, in which case downstream LLM calls fail loudly).
     """
-    import os
-
     return Settings(openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", ""))
