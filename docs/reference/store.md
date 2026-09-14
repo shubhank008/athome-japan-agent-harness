@@ -40,6 +40,13 @@ SQLite implementation is the only one today.
 | `set_cache_meta` | `(key: str, value: str \| int \| float) -> None` | Write a cache metadata entry. |
 
 | `get_cache_meta` | `(key: str) -> str \| int \| float \| None` | Read a cache metadata entry. |
+| `get_fresh_detail` | `(athome_key: str, now: datetime) -> ListingDetail \| None` | Return complete detail when fresh at `now`. |
+| `enqueue_hydration` | `(intent: HydrationIntent, max_attempts: int = 3) -> HydrationJob \| None` | Idempotently enqueue detail work unless the listing is fresh. |
+| `claim_hydration` | `(lease_seconds: int = 300) -> HydrationJob \| None` | Atomically lease the oldest eligible hydration job. |
+| `acknowledge_hydration_success` | `(athome_key: str, lease_token: str) -> HydrationJob` | Mark a claimed job successful, validating its lease token. |
+| `record_hydration_failure` | `(athome_key: str, lease_token: str, category: str, error: str) -> HydrationJob` | Record a categorized failure and requeue until attempts are exhausted. |
+| `cancel_hydration` | `(athome_key: str, reason: str) -> HydrationJob` | Explicitly cancel a job after positive unavailable detection. |
+| `get_hydration_job` | `(athome_key: str) -> HydrationJob \| None` | Return the durable hydration job for an AtHome listing. |
 
 `SearchRecord` fields: `search_id: int`, `query: str`, `plan: SearchPlan`,
 `created_at: str` (ISO-8601). `RecommendationRecord` fields: `search_id: int`,
@@ -67,7 +74,7 @@ inherits the full contract test surface for free.
 `SqliteStore(path: str | Path)` implements the contract over a single SQLite
 database file (default `athome.db`, configurable via `ATHOME_STORE_PATH`).
 
-* **Schema versioning:** `SCHEMA_VERSION = 2`; `migrate(connection)` creates or
+* **Schema versioning:** `SCHEMA_VERSION = 3`; `migrate(connection)` creates or
   upgrades the schema idempotently and `_read_version` reads the current
   version, so opening an older file upgrades in place.
 * **Listing storage:** listings are serialized to JSON and upserted keyed by

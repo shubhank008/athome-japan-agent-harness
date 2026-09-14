@@ -221,7 +221,7 @@ Budgets are configurable through `ATHOME_*` env keys and covered by SPEC section
   explicit `partial: true` marker when it aborts rather than emitting wrong data.
 - Rate limit 1 request / 2 s with 0-1 s jitter; HTTP timeout 30 s; proxy retries 3.
 - Live searches scrape 100% of the LLM-filtered result set; broad-net freshness
-  coverage is delegated to the optional post-MVP prefetch cache, not to live searches.
+  coverage is delegated to the optional post-MVP detail hydration worker, not to live searches.
 
 ### LLM repair and token loop
 

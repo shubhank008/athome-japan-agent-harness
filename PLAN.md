@@ -72,7 +72,8 @@ typed CookieHandoff), SessionRefarmer (production fallback loop orchestrating
 HttpDom -> block -> browser farm -> rebound HttpDom), BaseLLMProvider (OpenRouter or
 OpencodeGo, config-driven), BaseDataStore (SQLite first), BaseFloorPlanEvaluator (text default, vision
 stub). Webshare proxy rotation on block detection only. Weekly GitHub Action re-extracts the filter map and files an issue on
-DOM drift. Post-MVP: prefetch cache with freshness ordering and dead-listing
+DOM drift. Post-MVP: durable detail-hydration queue with background workers and
+live-path cache read.
 revalidation, vision A/B benchmarks.
 
 ## Milestone board (001)
@@ -88,13 +89,14 @@ revalidation, vision A/B benchmarks.
 | M6 Orchestration + CLI | T24-T26 | done (2026-08-19, `feat/001-m6-orchestration-cli`) |
 | M7 Maintenance surfaces | T27-T28 | done (2026-08-19, `feat/001-m7-maintenance-surfaces`) |
 | M8 Configurable providers | (factory) | done (PR #15 `feat/001-m8-configurable-providers`) |
-| Post-MVP | T29-T36 | detail hydration catalogue, agency records, vision, and purchase coverage spec'd; not scheduled |
+| Post-MVP | T29-T36 | T29-T34 detail hydration, agency records, recommendation ingestion, queue, worker, live cache implemented locally; T35-T36 vision and purchase coverage spec'd; not scheduled |
 
 ## Decisions log
 
 - 2026-07-08: Live searches scrape 100% of the LLM-filtered result set; broad-net
-  coverage for unfiltered exploration is delegated to the optional prefetch cache
-  (freshness-sorted), not to live searches. Rationale: 300k-listing prefectures make
+  coverage for unfiltered exploration is delegated to the optional post-MVP detail
+  hydration worker (evolved from the original prefetch-cache concept), not to live
+  searches. Rationale: 300k-listing prefectures make
   percentage-of-everything live scraping multi-hour and rate-limit hostile.
 
 ## Next implementation phases

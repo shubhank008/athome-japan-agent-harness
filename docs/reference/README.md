@@ -22,7 +22,7 @@ dependencies and dependents at the top.
 | Page | Building blocks | Layer |
 |------|-----------------|-------|
 | [architecture.md](architecture.md) | `SearchSession`, `SessionDeps`, the funnel | Orchestration |
-| [data-models.md](data-models.md) | `SearchPlan`, `ListingSummary`, `ListingDetail`, `PriceBreakdown`, `Recommendation`, `FilterMap`, `RunReport` | Contract |
+| [data-models.md](data-models.md) | `SearchPlan`, `ListingSummary`, `ListingDetail`, `PriceBreakdown`, `Recommendation`, `FilterMap`, `RunReport`, `Agency`, `StructuredDetail`, `HydrationJob`, `HydrationStatus`, `ListingCompleteness`, `RecommendationCard`, `HydrationIntent` | Contract |
 | [config.md](config.md) | `Settings`, `Budgets`, env keys | Configuration |
 | [llm.md](llm.md) | `BaseLLMProvider`, `OpenAICompatibleProvider`, `OpenRouterProvider`, `OpenCodeGoProvider`, `QueryParser`, `Shortlister`, `Recommender` | LLM |
 | [filters.md](filters.md) | `FilterMap` schema, `FieldCondition`, `encode` | Filters |
