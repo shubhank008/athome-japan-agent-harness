@@ -31,9 +31,11 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import re
 import shutil
 import sys
+import uuid
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -43,6 +45,7 @@ for _root in (_REPO_ROOT, _REPO_ROOT / "src"):
 
 from athome_harness.cli import SearchSession, SessionDeps  # noqa: E402
 from athome_harness.config import Budgets  # noqa: E402
+from athome_harness.debug_artifacts import report_run_dir  # noqa: E402
 from athome_harness.llm.base import BaseLLMProvider, LLMUsage  # noqa: E402
 from athome_harness.models import FilterMap  # noqa: E402
 from athome_harness.store.sqlite_store import SqliteStore  # noqa: E402
@@ -162,7 +165,7 @@ class FakeFetch:
         return self._detail_html[idx % len(self._detail_html)]
 
 
-def _fixture_deps(work_dir: Path) -> tuple[SessionDeps, SqliteStore]:
+def _fixture_deps(work_dir: Path, report_dir: Path) -> tuple[SessionDeps, SqliteStore]:
     """Build fully injected fixture deps (offline, deterministic, real code)."""
     from tests.unit._fakes import build_filter_map
 
@@ -184,7 +187,7 @@ def _fixture_deps(work_dir: Path) -> tuple[SessionDeps, SqliteStore]:
         fetch=fetch,
         build_list_url=lambda params, page: f"https://example.invalid/list?PAGENO={page}",
         build_detail_url=lambda summary: f"https://example.invalid/detail/{summary.internal_id}",
-        report_dir=work_dir / "reports",
+        report_dir=report_dir,
         budgets=Budgets(),
     )
     return deps, store
@@ -195,7 +198,7 @@ def _fixture_deps(work_dir: Path) -> tuple[SessionDeps, SqliteStore]:
 # ---------------------------------------------------------------------------
 
 
-def _live_deps(work_dir: Path) -> SessionDeps:
+def _live_deps(work_dir: Path, report_dir: Path) -> SessionDeps:
     """Build production deps (LLM, store, SessionRefarmer fetch) from settings."""
     from athome_harness.providers import (
         build_llm_provider,
@@ -207,7 +210,6 @@ def _live_deps(work_dir: Path) -> SessionDeps:
     settings = load_settings()
     filter_map = _load_filter_map()
     store = build_store(settings)
-    report_dir = work_dir / "reports"
     return SessionDeps(
         provider=build_llm_provider(settings),
         filter_map=filter_map,
@@ -282,14 +284,20 @@ def main(argv: list[str] | None = None) -> int:
     if work_dir.exists():
         shutil.rmtree(work_dir, ignore_errors=True)
     work_dir.mkdir(parents=True, exist_ok=True)
+    run_id = uuid.uuid4().hex
+    report_dir = report_run_dir(root=_REPO_ROOT / "reports", run_id=run_id)
+    debug_dir = _REPO_ROOT / "debug" / run_id
+    debug_dir.mkdir(parents=True, exist_ok=True)
+    previous_debug_dir = os.environ.get("ATHOME_DEBUG_DIR")
+    os.environ["ATHOME_DEBUG_DIR"] = str(debug_dir)
 
     store: SqliteStore | None = None
     deps: SessionDeps | None = None
     try:
         if args.mode == "fixture":
-            deps, store = _fixture_deps(work_dir)
+            deps, store = _fixture_deps(work_dir, report_dir)
         else:
-            deps = _live_deps(work_dir)
+            deps = _live_deps(work_dir, report_dir)
             store = deps.store if isinstance(deps.store, SqliteStore) else None
         return _run_session(args.query, deps, store)
     finally:
@@ -297,6 +305,10 @@ def main(argv: list[str] | None = None) -> int:
             deps.store.close()
         if not args.keep_outputs:
             shutil.rmtree(work_dir, ignore_errors=True)
+        if previous_debug_dir is None:
+            os.environ.pop("ATHOME_DEBUG_DIR", None)
+        else:
+            os.environ["ATHOME_DEBUG_DIR"] = previous_debug_dir
 
 
 if __name__ == "__main__":

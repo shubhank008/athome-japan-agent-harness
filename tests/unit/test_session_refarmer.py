@@ -222,3 +222,29 @@ def test_zero_refarms_disables_recovery() -> None:
     with pytest.raises(BlockDetected):
         asyncio.run(run())
     assert farm_calls == []
+
+
+def test_debug_captures_latest_and_correlated_rebound_failure(tmp_path) -> None:
+    """DEBUG keeps both latest and listing-specific rebound diagnostics."""
+    direct = FakeScraper(html="blocked", binary=b"blocked", on_block=True)
+    rebound = FakeScraper(html="<html>challenge</html>", binary=b"blocked", on_block=True)
+    rebound.raw_response = type("RawResponse", (), {"text": "<html>challenge</html>"})()
+    url = "https://www.athome.co.jp/chintai/1131489621/"
+
+    async def run() -> None:
+        refarmer = SessionRefarmer(
+            build_adapter=lambda handoff: direct if handoff is None else rebound,
+            farm=lambda _url: _completed_handoff([]),
+            debug=True,
+            debug_dir=tmp_path,
+        )
+        try:
+            await refarmer.fetch_html(url)
+        except BlockDetected:
+            pass
+
+    asyncio.run(run())
+    assert (tmp_path / "live_rebound_failure.json").exists()
+    assert (tmp_path / "live_rebound_failure_chintai_1131489621.json").exists()
+    assert (tmp_path / "live_last_handoff_challenge.html").exists()
+    assert (tmp_path / "live_handoff_challenge_chintai_1131489621.html").exists()

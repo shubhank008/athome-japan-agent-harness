@@ -21,9 +21,11 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import Protocol
+from urllib.parse import urlparse
 
 from athome_harness.scraping.base import BlockDetected, redact_url
 from athome_harness.scraping.cookie_handoff import CookieHandoff
@@ -130,8 +132,11 @@ class SessionRefarmer:
                         adapter = self._active
                         raw = getattr(adapter, "raw_response", None)
                         if raw is not None and isinstance(getattr(raw, "text", None), str):
-                            (self._debug_dir / "live_last_handoff_challenge.html").write_text(
-                                raw.text, encoding="utf-8"
+                            self._write_html_artifacts(
+                                raw.text,
+                                "live_last_handoff_challenge.html",
+                                url,
+                                "live_handoff_challenge",
                             )
             self._close_adapter(self._active)
             self._active = None
@@ -158,26 +163,48 @@ class SessionRefarmer:
         challenge = detect_athome_challenge(result)
         if challenge is None or post_handoff:
             filename = "live_last_handoff.html" if post_handoff else "live_last_success.html"
-            (self._debug_dir / filename).write_text(result, encoding="utf-8")
+            artifact_prefix = "live_handoff" if post_handoff else "live_success"
+            self._write_html_artifacts(result, filename, url, artifact_prefix)
         if challenge is not None and post_handoff:
-            (self._debug_dir / "live_last_handoff_challenge.html").write_text(
-                result, encoding="utf-8"
+            self._write_html_artifacts(
+                result, "live_last_handoff_challenge.html", url, "live_handoff_challenge"
             )
 
+    def _write_html_artifacts(
+        self, html: str, latest_name: str, url: str, artifact_prefix: str
+    ) -> None:
+        """Write latest and URL-correlated HTML diagnostics when DEBUG is enabled."""
+        self._debug_dir.mkdir(parents=True, exist_ok=True)
+        (self._debug_dir / latest_name).write_text(html, encoding="utf-8")
+        suffix = self._url_suffix(url)
+        (self._debug_dir / f"{artifact_prefix}_{suffix}.html").write_text(
+            html, encoding="utf-8"
+        )
+
     def _capture_failure(self, url: str, error: BaseException, stage: str) -> None:
-        """Persist stable redacted failure metadata when DEBUG is enabled."""
+        """Persist latest and URL-correlated failure metadata when DEBUG is enabled."""
         if not self._debug:
             return
         self._debug_dir.mkdir(parents=True, exist_ok=True)
         safe_url = redact_url(url)
-        (self._debug_dir / f"live_{stage}_failure.json").write_text(
-            json.dumps(
-                {"url": safe_url, "error": type(error).__name__, "message": str(error)},
-                ensure_ascii=False,
-                indent=2,
-            ),
-            encoding="utf-8",
+        payload = {
+            "url": safe_url,
+            "error": type(error).__name__,
+            "message": str(error),
+        }
+        serialized = json.dumps(payload, ensure_ascii=False, indent=2)
+        (self._debug_dir / f"live_{stage}_failure.json").write_text(serialized, encoding="utf-8")
+        suffix = self._url_suffix(url)
+        (self._debug_dir / f"live_{stage}_failure_{suffix}.json").write_text(
+            serialized, encoding="utf-8"
         )
+
+    @staticmethod
+    def _url_suffix(url: str) -> str:
+        """Return a filesystem-safe listing-oriented suffix for a URL."""
+        parsed = urlparse(url)
+        path = parsed.path.strip("/").replace("/", "_") or "root"
+        return re.sub(r"[^A-Za-z0-9_.-]+", "_", path)
 
     @staticmethod
     def _close_adapter(adapter: object | None) -> None:

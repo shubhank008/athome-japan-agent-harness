@@ -31,6 +31,8 @@ def test_defaults_load(settings: Settings) -> None:
     assert settings.general_model == "deepseek/deepseek-v4-flash-0731"
     assert settings.vision_model == "google/gemma-4-31b-it"
     assert settings.budgets == Budgets()
+    assert settings.llm_reasoning_effort == "low"
+    assert settings.budgets.llm_reasoning_token_budget == 2500
 
 
 def test_provider_selection_defaults(settings: Settings) -> None:
@@ -39,9 +41,7 @@ def test_provider_selection_defaults(settings: Settings) -> None:
     assert settings.store_provider == "sqlite"
     assert settings.scraper_provider == "http"
     assert settings.opencodego_model == "opencode-go/deepseek-v4-flash"
-    assert settings.opencodego_base_url == (
-        "https://opencode.ai/zen/go/v1/chat/completions"
-    )
+    assert settings.opencodego_base_url == ("https://opencode.ai/zen/go/v1/chat/completions")
     assert settings.store_path == "athome.db"
 
 
@@ -67,11 +67,32 @@ def test_env_overrides_settings(clean_env: None, monkeypatch: pytest.MonkeyPatch
     monkeypatch.setenv("ATHOME_MAX_PAGES", "50")
     monkeypatch.setenv("ATHOME_LLM_TEMPERATURE", "0.3")
     monkeypatch.setenv("ATHOME_LLM_MAX_TOKENS", "4096")
+    monkeypatch.setenv("ATHOME_LLM_REASONING", "high")
     s = Settings()
     assert s.general_model == "custom/model"
     assert s.max_pages == 50
     assert s.llm_temperature == 0.3
     assert s.llm_max_tokens == 4096
+    assert s.llm_reasoning_effort == "high"
+    assert s.budgets.llm_reasoning_token_budget == 8000
+
+
+@pytest.mark.parametrize("effort", ["low", "medium", "high"])
+def test_reasoning_effort_values_are_accepted(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch, effort: str
+) -> None:
+    """The three approved qualitative reasoning values parse successfully."""
+    monkeypatch.setenv("ATHOME_LLM_REASONING", effort)
+    assert Settings().llm_reasoning_effort == effort
+
+
+def test_invalid_reasoning_effort_is_rejected(
+    clean_env: None, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An unsupported reasoning value fails configuration validation."""
+    monkeypatch.setenv("ATHOME_LLM_REASONING", "maximum")
+    with pytest.raises(ValueError, match="ATHOME_LLM_REASONING"):
+        Settings()
 
 
 def test_unknown_athome_env_key_raises(clean_env: None, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -105,6 +126,7 @@ def test_unknown_athome_env_key_raises(clean_env: None, monkeypatch: pytest.Monk
         "ATHOME_PREFETCH_TTL_HOURS",
         "ATHOME_LLM_TEMPERATURE",
         "ATHOME_LLM_MAX_TOKENS",
+        "ATHOME_LLM_REASONING",
     ],
 )
 def test_every_env_example_athome_key_is_accepted(
@@ -114,7 +136,7 @@ def test_every_env_example_athome_key_is_accepted(
 
     This keeps the template and the parser in sync in both directions.
     """
-    monkeypatch.setenv(key, "1")
+    monkeypatch.setenv(key, "low" if key == "ATHOME_LLM_REASONING" else "1")
     Settings()
 
 

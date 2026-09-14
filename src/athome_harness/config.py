@@ -9,10 +9,17 @@ can never drift out of sync (repo invariant).
 from __future__ import annotations
 
 import os
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+LLMReasoningEffort = Literal["low", "medium", "high"]
+LLM_REASONING_TOKEN_BUDGETS: dict[str, int] = {
+    "low": 2500,
+    "medium": 5000,
+    "high": 8000,
+}
 
 # Model defaults are verified against OpenRouter and documented in PLAN.md.
 DEFAULT_GENERAL_MODEL = "deepseek/deepseek-v4-flash-0731"
@@ -77,6 +84,14 @@ class Budgets(BaseModel):
 
     # Ceiling on tokens a single LLM completion may consume before rejection.
     llm_max_tokens: int = Field(default=2048, ge=1)
+
+    # Qualitative reasoning control shared by all compatible LLM providers.
+    llm_reasoning_effort: LLMReasoningEffort = Field(default="low")
+
+    @property
+    def llm_reasoning_token_budget(self) -> int:
+        """Return the internal policy budget for the configured effort level."""
+        return LLM_REASONING_TOKEN_BUDGETS[self.llm_reasoning_effort]
 
 
 class Settings(BaseSettings):
@@ -171,9 +186,21 @@ class Settings(BaseSettings):
     http_timeout_s: float = Field(default=30.0, validation_alias="ATHOME_HTTP_TIMEOUT_S")
     proxy_retries: int = Field(default=3, validation_alias="ATHOME_PROXY_RETRIES")
     prefetch_ttl_hours: float = Field(default=48.0, validation_alias="ATHOME_PREFETCH_TTL_HOURS")
+    hydration_worker_enabled: bool = Field(
+        default=False, validation_alias="ATHOME_HYDRATION_WORKER_ENABLED"
+    )
+    hydration_worker_sleep_s: float = Field(
+        default=30.0, validation_alias="ATHOME_HYDRATION_WORKER_SLEEP_S"
+    )
+    hydration_worker_max_jobs: int = Field(
+        default=1, validation_alias="ATHOME_HYDRATION_WORKER_MAX_JOBS"
+    )
     llm_timeout_s: float = Field(default=30.0, validation_alias="ATHOME_LLM_TIMEOUT_S")
     llm_temperature: float = Field(default=0.0, validation_alias="ATHOME_LLM_TEMPERATURE")
     llm_max_tokens: int = Field(default=2048, validation_alias="ATHOME_LLM_MAX_TOKENS")
+    llm_reasoning_effort: LLMReasoningEffort = Field(
+        default="low", validation_alias="ATHOME_LLM_REASONING"
+    )
 
     @property
     def budgets(self) -> Budgets:
@@ -193,6 +220,7 @@ class Settings(BaseSettings):
             llm_timeout_s=self.llm_timeout_s,
             llm_temperature=self.llm_temperature,
             llm_max_tokens=self.llm_max_tokens,
+            llm_reasoning_effort=self.llm_reasoning_effort,
         )
 
     @model_validator(mode="after")

@@ -14,7 +14,13 @@ import uuid
 
 import pytest
 
-from athome_harness.models import ListingDetail, ListingSummary, PriceBreakdown, SearchPlan
+from athome_harness.models import (
+    ListingCompleteness,
+    ListingDetail,
+    ListingSummary,
+    PriceBreakdown,
+    SearchPlan,
+)
 from athome_harness.store.base import StoreContractSuite
 from athome_harness.store.sqlite_store import SCHEMA_VERSION, SqliteStore, migrate
 
@@ -141,8 +147,148 @@ class TestSqliteStoreBehavior:
         conn.execute("SELECT internal_id FROM listings").fetchall()  # table exists
         conn.close()
 
+
+    def test_get_fresh_detail_requires_complete_fresh_record(
+        self, memory_store: SqliteStore
+    ) -> None:
+        """Fresh detail reads reject missing, expired, and partial records."""
+        from datetime import UTC, datetime, timedelta
+
+        now = datetime(2026, 1, 1, tzinfo=UTC)
+        detail_values = _make_summary(internal_id="fresh", athome_key="FRESH").model_dump()
+        detail_values.update(
+            completeness=ListingCompleteness.DETAIL_COMPLETE,
+            detail_fetched_at=now - timedelta(days=1),
+            detail_fresh_until=now + timedelta(days=1),
+            listing_detail=True,
+        )
+        detail = ListingDetail.model_validate(detail_values)
+        memory_store.upsert_listing(detail)
+        assert memory_store.get_fresh_detail("FRESH", now) == detail
+        assert memory_store.get_fresh_detail("FRESH", now + timedelta(days=2)) is None
+        memory_store._conn.execute(
+            "UPDATE listings SET completeness = 'summary_partial' WHERE athome_key = 'FRESH'"
+        )
+        memory_store._conn.commit()
+        assert memory_store.get_fresh_detail("FRESH", now) is None
+        assert memory_store.get_fresh_detail("MISSING", now) is None
+
     def test_unsaved_feedback_returns_false(self, memory_store: SqliteStore) -> None:
         """A listing with no feedback is neither saved nor rejected."""
         memory_store.upsert_listing(_make_summary())
         assert not memory_store.is_saved("listing-1")
         assert not memory_store.is_rejected("listing-1")
+
+
+class TestHydrationQueue:
+    """Durable queue behavior against real SQLite connections."""
+
+    def _intent(self, key: str, internal_id: str | None = None):
+        from athome_harness.models import HydrationIntent
+
+        return HydrationIntent(
+            athome_key=key,
+            internal_id=internal_id or key,
+            url=f"https://athome.example/{key}",
+        )
+
+    def test_enqueue_is_idempotent_and_fifo(self, memory_store: SqliteStore) -> None:
+        first = memory_store.enqueue_hydration(self._intent("a"))
+        duplicate = memory_store.enqueue_hydration(self._intent("a"), max_attempts=9)
+        memory_store.enqueue_hydration(self._intent("b"))
+        assert first is not None and duplicate is not None
+        assert duplicate.job_id == first.job_id
+        assert duplicate.max_attempts == 3
+        claimed = memory_store.claim_hydration()
+        assert claimed is not None and claimed.athome_key == "a"
+        assert memory_store.claim_hydration() is not None
+
+    def test_duplicate_claim_is_excluded_across_connections(self, tmp_path) -> None:
+        path = tmp_path / "queue.sqlite3"
+        first, second = SqliteStore(path), SqliteStore(path)
+        try:
+            first.enqueue_hydration(self._intent("a"))
+            claimed = first.claim_hydration()
+            assert claimed is not None
+            assert second.claim_hydration() is None
+        finally:
+            first.close()
+            second.close()
+
+    def test_stale_lease_reclaims(self, memory_store: SqliteStore) -> None:
+        memory_store.enqueue_hydration(self._intent("a"))
+        first = memory_store.claim_hydration(lease_seconds=1)
+        assert first is not None
+        memory_store._conn.execute(
+            "UPDATE hydration_jobs SET lease_until = ? WHERE athome_key = 'a'",
+            ("2000-01-01T00:00:00+00:00",),
+        )
+        memory_store._conn.commit()
+        second = memory_store.claim_hydration()
+        assert second is not None and second.lease_token != first.lease_token
+        assert second.attempts == 2
+
+    def test_success_failure_bounded_retry_and_cancel(self, memory_store: SqliteStore) -> None:
+        memory_store.enqueue_hydration(self._intent("a"), max_attempts=2)
+        first = memory_store.claim_hydration()
+        assert first is not None and first.lease_token is not None
+        retry = memory_store.record_hydration_failure("a", first.lease_token, "timeout", "slow")
+        assert retry.status.value == "queued" and retry.last_error_category == "timeout"
+        second = memory_store.claim_hydration()
+        assert second is not None and second.lease_token is not None
+        failed = memory_store.record_hydration_failure(
+            "a", second.lease_token, "challenge", "blocked"
+        )
+        assert failed.status.value == "failed"
+        memory_store.enqueue_hydration(self._intent("b"))
+        claim = memory_store.claim_hydration()
+        assert claim is not None and claim.lease_token is not None
+        done = memory_store.acknowledge_hydration_success("b", claim.lease_token)
+        assert done.status.value == "succeeded"
+        cancelled = memory_store.cancel_hydration("a", "verified unavailable")
+        assert cancelled.status.value == "cancelled"
+        assert cancelled.last_error_category == "unavailable"
+
+    def test_fresh_detail_suppresses_enqueue_and_claim(self, memory_store: SqliteStore) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        listing = _make_summary(
+            internal_id="fresh",
+            athome_key="fresh",
+            detail_fetched_at=datetime.now(UTC),
+            detail_fresh_until=datetime.now(UTC) + timedelta(hours=1),
+        )
+        memory_store.upsert_listing(listing)
+        assert memory_store.enqueue_hydration(self._intent("fresh", "fresh")) is None
+
+    def test_claim_time_freshness_marks_existing_job_skipped(
+        self, memory_store: SqliteStore
+    ) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        memory_store.enqueue_hydration(self._intent("fresh"))
+        memory_store.upsert_listing(
+            _make_summary(
+                internal_id="fresh",
+                athome_key="fresh",
+                detail_fetched_at=datetime.now(UTC),
+                detail_fresh_until=datetime.now(UTC) + timedelta(hours=1),
+            )
+        )
+        assert memory_store.claim_hydration() is None
+        job = memory_store.get_hydration_job("fresh")
+        assert job is not None and job.status.value == "skipped"
+
+    def test_migrate_v2_adds_queue_table(self, tmp_path) -> None:
+        path = tmp_path / "v2.sqlite3"
+        conn = sqlite3.connect(path)
+        conn.executescript(
+            "CREATE TABLE schema_version (version INTEGER NOT NULL); "
+            "INSERT INTO schema_version VALUES (2);"
+        )
+        conn.commit()
+        assert migrate(conn) == 3
+        assert conn.execute(
+            "SELECT name FROM sqlite_master WHERE name = 'hydration_jobs'"
+        ).fetchone()
+        conn.close()

@@ -145,6 +145,9 @@ place.
 * When a subagent reports landmines, the orchestrator (not the subagent) evaluates each for project-wide applicability and promotes the durable ones into this Architecture invariants list. Task-specific or one-off notes are recorded in the milestone report instead.
 * Delegated work uses the project-verified models (SPEC section 6 / PLAN.md decisions), never Haiku. Only downgrade to a lesser model for genuinely mechanical tasks.
 
+* After independently accepting a delegated milestone, merge its accepted branch into the current orchestrator branch before launching the next milestone. Every subsequent subagent must start from the latest integrated orchestrator tree, not from `origin/main` or an older sibling branch. Verify the merged tree and gate before dispatching again; otherwise stacked milestone branches create avoidable conflicts and hide integration defects.
+* Live diagnostics are opt-in and path-sensitive: the LLM request/completion dumps are written only when `DEBUG` is enabled, and the production cookie farmer intentionally rejects rather than persists challenged/rendered handoff HTML. A live run must set an explicit debug artifact directory or use the operator probe when raw challenge/handoff HTML is required; a log marker alone is not evidence that an artifact was captured.
+
 ### Engineering landmines (verified, promote durable surprises here)
 
 * pydantic v2 `model_copy(update=...)` does NOT re-run validators. Tests that assert a value invariant (for example a non-negative price) must construct the invalid instance via `Model.model_validate({...})` or direct construction, not by copying a valid one.
@@ -155,6 +158,9 @@ place.
 * `Settings` requires `OPENROUTER_API_KEY`; tests constructing settings directly must pass an explicit throwaway key rather than relying on a local `.env` file or a real credential.
 * Because `Settings.openrouter_api_key` is statically required even though `BaseSettings` loads it from the environment at runtime, strict-mypy production code must construct it explicitly, for example `Settings(openrouter_api_key=os.environ.get("OPENROUTER_API_KEY", ""))`; `Settings()` alone raises a call-argument type error. Tests should continue passing an explicit throwaway key.
 * Numeric label parsers must check specific unit words such as `million` and `thousand` before generic suffix patterns such as `m`; otherwise `5million` is misread as 5.
+* Patchright is a Python dependency but its Chrome binary is a separate runtime artifact. A missing-browser exception is an environment/setup failure, not a listing failure: future preflight/worker/CLI paths must report it explicitly and stop the current run instead of retrying it for every detail. Container/Railway setup must run `python -m patchright install chrome` during image or service setup.
+* `max_tokens`/`max_completion_tokens` cap combined reasoning plus visible output. A `finish_reason=length` response with empty content can be a correctly enforced cap exhausted by reasoning. A future continuation loop must be bounded, preserve the exact assistant response envelope and message history, and only continue when the provider explicitly supports it; never blindly append partial JSON and retry indefinitely.
+
 * Negative log-marker tests must assert universal absence, for example `not any(marker in record for record in records)`, not merely that one record lacks the marker.
 * Validators for snapshots with multiple supported flows must reject a missing entire flow, not only malformed fields within flows that happen to be present.
 * AtHome can return an HTTP 200 puzzle/authentication page instead of content. Treat `Click to verify`, `To regain access, please make sure that cookies and JavaScript are enabled`, and the Japanese authentication heading as challenge markers before parsing or saving HTML; use bounded alternate-request handling and never attempt to solve or circumvent the puzzle.

@@ -137,6 +137,14 @@ top_x: int | None = None, temperature: float = 0.0) -> list[ShortlistEntry]`:
 `ShortlistEntry` fields: `listing_id: str`, `score: float` (0 to 10),
 `rationale: str`. `ShortlistBatch` holds `entries: list[ShortlistEntry]`.
 
+### Compact property projection
+
+`llm/property_projection.py` defines the single `project_property_for_llm` contract used by both `Shortlister` and `Recommender`. It sends only ranking-oriented data: `athome_key`, title, address, station and walking time, price, floor plan, area, building type, floors, `construction_date`, USP tags, probable negatives, and detail-only pickup/facility features plus bounded text.
+
+`construction_date` remains the preferred construction/age field; when it is empty, the projection uses `age_display`. Description and remarks are consolidated into one `description` value: identical sources are emitted once, while different sources are retained with `Description:` and `Remarks:` labels. The projection omits agency metadata, URLs, freshness/completeness metadata, `internal_id`, numeric/raw/display age fields, and detail status fields listed in the approved payload removal contract. `athome_key` is retained as the prompt-to-source identifier.
+
+This is a prompt-only projection. `ListingSummary`, `ListingDetail`, SQLite payloads, recommendations, and rendered reports continue to use the full canonical listing objects. Token estimation, batch packing, and the Shortlister debug example all serialize this same projection.
+
 ## Recommender
 
 `llm/recommender.py` ranks `ListingDetail` values into the top-Y

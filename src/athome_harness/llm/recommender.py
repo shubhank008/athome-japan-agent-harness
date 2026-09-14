@@ -21,6 +21,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from athome_harness.llm.base import BaseLLMProvider
+from athome_harness.llm.property_projection import project_property_for_llm
 from athome_harness.models import ListingDetail, Recommendation, SearchPlan
 
 logger = logging.getLogger(__name__)
@@ -85,7 +86,8 @@ class Recommender:
         if limit == 0:
             return []
         constraints = self._describe_constraints(plan)
-        by_id = {det.internal_id: det for det in details}
+        by_id = {det.athome_key: det for det in details}
+        by_id.update({det.internal_id: det for det in details})
         user_lines = "\n".join(self._serialize(det) for det in details)
         user = (
             f"Constraints:\n{constraints}\n\nListings:\n{user_lines}\n\n"
@@ -117,7 +119,7 @@ class Recommender:
             seen_ids.add(entry.listing_id)
             recommendations.append(
                 Recommendation(
-                    listing_id=entry.listing_id,
+                    listing_id=detail.internal_id,
                     rank=len(recommendations) + 1,
                     reasons=entry.reasons,
                     satisfied_constraints=entry.satisfied_constraints,
@@ -145,9 +147,12 @@ class Recommender:
     @staticmethod
     def _serialize(detail: ListingDetail) -> str:
         """Serialize one detail to a compact JSON line for the prompt."""
-        data = detail.model_dump()
-        data.pop("photo_urls", None)
-        return json.dumps(data, ensure_ascii=False, separators=(",", ":"), default=str)
+        return json.dumps(
+            project_property_for_llm(detail),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            default=str,
+        )
 
 
 def render_markdown(recommendations: list[Recommendation], query: str = "") -> str:

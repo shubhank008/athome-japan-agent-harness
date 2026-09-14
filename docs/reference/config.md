@@ -28,10 +28,11 @@ The pydantic value object carrying the budget knobs. Every field is `ge=0`
 | `runtime_minutes` | `int` | `30` | `ATHOME_RUNTIME_MINUTES` | Runtime budget in minutes. |
 | `http_timeout_s` | `float` | `30.0` | `ATHOME_HTTP_TIMEOUT_S` | Per-request HTTP timeout. |
 | `proxy_retries` | `int` | `3` | `ATHOME_PROXY_RETRIES` | Proxy rotation budget. |
-| `prefetch_ttl_hours` | `float` | `48.0` | `ATHOME_PREFETCH_TTL_HOURS` | Prefetch cache TTL (post-MVP feature, not scheduled). |
+| `prefetch_ttl_hours` | `float` | `48.0` | `ATHOME_PREFETCH_TTL_HOURS` | Legacy unscheduled broad-prefetch setting. US-009 supersedes this design with a 14-day canonical-detail freshness policy; do not use this setting for detail hydration until its dedicated configuration is implemented. |
 | `llm_timeout_s` | `float` | `30.0` | `ATHOME_LLM_TIMEOUT_S` | OpenAI-compatible LLM request timeout. |
 | `llm_temperature` | `float` | `0.0` | `ATHOME_LLM_TEMPERATURE` | LLM scoring temperature. |
-| `llm_max_tokens` | `int` | `2048` | `ATHOME_LLM_MAX_TOKENS` | LLM completion ceiling. |
+| `llm_max_tokens` | `int` | `2048` | `ATHOME_LLM_MAX_TOKENS` | Universal total completion ceiling sent as both `max_tokens` and `max_completion_tokens`. |
+| `llm_reasoning_effort` | `low \| medium \| high` | `low` | `ATHOME_LLM_REASONING` | Qualitative reasoning effort sent to compatible providers; internal policy budgets are 2500, 5000, and 8000 tokens respectively. |
 
 ## Settings
 

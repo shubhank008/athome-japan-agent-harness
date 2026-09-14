@@ -242,8 +242,6 @@ class PlaywrightCookieFetcher:
             len(html),
             str(blocked).lower(),
         )
-        if not headers:
-            self._reject("render")
         if blocked and not blocked_allowed:
             self._reject("challenge")
         if len(html.strip()) < self._min_html_length and not (blocked and blocked_allowed):

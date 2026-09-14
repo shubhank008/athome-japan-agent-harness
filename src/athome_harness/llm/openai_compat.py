@@ -21,17 +21,22 @@ as JSON also raises a typed error instead of leaking raw content.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import time
+from pathlib import Path
 from typing import Protocol, cast
 
 from curl_cffi import requests as curl_requests
 
-from athome_harness.config import DEFAULT_GENERAL_MODEL
+from athome_harness.config import DEFAULT_GENERAL_MODEL, LLMReasoningEffort
 from athome_harness.llm.base import BaseLLMProvider, LLMProviderError, LLMUsage
 
 logger = logging.getLogger(__name__)
+
+_MAX_TRANSPORT_ATTEMPTS = 2
+_TRANSPORT_RETRY_DELAY_S = 1.0
 
 # The chat system role label the endpoint expects.
 _SYSTEM_ROLE = "system"
@@ -90,6 +95,7 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         session: ChatSession | None = None,
         base_url: str | None = None,
         max_tokens: int | None = None,
+        reasoning_effort: LLMReasoningEffort = "low",
         timeout_s: float = 30.0,
     ) -> None:
         """Configure an OpenAI-compatible transport.
@@ -112,10 +118,16 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         self._base_url = resolved_base_url
         if timeout_s < 0:
             raise ValueError("timeout_s must not be negative")
+        if max_tokens is not None and max_tokens < 1:
+            raise ValueError("max_tokens must be positive when configured")
+        if reasoning_effort not in {"low", "medium", "high"}:
+            raise ValueError("reasoning_effort must be one of: low, medium, high")
         self._max_tokens = max_tokens
+        self._reasoning_effort = reasoning_effort
         self._timeout_s = timeout_s
         self._session_owned = session is None
         self._session: ChatSession = session or self._build_session()
+        self._debug_response_index = 0
         # Stored solely to seed the Authorization header; never logged.
         self._api_key = resolved_key
 
@@ -159,25 +171,58 @@ class OpenAICompatibleProvider(BaseLLMProvider):
             "response_format": {"type": "json_object"},
         }
         if self._max_tokens is not None:
+            # Both fields are required because compatible gateways vary in preference.
             payload["max_tokens"] = self._max_tokens
+            payload["max_completion_tokens"] = self._max_tokens
+            payload["reasoning_effort"] = self._reasoning_effort
         started = time.monotonic()
-        try:
-            response = self._session.post(
-                self._base_url,
-                json=payload,
-                headers=self._request_headers(),
-                timeout=self._timeout_s,
-            )
-        except Exception as exc:  # transport-level failure (network, DNS, TLS)
-            logger.warning(
-                "[LLM_CALL] provider=<%s> status=<error> elapsed_s=<%.3f> timeout_s=<%.3f>",
-                self.provider_name,
-                time.monotonic() - started,
-                self._timeout_s,
-            )
-            raise LLMProviderError(
-                f"{self.provider_name} transport error: {type(exc).__name__}"
-            ) from exc
+        response: ChatResponse | None = None
+        for attempt in range(1, _MAX_TRANSPORT_ATTEMPTS + 1):
+            try:
+                response = self._session.post(
+                    self._base_url,
+                    json=payload,
+                    headers=self._request_headers(),
+                    timeout=self._timeout_s,
+                )
+            except Exception as exc:  # transport-level failure (network, DNS, TLS)
+                if attempt < _MAX_TRANSPORT_ATTEMPTS:
+                    logger.warning(
+                        "[LLM_TRANSPORT_RETRY] provider=<%s> attempt=<%d> reason=<%s>",
+                        self.provider_name,
+                        attempt,
+                        type(exc).__name__,
+                    )
+                    time.sleep(_TRANSPORT_RETRY_DELAY_S)
+                    continue
+                logger.warning(
+                    "[LLM_CALL] provider=<%s> status=<error> elapsed_s=<%.3f> timeout_s=<%.3f>",
+                    self.provider_name,
+                    time.monotonic() - started,
+                    self._timeout_s,
+                )
+                logger.error(
+                    "[LLM_TRANSPORT_FAILED] provider=<%s> attempts=<%d> reason=<%s>",
+                    self.provider_name,
+                    attempt,
+                    type(exc).__name__,
+                )
+                raise LLMProviderError(
+                    f"{self.provider_name} transport error: {type(exc).__name__}"
+                ) from exc
+            if response.status_code < 500 or response.status_code >= 600:
+                break
+            if attempt < _MAX_TRANSPORT_ATTEMPTS:
+                logger.warning(
+                    "[LLM_TRANSPORT_RETRY] provider=<%s> attempt=<%d> reason=<HTTP_%d>",
+                    self.provider_name,
+                    attempt,
+                    response.status_code,
+                )
+                time.sleep(_TRANSPORT_RETRY_DELAY_S)
+
+        if response is None:
+            raise LLMProviderError(f"{self.provider_name} transport returned no response")
         logger.info(
             "[LLM_CALL] provider=<%s> status=<http_%d> elapsed_s=<%.3f> timeout_s=<%.3f>",
             self.provider_name,
@@ -188,11 +233,55 @@ class OpenAICompatibleProvider(BaseLLMProvider):
         if not 200 <= response.status_code < 300:
             # API errors often carry a JSON body; surface status only, never body
             # which may embed secrets.
+            if response.status_code >= 500:
+                logger.error(
+                    "[LLM_TRANSPORT_FAILED] provider=<%s> attempts=<%d> reason=<HTTP_%d>",
+                    self.provider_name,
+                    _MAX_TRANSPORT_ATTEMPTS,
+                    response.status_code,
+                )
             raise LLMProviderError(f"{self.provider_name} returned HTTP {response.status_code}")
         body = self._parse_body(response)
-        content = self._extract_content(body)
         usage = self._extract_usage(body)
+        self._debug_response_index += 1
+        self._debug_dump_response(
+            self._debug_response_index,
+            body,
+            status_code=response.status_code,
+            elapsed_seconds=time.monotonic() - started,
+        )
+        content = self._extract_content(body)
         return content, usage
+
+    def _debug_dump_response(
+        self,
+        response_index: int,
+        body: dict[str, object],
+        *,
+        status_code: int,
+        elapsed_seconds: float,
+    ) -> None:
+        """Persist a complete provider response envelope when DEBUG is enabled."""
+        if os.getenv("DEBUG", "").lower() not in {"1", "true", "yes", "on"}:
+            return
+        debug_dir = Path(os.environ.get("ATHOME_DEBUG_DIR", "debug"))
+        debug_dir.mkdir(parents=True, exist_ok=True)
+        payload = {
+            "provider": self.provider_name,
+            "model": self._model,
+            "response_index": response_index,
+            "status_code": status_code,
+            "elapsed_seconds": elapsed_seconds,
+            "body": body,
+        }
+        (debug_dir / f"llm_provider_response_{response_index:03d}.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
+        (debug_dir / "llm_provider_response_last.json").write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, default=str),
+            encoding="utf-8",
+        )
 
     def _parse_body(self, response: ChatResponse) -> dict[str, object]:
         """Parse the response body into a dict, raising on malformed JSON."""

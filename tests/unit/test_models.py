@@ -7,8 +7,10 @@ from pydantic import ValidationError
 
 from athome_harness.config import Budgets
 from athome_harness.models import (
+    Agency,
     FilterMap,
     FilterOption,
+    ListingCompleteness,
     ListingDetail,
     ListingSummary,
     PriceBreakdown,
@@ -107,6 +109,37 @@ def test_listing_summary_defaults_optional_fields() -> None:
     assert listing.usp_tags == []
     assert listing.probable_negatives == []
     assert listing.photo_urls == []
+
+
+
+def test_listing_completeness_defaults_and_detail_status() -> None:
+    """Summaries remain partial by default and details are complete by default."""
+    assert _listing().completeness is ListingCompleteness.SUMMARY_PARTIAL
+    detail = ListingDetail(**_listing().model_dump(), description="Large balcony.")
+    assert detail.completeness is ListingCompleteness.DETAIL_COMPLETE
+
+
+def test_listing_freshness_requires_a_valid_timestamp_pair() -> None:
+    """Freshness metadata must be complete and chronologically ordered."""
+    with pytest.raises(ValidationError):
+        ListingSummary.model_validate(
+            _listing().model_dump() | {"detail_fetched_at": "2026-07-08T00:00:00Z"}
+        )
+    with pytest.raises(ValidationError):
+        ListingSummary.model_validate(
+            _listing().model_dump()
+            | {
+                "detail_fetched_at": "2026-07-09T00:00:00Z",
+                "detail_fresh_until": "2026-07-08T00:00:00Z",
+            }
+        )
+
+
+def test_agency_accepts_member_key_and_optional_fields() -> None:
+    """Agency records require only the stable AtHome member number."""
+    agency = Agency(kaiin_no="KAIIN-1")
+    assert agency.name is None
+    assert agency.kaiin_no == "KAIIN-1"
 
 
 def test_listing_detail_extends_summary() -> None:

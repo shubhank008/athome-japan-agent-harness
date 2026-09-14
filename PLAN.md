@@ -72,7 +72,8 @@ typed CookieHandoff), SessionRefarmer (production fallback loop orchestrating
 HttpDom -> block -> browser farm -> rebound HttpDom), BaseLLMProvider (OpenRouter or
 OpencodeGo, config-driven), BaseDataStore (SQLite first), BaseFloorPlanEvaluator (text default, vision
 stub). Webshare proxy rotation on block detection only. Weekly GitHub Action re-extracts the filter map and files an issue on
-DOM drift. Post-MVP: prefetch cache with freshness ordering and dead-listing
+DOM drift. Post-MVP: durable detail-hydration queue with background workers and
+live-path cache read.
 revalidation, vision A/B benchmarks.
 
 ## Milestone board (001)
@@ -88,13 +89,14 @@ revalidation, vision A/B benchmarks.
 | M6 Orchestration + CLI | T24-T26 | done (2026-08-19, `feat/001-m6-orchestration-cli`) |
 | M7 Maintenance surfaces | T27-T28 | done (2026-08-19, `feat/001-m7-maintenance-surfaces`) |
 | M8 Configurable providers | (factory) | done (PR #15 `feat/001-m8-configurable-providers`) |
-| Post-MVP | T29-T31 | spec'd, not scheduled |
+| Post-MVP | T29-T36 | T29-T34 detail hydration, agency records, recommendation ingestion, queue, worker, live cache implemented locally; T35-T36 vision and purchase coverage spec'd; not scheduled |
 
 ## Decisions log
 
 - 2026-07-08: Live searches scrape 100% of the LLM-filtered result set; broad-net
-  coverage for unfiltered exploration is delegated to the optional prefetch cache
-  (freshness-sorted), not to live searches. Rationale: 300k-listing prefectures make
+  coverage for unfiltered exploration is delegated to the optional post-MVP detail
+  hydration worker (evolved from the original prefetch-cache concept), not to live
+  searches. Rationale: 300k-listing prefectures make
   percentage-of-everything live scraping multi-hour and rate-limit hostile.
 
 ## Next implementation phases
@@ -105,54 +107,69 @@ implemented unless marked otherwise.
 
 ### Phase A: Diagnostics and observability
 
-- **A1: Stable DEBUG artifact contract**: make list/detail/LLM artifacts overwrite
-  fixed local paths; add per-target failure metadata; capture a post-handoff
-  challenge body only when `DEBUG=true`; never persist direct challenge bodies by
-  default. Add tests for redaction and overwrite behavior.
-- **A2: LLM payload inspection**: dump the last shortlist/recommender input and raw
-  output under DEBUG, including schema and token metadata; keep prompts and outputs
-  local and ignored. Add retention guidance for future remote observability.
+- **A1: Transport retry and final-call diagnostics**: add a bounded retry with
+  backoff for transient LLM transport failures, including the final recommender
+  call. Dump the recommender's raw request payload before transport, and its raw
+  response after transport, under stable DEBUG paths. Keep JSON/schema repair retry
+  behavior distinct from transport retry behavior. **Completed in `3282db2`.**
+- **A2: Stable DEBUG artifact contract**: retain fixed overwrite paths for
+  list/detail/LLM artifacts; capture a post-handoff challenge body only when
+  `DEBUG=true`; never persist direct challenge bodies by default. Add tests for
+  redaction, overwrite behavior, and valid-farmed-session challenge capture.
 - **A3: Diagnostic retention roadmap**: design dated debug subdirectories, 14-day
-  cleanup, and an optional remote log/analysis sink. Do not upload local captures
-  without explicit operator authorization.
+  cleanup, log rotation, and an optional remote log/analysis sink. Do not upload
+  local captures without explicit operator authorization. **Future roadmap.**
 
 ### Phase B: Detail data contract
 
 - **B1: Structured server-state parser**: validate
   `script#serverApp-state -> first-view-ITEMS.propertyData.rentInfo`, map fields,
-  and fall back to current DOM parsing. Completed in commit `5528fe6`.
+  and fall back to current DOM parsing. Completed in `5528fe6`; schema reference
+  and sanitized example are in `docs/reference/server-app-state.md`.
 - **B2: Financial and age semantics**: keep raw duration terms, make numeric deposit
   fields nullable for non-yen values, preserve construction date and age raw text,
-  and expose rounded/human-friendly age. Completed in `b727bd4`.
+  and expose rounded/human-friendly age. Implemented in `b727bd4`; regression
+  coverage and live-schema completeness review remain part of B5.
 - **B3: Detail metadata enrichment**: map contract period, building structure,
-  total units, remarks, and structured PICK UP enabled/disabled features. Completed
-  in `215dc47`; expand fixture coverage for missing/changed state keys.
+  total units, remarks, and structured PICK UP enabled/disabled features. Core
+  implementation landed in `215dc47`; verify all desired
+  `property-summary-main-content` fields against the server-state payload and add
+  fixture coverage.
 - **B4: Detail validation and hydration**: validate meaningful identity and price
   fields, merge valid detail values onto list summaries, preserve summary values on
   failure, and expose `listing_detail` plus a meaningful failure reason. Completed
-  in `b58f981`; add field-level failure diagnostics.
+  in `b58f981`.
+- **B5: Detail schema completeness**: audit the structured payload mapping for
+  contract period, construction date, floor, area, building metadata, and raw
+  remarks; add missing fields, tests, and sanitized example payload updates.
+  **After A1.**
 
 ### Phase C: Building-aware domain model
 
 - **C1: Building identity normalization**: define conservative identity keys from
   structured building ID when available, otherwise normalized building name/address.
-  Add collision and missing-identity tests.
+  Add collision and missing-identity tests. **After B5.**
 - **C2: Building and unit models**: introduce aggregate models while retaining every
-  unit's room, floor, price, area, contract, and URL fields.
-- **C3: Post-detail grouping**: group only after detail hydration; preserve units
-  and expose representative-unit selection without discarding alternatives.
-- **C4: Building-aware shortlist/report**: decide whether ranking occurs per unit or
-  building, show unit alternatives, and update store persistence without breaking
-  save/reject URLs.
+  unit's room, floor, price, area, contract, availability, and URL fields.
+- **C3: Post-detail grouping**: group only after detail hydration and before the
+  recommender prompt; preserve every unit and expose representative-unit selection
+  without discarding alternatives. This avoids pre-detail collisions and keeps
+  floor/price differences visible.
+- **C4: Building-aware shortlist/report**: rank at building level only with an
+  explicit unit-aware projection, show unit alternatives, and update store
+  persistence without breaking save/reject URLs.
 
 ### Phase D: Geography and query execution
 
 - **D1: Query-plan reporting**: persist flow, prefecture, cities, hard filters, and
-  soft preferences in JSON reports. Implemented in `50592c8`.
+  soft preferences in JSON reports. Implemented in `50592c8`; add explicit stage
+  log coverage for parsed plans.
 - **D2: Prefecture route resolver**: replace hard-coded Osaka paths with validated
   flow/prefecture route mappings; reject unsupported combinations explicitly.
-- **D3: City/area route resolver**: resolve parser city labels to AtHome slugs and
-  encode city context into list requests; add Tokyo, Sapporo, and Osaka tests.
+  **Next after detail/building contracts.**
+- **D3: City/area route resolver**: resolve parsed city/area names to verified
+  AtHome slugs and encode city context into list requests; add Tokyo, Sapporo,
+  and Osaka tests.
 - **D4: Multi-region live smoke checks**: run authorized bounded checks for one rent
   and one buy route per supported region; never claim a region is live without
   parser and filter-map evidence.
@@ -186,8 +203,44 @@ implemented unless marked otherwise.
 - **F3: Full no-mistakes run**: run lint, mypy, tests, documentation review, and
   publication only after each focused phase is committed.
 
+### Phase G: Detail hydration catalogue
+
+- **G1: Listing and agency persistence contract**: add explicit listing completeness
+  states (`summary_partial`, `summary_complete`, `detail_complete`), 14-day detail
+  freshness metadata, and a deduplicated `Agency` entity keyed by `kaiinNo`. **Implemented
+  locally in T29.**
+- **G2: Rich structured detail persistence**: store the selected `kaiinInfo` profile
+  separately and link it from listings; retain detail transit, facilities, images,
+  costs, surrounding data, and source payload for the internal record while keeping the
+  LLM projection compact and separately generated. **Implemented locally in T30.**
+- **G3: Recommendation-card ingestion**: normalize `otherPropertyData` into existing
+  summary records, upsert as `summary_complete`, never downgrade fresh detail, and
+  idempotently queue missing/stale detail hydration. **Implemented locally in T31 and
+  wired into live detail success.**
+- **G4: Durable FIFO hydration queue**: add atomic claim/lease, freshness recheck,
+  completion/skip, bounded retry, and deletion only on positively identified unavailable
+  detail pages. Block/challenge/timeout/parser failures remain retryable evidence.
+  **Implemented locally in T32.**
+- **G5: Lean background worker**: provide a config-gated standalone worker that claims,
+  fetches, validates, parses, upserts, and acknowledges one job at a time using existing
+  rate limits and challenge handling. On blocks/challenges, cool down or stop the
+  affected worker/pool and report the condition; never scale around target controls.
+  **Implemented locally in T33.**
+- **G6: Live-path cache read**: allow the LLM pipeline to use only fresh detail records;
+  otherwise it directly fetches and upserts detail without waiting for or sharing the
+  background worker path. **Implemented locally in T34.**
+- **G7: Deferred search-result cache**: if latency later requires it, cache complete
+  normalized search parameter queries briefly and independently from listing details.
+
 - 2026-07-08: robots.txt is honored in spirit (rate limits, session scope) not
   mechanically; user decision, on record.
+- 2026-09-12: LLM output budgeting uses a qualitative reasoning effort setting with
+  default `low`; the provisional numeric policy is low=2500, medium=5000, high=8000.
+  Provider payloads must preserve the single configured `ATHOME_LLM_MAX_TOKENS` value
+  as the total ceiling and send it in both `max_tokens` and `max_completion_tokens`.
+  Numeric reasoning fields remain internal telemetry until universally supported.
+- 2026-09-13: Live OpenCodeGo probes confirmed `glm-5.2` accepts `max_tokens`, `max_completion_tokens`, and `reasoning_effort`, but rejects `max_output_tokens` and nested `reasoning`; `deepseek-v4-flash` accepted all tested variants. To avoid model-specific configuration, the universal payload will send only `max_tokens` and `max_completion_tokens` from `ATHOME_LLM_MAX_TOKENS` plus qualitative `reasoning_effort` (default low). Low/medium/high desired numeric budgets (2500/5000/8000) remain internal policy and telemetry until a universally accepted numeric field exists; never send a field proven to make GLM requests fail.
+- 2026-09-13: LLM ranking uses a shared compact property projection: omit agency, URLs, cache/lifecycle metadata, internal IDs, duplicate age fields, and detail status; retain `athome_key`, construction date with age fallback, ranking features, and consolidated description/remarks. Canonical storage and reports remain rich. Building-level diversity is deferred until the Building -> Property[] design; retain unit-level records, then diversify final presentation by building while exposing sibling units outside the LLM output.
 - 2026-07-08: Filter map is context-keyed by (flow, filter name) because `kcXXX` codes
   collide across PRICEFROM/PRICETO and flows.
 - 2026-07-08: Project-scoped PRD.md and SPEC.md live at repo root; the feature spec in
@@ -244,6 +297,7 @@ implemented unless marked otherwise.
 - 2026-09-11: Validated `script#serverApp-state` is the preferred current detail source;
   parse `first-view-ITEMS.propertyData.rentInfo`, validate identity and required fields,
   and fall back to DOM parsing when wrappers or fields change.
+- 2026-09-11: Detail SSR retention keeps source-shaped listing, facility, cost, map, nearby-facility, selected agency, and recommendation-card data. `otherPropertyData` cards are immediate `summary_complete` candidates keyed by AtHome `id`, never full details: preserve richer `detail_complete` data, reuse fresh hydrated records, and enqueue canonical detail hydration only when missing or stale. `bukkenNo` is the external identity; `kanriNo` is stored as a non-unique agency property reference. Agencies are separate entities keyed by `kaiinNo`. Rich internal storage remains separate from a compact LLM projection.
 - 2026-09-11: Deposit/key-money duration terms remain raw strings with nullable numeric
   yen values; `なし` may map to zero, while `1ヶ月`, `0.5ヶ月`, and `15日` do not.
 - 2026-09-11: Building aggregation is post-detail and conservative. It must preserve

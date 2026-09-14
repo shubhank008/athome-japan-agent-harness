@@ -124,6 +124,24 @@ note in the reference).
 - `RunReport`: query, plan, counts, shortlist, recommendations, budgets consumed,
   partial flag.
 
+### 3.0 Observation status and decisions
+
+The following status matrix keeps the operator observations aligned with the
+implementation and prevents already-landed work from being re-planned:
+
+| Observation | Status | Source or next action |
+|---|---|---|
+| Retry a timed-out final recommendation call | Planned | Add bounded transport retry with backoff and tests; JSON repair retry remains a separate concern. |
+| Save a challenge body after a valid farmed session | Partially implemented | Stable post-handoff capture exists; verify the farmed-session success/challenge distinction and overwrite tests. Direct challenge bodies remain excluded. |
+| Keep diagnostic filenames stable | Implemented | DEBUG artifacts overwrite fixed paths; future dated retention is separate roadmap work. |
+| Human-friendly age, raw age, construction date, rounded numeric age | Implemented | `age`, `age_raw`, `construction_date`, and `age_display` exist; add completeness regression cases for structured payloads. |
+| Dump final recommender input and output | Partially implemented | Generic LLM dumps exist; make recommender-stage payloads explicit and verify raw output capture around transport failures. |
+| Building-level entity containing unit alternatives | Planned | Group only after detail hydration and before recommendation; preserve unit-level identity and actions. |
+| Contract period and richer building metadata | Partially implemented | Core fields are mapped from validated server state; audit payload coverage and add missing fields/tests. |
+| Prefecture/city/area routing | Partially implemented | Query plan and dynamic prefecture base exist; verified route and city slug resolution remain next geography work. |
+| Parsed hard/soft filters in reports | Implemented | `RunReport.plan` persists them; add explicit stage log coverage. |
+| New disabled PICK UP selector and grid feature selector | Implemented for current parser path | `.pickup-icon-list__item` and `.disabled` are supported; maintain current and legacy fixtures together. |
+
 ### 3.1 Current detail payload and hydration contract
 
 AtHome detail pages currently expose a structured SSR payload in
@@ -226,6 +244,29 @@ commit per task.
 
 - ~~Use monotonic clocks for every production stage and request duration marker.~~ Completed in `f85c94e`.
 - ~~Keep current detail selectors in the browser settle race and measure timeout rates.~~ Completed in `f85c94e`.
+
+#### Optimization Consideration
+
+The final recommendation prompt should be optimized from captured evidence rather
+than assumptions. Under `DEBUG=true`, retain the final recommender request and raw
+response in stable ignored files, with stage labels and token usage but without
+credentials or session headers. Compare the current full model serialization with
+these bounded alternatives:
+
+1. A compact JSON projection containing only fields used for hard-filter checks,
+   ranking, and user-facing explanation.
+2. A stable schema/system prefix followed by dynamic listing data, so provider
+   caching can be measured without timestamps or UUIDs in the prefix.
+3. A bounded output schema with capped reason and constraint-array lengths and a
+   recommendation-specific token ceiling.
+4. Building-aware prompts containing one building record plus its unit alternatives,
+   instead of repeating shared metadata for every unit.
+
+Record prompt tokens, completion tokens, latency, repair frequency, recommendation
+quality, and omitted-field errors for each variant. Do not serialize or upload raw
+prompts to a remote sink without explicit authorization. A transport timeout retry
+must remain bounded and separately accounted from schema repair.
+
 - Keep OpenCodeGo static system/schema prompt prefixes stable; put dynamic listing
   data after the prefix and never put timestamps or UUIDs in cacheable prefixes.
 - Measure prompt caching from provider evidence; a stable session ID alone does not

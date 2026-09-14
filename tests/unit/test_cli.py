@@ -51,7 +51,7 @@ def _small_list_page(full_html: str, buildings: int) -> str:
 SMALL_LIST_HTML = _small_list_page(LIST_HTML, 1)
 SMALL_LISTINGS = len(parse_list_page(SMALL_LIST_HTML))
 
-_ID_RE = re.compile(r'"internal_id":"([^"]+)"')
+_ID_RE = re.compile(r'"athome_key":"([^"]+)"')
 
 
 class ScriptedProvider(BaseLLMProvider):

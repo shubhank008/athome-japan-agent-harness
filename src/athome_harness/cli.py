@@ -30,6 +30,7 @@ import time
 import uuid
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -42,6 +43,7 @@ from athome_harness.llm.recommender import Recommender, render_json, render_mark
 from athome_harness.llm.shortlister import Shortlister
 from athome_harness.models import (
     FilterMap,
+    ListingCompleteness,
     ListingDetail,
     ListingSummary,
     Recommendation,
@@ -52,6 +54,11 @@ from athome_harness.scraping.challenge import detect_athome_challenge
 from athome_harness.scraping.detail_parser import parse_detail_page
 from athome_harness.scraping.harvester import Harvester
 from athome_harness.scraping.list_parser import parse_list_page
+from athome_harness.scraping.recommendation_cards import ingest_recommendation_cards
+from athome_harness.scraping.server_app_state import (
+    extract_server_app_agency,
+    extract_server_app_recommendation_cards,
+)
 from athome_harness.store.base import BaseDataStore
 
 logger = logging.getLogger(__name__)
@@ -79,6 +86,7 @@ class SessionDeps:
     report_dir: Path
     budgets: Budgets = field(default_factory=Budgets)
     clock: Callable[[], float] | None = None
+    detail_clock: Callable[[], datetime] | None = None
     confirm_plan: Callable[[str, SearchPlan], bool] | None = None
     detail_parser: Callable[[str], ListingDetail] | None = None
 
@@ -104,11 +112,28 @@ def _hydrate_detail(summary: ListingSummary, detail: ListingDetail) -> ListingDe
         "description",
         "floor_plan_image_url",
         "facility_features",
+        "building_name",
+        "building_structure",
+        "total_units",
+        "contract_period",
+        "pickup_features",
+        "remarks",
+        "structured_detail",
+        "source_data",
+        "agency",
+        "agency_reference",
+        "completeness",
+        "detail_fetched_at",
+        "detail_fresh_until",
     ):
         value = detail_values[field_name]
         if value is not None and value != "" and value != []:
             values[field_name] = value
-    return ListingDetail(**values, listing_detail=True, detail_failure_reason=None)
+    return ListingDetail(
+        **values,
+        listing_detail=True,
+        detail_failure_reason=None,
+    )
 
 
 @dataclass
@@ -184,6 +209,9 @@ class SearchSession:
         self._shortlister = Shortlister(deps.provider)
         self._recommender = Recommender(deps.provider)
         self._clock: Callable[[], float] = deps.clock or time.monotonic
+        self._detail_clock: Callable[[], datetime] = deps.detail_clock or (
+            lambda: datetime.now(UTC)
+        )
         self._confirm = deps.confirm_plan or (lambda query, plan: True)
         self._detail_parser = deps.detail_parser or (lambda html: parse_detail_page(html))
 
@@ -454,6 +482,10 @@ class SearchSession:
         for summary in summaries:
             detail_url = self._deps.build_detail_url(summary)
             try:
+                cached = self._deps.store.get_fresh_detail(summary.athome_key, self._detail_clock())
+                if cached is not None:
+                    details.append(_hydrate_detail(summary, cached))
+                    continue
                 html = self._deps.fetch(detail_url)
                 if detect_athome_challenge(html) is not None:
                     raise ValueError("challenge page returned for detail")
@@ -463,7 +495,24 @@ class SearchSession:
                 parsed = self._detail_parser(html)
                 if parsed.internal_id != summary.internal_id or not parsed.title:
                     raise ValueError("detail parser returned incomplete identity data")
-                details.append(_hydrate_detail(summary, parsed))
+                agency = extract_server_app_agency(html)
+                fetched_at = self._detail_clock()
+                hydrated = ListingDetail.model_validate(
+                    {
+                        **_hydrate_detail(summary, parsed).model_dump(),
+                        "completeness": ListingCompleteness.DETAIL_COMPLETE,
+                        "listing_detail": True,
+                        "detail_fetched_at": fetched_at,
+                        "detail_fresh_until": fetched_at + timedelta(days=14),
+                        "agency": agency,
+                    }
+                )
+                self._deps.store.upsert_listing(hydrated)
+                cards = extract_server_app_recommendation_cards(html, summary.athome_key)
+                ingestion = ingest_recommendation_cards(cards, self._deps.store)
+                for intent in ingestion.hydration_intents:
+                    self._deps.store.enqueue_hydration(intent)
+                details.append(hydrated)
             except Exception as exc:  # noqa: BLE001 - one detail failure degrades
                 failed += 1
                 reason = f"{type(exc).__name__}: {exc}"
@@ -486,9 +535,11 @@ class SearchSession:
                         ),
                         encoding="utf-8",
                     )
+                failed_values = summary.model_dump()
+                failed_values["completeness"] = ListingCompleteness.SUMMARY_PARTIAL
                 details.append(
                     ListingDetail(
-                        **summary.model_dump(),
+                        **failed_values,
                         listing_detail=False,
                         detail_failure_reason=reason,
                     )

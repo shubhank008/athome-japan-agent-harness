@@ -38,7 +38,7 @@ _DETAIL_FIXTURES = [
 ]
 EMPTY_LIST_HTML = "<html><body><div class='p-property--building'></div></body></html>"
 
-_ID_RE = re.compile(r'"internal_id":"([^"]+)"')
+_ID_RE = re.compile(r'"athome_key":"([^"]+)"')
 
 # Contract marker names for the happy path, in the order they must appear.
 HAPPY_PATH_MARKERS = [

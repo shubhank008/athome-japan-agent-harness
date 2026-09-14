@@ -69,7 +69,6 @@ def test_authorization_header_carries_key() -> None:
     assert headers["Authorization"] == "Bearer go-secret"
 
 
-
 def test_coding_agent_headers_use_one_stable_session_id() -> None:
     """OpenCodeGo identifies the app and reuses one UUID per provider instance."""
     session = _FakeSession([_FakeResponse(200, _ok_body()), _FakeResponse(200, _ok_body())])
@@ -133,3 +132,29 @@ def test_unknown_provider_name_error_message() -> None:
     session = _FakeSession([_FakeResponse(200, _ok_body())])
     with pytest.raises(LLMProviderError, match="OpenCodeGo"):
         OpenCodeGoProvider(session=session)
+
+
+def test_universal_policy_payload_when_configured() -> None:
+    """OpenCodeGo receives exactly the universal policy fields."""
+    session = _FakeSession([_FakeResponse(200, _ok_body())])
+    provider = OpenCodeGoProvider("k", session=session, max_tokens=513, reasoning_effort="high")
+    provider.complete_text(system="sys", user="usr")
+    payload = session.calls[0][1]["json"]
+    assert payload["max_tokens"] == 513  # type: ignore[index]
+    assert payload["max_completion_tokens"] == 513  # type: ignore[index]
+    assert payload["reasoning_effort"] == "high"  # type: ignore[index]
+    assert "max_output_tokens" not in payload  # type: ignore[operator]
+    assert "reasoning" not in payload  # type: ignore[operator]
+
+
+def test_unset_token_budget_omits_policy_fields() -> None:
+    """An unset token budget omits both ceilings and reasoning effort."""
+    session = _FakeSession([_FakeResponse(200, _ok_body())])
+    provider = OpenCodeGoProvider("k", session=session)
+    provider.complete_text(system="sys", user="usr")
+    payload = session.calls[0][1]["json"]
+    assert "max_tokens" not in payload  # type: ignore[operator]
+    assert "max_completion_tokens" not in payload  # type: ignore[operator]
+    assert "reasoning_effort" not in payload  # type: ignore[operator]
+    assert "max_output_tokens" not in payload  # type: ignore[operator]
+    assert "reasoning" not in payload  # type: ignore[operator]
